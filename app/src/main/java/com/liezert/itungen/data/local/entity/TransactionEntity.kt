@@ -1,10 +1,12 @@
 package com.liezert.itungen.data.local.entity
 
 import androidx.room.ColumnInfo
+import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import androidx.room.Relation
 import com.liezert.itungen.domain.model.TransactionType
 import java.time.Instant
 import java.time.LocalDate
@@ -41,4 +43,9 @@ data class TransactionEntity(
     // dan menambah FK ke tabel yang sudah ada butuh migrasi rebuild tabel.
     @ColumnInfo(name = "recurring_rule_id") val recurringRuleId: Long? = null,
     @ColumnInfo(name = "created_at") val createdAt: Instant,
+)
+
+data class TransactionWithCategory(
+    @Embedded val transaction: TransactionEntity,
+    @Relation(parentColumn = "category_id", entityColumn = "id") val category: CategoryEntity?,
 )

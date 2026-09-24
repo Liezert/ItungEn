@@ -92,7 +92,7 @@ class DaoTest {
 
         assertEquals(
             listOf(today, today.minusDays(1), today.minusDays(2)),
-            db.transactionDao().observeAll().first().map { it.date },
+            db.transactionDao().observeAll().first().map { it.transaction.date },
         )
     }
 }

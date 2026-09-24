@@ -225,7 +225,7 @@ Warna aksen per tab di navbar (Kategori/Insight, Goals, Profil) terlihat berbeda
 
 ### 6.4 Floating navbar
 
-**Tata letak:** navbar menyusut menjadi ≈ 279 dp lebar, ditambah celah 8 dp dan tombol "+" bulat 64 dp (total tetap 351 dp), tombol di sebelah kanan. Tab aktif: pil putih α0.1, radius 25, skala 110%, teks Inter Semi Bold 12.
+**Tata letak:** navbar selebar penuh 351 dp × 64 dp; tiap tab berisi ikon 22 dp di atas label Inter Semi Bold 11. Tab aktif: ikon dan label warna aksen tab, pil beraksen (isi aksen α0.14, garis tepi aksen α0.45, radius 25). Tombol "+" berupa FAB bulat 56 dp Glass Riil bertint biru, melayang 16 dp di atas navbar dan rata kanan dengannya (pola FAB Telegram).
 
 **Interaksi (hold-and-drag):**
 
@@ -317,7 +317,7 @@ Pengeluaran **boleh** membuat saldo dompet utama negatif (uang nyata tidak menun
 | **Domain** (JVM, tanpa perangkat) | JUnit | `RecommendationEngine` (semua kasus §5.3), `RecurringGenerator` (tanggal 31 di bulan 30 hari, Februari kabisat, catch-up beberapa bulan, idempoten), `TransferToGoal` (invarian saldo), format dan parsing rupiah |
 | **Data** (instrumented, DB in-memory) | AndroidX Test | Query DAO, unique index anti-duplikat, atomisitas transfer, uji migrasi |
 | **UI** (instrumented) | Compose UI Test | Alur utama: tambah transaksi, Tambah Dana, tap dan geser navbar |
-| **Manual di HP** | Checklist + profiler GPU | Kelancaran glass (target 120 Hz), kontras teks, haptic, bentuk navbar dengan tombol "+" |
+| **Manual di HP** | Checklist + profiler GPU | Kelancaran glass (target 120 Hz), kontras teks, haptic, bentuk navbar dan posisi FAB "+" |
 
 - Tidak ada target angka cakupan kode; fokus pada domain karena di sanalah bug uang paling mahal.
 - **CI (GitHub Actions):** build debug, unit test, dan lint pada setiap push. Bernilai untuk portofolio dan murah.
@@ -337,7 +337,7 @@ Pengeluaran **boleh** membuat saldo dompet utama negatif (uang nyata tidak menun
 | Backup | JSON (pulihkan) + CSV (ekspor) manual |
 | Glass | Dua tingkat; ≤ 3 permukaan riil bersamaan |
 | Navbar | Indikator langsung mengikuti jari; layar pindah saat lepas |
-| Tombol "+" | Bulat, di kanan navbar; navbar menyusut |
+| Tombol "+" | FAB bulat 56 dp di kanan atas navbar (menggantikan tata letak "+" di samping navbar) |
 | Nama tab | "Kategori" → "Insight" |
 | Profil | Tanpa "Keluar"; "Bergabung" = tanggal pertama pakai; Notifikasi disembunyikan dulu |
 
@@ -348,7 +348,7 @@ Pengeluaran **boleh** membuat saldo dompet utama negatif (uang nyata tidak menun
 1. **Definisi Total Saldo.** Default: saldo dompet utama saja (dana yang sudah masuk goal tidak dihitung). Alternatif: tampilkan total semua dompet.
 2. **Tombol hamburger dan ikon riwayat di top bar** (Figma) belum punya fungsi yang ditentukan. Default: ikon riwayat membuka Semua Transaksi; hamburger dihapus sampai ada isinya.
 3. **Android Auto Backup.** Default: dimatikan agar satu-satunya cadangan adalah ekspor manual yang terkontrol.
-4. **Muat tidaknya label "Beranda"** pada navbar yang menyusut (≈ 68 dp per tab) diverifikasi di playground.
+4. ~~**Muat tidaknya label "Beranda"** pada navbar yang menyusut.~~ Selesai: navbar kini selebar penuh (≈ 86 dp per tab) karena tombol "+" pindah ke atas navbar.
 5. **Data contoh** Figma tidak konsisten (Sepatu Lari 90% vs 56%; Rp 340.000 disebut mingguan dan bulanan). Satu set data contoh yang konsisten dibuat untuk pratinjau dan tes.
 6. **Hex final warna aksen per tab** dan nilai animasi (spring, refraksi) ditetapkan di glass playground.
 7. **Injeksi dependensi** (Hilt atau manual) diputuskan pada tahap 3.

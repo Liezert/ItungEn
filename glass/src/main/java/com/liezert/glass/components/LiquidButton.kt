@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -36,6 +37,8 @@ fun LiquidButton(
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
     shape: Shape = CircleShape,
+    /** Warna di atas kaca; default tint gelap agar isi tetap kontras (§6.2). */
+    surface: Color = GlassColors.GlassTint,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -59,7 +62,7 @@ fun LiquidButton(
                     scaleX = scale
                     scaleY = scale
                 },
-                onDrawSurface = { drawRect(GlassColors.GlassTint) },
+                onDrawSurface = { drawRect(surface) },
             )
             .clickable(interaction, indication = null, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,

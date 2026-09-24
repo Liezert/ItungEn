@@ -5,16 +5,20 @@ import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -31,7 +35,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
@@ -51,10 +58,10 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.liezert.glass.tokens.GlassColors
-import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
 
 // Angka §6.4, dikunci setelah uji di Realme 13+ (Tahap 2).
 private val NavShape = RoundedCornerShape(50)
@@ -66,13 +73,20 @@ private val PressSpring = spring<Float>(dampingRatio = 0.6f, stiffness = 500f)
 private val FollowSpring = spring<Float>(dampingRatio = 1f, stiffness = 1500f)
 private val SettleSpring = spring<Float>(dampingRatio = 0.7f, stiffness = 400f)
 
+/** Satu tab: ikon di atas label, [accent] untuk tab aktif (§6.1: Beranda #FFAF4E). */
+data class NavBarItem(
+    val label: String,
+    val icon: Painter,
+    val accent: Color = GlassColors.NavActive,
+)
+
 /**
  * Floating navbar Glass Riil dengan indikator hold-and-drag.
  * Posisi seret hidup di sini saja; [onSelect] hanya dipanggil saat jari dilepas.
  */
 @Composable
 fun FloatingNavBar(
-    labels: List<String>,
+    items: List<NavBarItem>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     backdrop: Backdrop,
@@ -120,10 +134,10 @@ fun FloatingNavBar(
                 onDrawSurface = { drawRect(GlassColors.GlassTint) },
             )
             .border(1.dp, GlassColors.NavBorder, NavShape)
-            .pointerInput(labels.size) {
+            .pointerInput(items.size) {
                 val padPx = Padding.toPx()
-                val tabWidth = (size.width - 2 * padPx) / labels.size
-                fun tabAt(x: Float) = ((x - padPx) / tabWidth - 0.5f).coerceIn(0f, labels.lastIndex.toFloat())
+                val tabWidth = (size.width - 2 * padPx) / items.size
+                fun tabAt(x: Float) = ((x - padPx) / tabWidth - 0.5f).coerceIn(0f, items.lastIndex.toFloat())
 
                 awaitEachGesture {
                     val down = awaitFirstDown()
@@ -157,7 +171,7 @@ fun FloatingNavBar(
             Modifier
                 .padding(Padding)
                 .fillMaxHeight()
-                .fillMaxWidth(1f / labels.size)
+                .fillMaxWidth(1f / items.size)
                 .graphicsLayer {
                     translationX = position.value * size.width
                     val stretch =
@@ -167,36 +181,34 @@ fun FloatingNavBar(
                     scaleY = scale - stretch / 2
                 }
                 .drawBehind {
-                    drawRoundRect(
-                        Color.White.copy(alpha = lerp(0.1f, 0.18f, press.value).coerceIn(0f, 1f)),
-                        cornerRadius = CornerRadius(25.dp.toPx()),
-                    )
+                    // Pil beraksen seperti Figma: isi tipis + garis tepi warna tab di bawahnya.
+                    val accent = items[zone.coerceIn(0, items.lastIndex)].accent
+                    val radius = CornerRadius(25.dp.toPx())
+                    drawRoundRect(accent.copy(alpha = lerp(0.14f, 0.22f, press.value).coerceIn(0f, 1f)), cornerRadius = radius)
+                    drawRoundRect(accent.copy(alpha = 0.45f), cornerRadius = radius, style = Stroke(1.dp.toPx()))
                 },
         )
         Row(Modifier.fillMaxSize().padding(Padding).selectableGroup()) {
-            labels.forEachIndexed { index, label ->
-                val lit = index == zone
-                Box(
+            items.forEachIndexed { index, item ->
+                val color = if (index == zone) item.accent else GlassColors.TabInactive
+                Column(
                     Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .semantics {
+                        .semantics(mergeDescendants = true) {
                             role = Role.Tab
                             selected = index == selectedIndex
                             onClick { currentOnSelect(index); true }
                         },
-                    contentAlignment = Alignment.Center,
+                    verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    Image(item.icon, contentDescription = null, Modifier.size(22.dp), colorFilter = ColorFilter.tint(color))
                     BasicText(
-                        label,
-                        Modifier.graphicsLayer {
-                            val scale = if (lit) 1.1f else 1f
-                            scaleX = scale
-                            scaleY = scale
-                        },
+                        item.label,
                         style = TextStyle(
-                            color = if (lit) GlassColors.TextPrimary else GlassColors.TabInactive,
-                            fontSize = 12.sp,
+                            color = color,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             textAlign = TextAlign.Center,
                         ),

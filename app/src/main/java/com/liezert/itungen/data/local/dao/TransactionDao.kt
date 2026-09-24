@@ -3,7 +3,9 @@ package com.liezert.itungen.data.local.dao
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Transaction
 import com.liezert.itungen.data.local.entity.TransactionEntity
+import com.liezert.itungen.data.local.entity.TransactionWithCategory
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -11,8 +13,9 @@ interface TransactionDao {
     @Insert
     suspend fun insert(transaction: TransactionEntity): Long
 
+    @Transaction
     @Query("SELECT * FROM transactions ORDER BY date DESC, created_at DESC, id DESC")
-    fun observeAll(): Flow<List<TransactionEntity>>
+    fun observeAll(): Flow<List<TransactionWithCategory>>
 
     /** Saldo = masuk (INCOME, TRANSFER_IN) − keluar (EXPENSE, TRANSFER_OUT). Satu sumber kebenaran (§3.2). */
     @Query(

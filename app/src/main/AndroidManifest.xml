@@ -3,6 +3,7 @@
 
     <!-- allowBackup=false: DESIGN_SPEC §11.3, cadangan hanya lewat ekspor manual. -->
     <application
+        android:name=".ItungEnApp"
         android:allowBackup="false"
         android:label="ItungEn"
         android:theme="@android:style/Theme.Material.NoActionBar">

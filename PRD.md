@@ -57,7 +57,7 @@ Aplikasi bekerja sepenuhnya **offline** (tanpa akun dan tanpa cloud). Data hanya
 
 ### 4.2 Setelah MVP (P1)
 
-Kategori kustom, ubah profil lokal, tema terang, pengingat/notifikasi.
+Kategori kustom, ubah profil lokal, tema terang, pengingat/notifikasi, FAB "+" sembunyi otomatis saat daftar discroll.
 
 ### 4.3 Di luar cakupan (sengaja)
 
@@ -103,7 +103,6 @@ Kategori kustom, ubah profil lokal, tema terang, pengingat/notifikasi.
 | Background task ditunda sistem hemat baterai Realme | Gaji otomatis telat | Catch-up saat app dibuka, unique index anti-duplikat |
 | Library glass bersifat komunitas dan bisa berubah | Build rusak | Pin versi, dibungkus di modul `:glass` agar mudah diganti |
 | Pemula di Android Studio | Kecepatan belajar | Tahap bertahap, isolasi risiko terbesar (glass) lebih awal |
-| Label tab terpanjang mungkin sempit saat navbar menyusut karena tombol "+" | Teks terpotong | Verifikasi di playground; cadangan: tombol "+" 56dp atau padding tab lebih kecil |
 
 ## 9. Pertanyaan terbuka
 
