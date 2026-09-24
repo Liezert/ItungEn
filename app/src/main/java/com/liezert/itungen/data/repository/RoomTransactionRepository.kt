@@ -4,10 +4,12 @@ import androidx.room.withTransaction
 import com.liezert.itungen.data.local.AppDatabase
 import com.liezert.itungen.data.local.entity.CategoryEntity
 import com.liezert.itungen.data.local.entity.RecurringRuleEntity
+import com.liezert.itungen.data.local.entity.RecurringRuleWithCategory
 import com.liezert.itungen.data.local.entity.TransactionEntity
 import com.liezert.itungen.data.local.entity.TransactionWithCategory
 import com.liezert.itungen.domain.model.Category
 import com.liezert.itungen.domain.model.CategoryType
+import com.liezert.itungen.domain.model.RecurringRule
 import com.liezert.itungen.domain.model.Transaction
 import com.liezert.itungen.domain.model.TransactionType
 import com.liezert.itungen.domain.repository.TransactionRepository
@@ -100,7 +102,33 @@ class RoomTransactionRepository(
         }
         inserted
     }
+
+    override fun observeRecurringRules(): Flow<List<RecurringRule>> =
+        db.recurringRuleDao().observeAll().map { rows -> rows.map { it.toDomain() } }
+
+    override suspend fun setRecurringRuleActive(id: Long, active: Boolean) {
+        db.withTransaction {
+            if (active) {
+                // Tanggal jatuh tempo sampai kemarin dianggap lewat; hari ini tetap dicatat bila jatuh tempo.
+                db.recurringRuleDao().skipUntil(id, LocalDate.now(clock).minusDays(1))
+            }
+            db.recurringRuleDao().setActive(id, active)
+            if (active) generateRecurring()
+        }
+    }
+
+    override suspend fun deleteRecurringRule(id: Long) = db.recurringRuleDao().delete(id)
 }
+
+private fun RecurringRuleWithCategory.toDomain() = RecurringRule(
+    id = rule.id,
+    category = category?.toDomain(),
+    type = rule.type,
+    amount = rule.amount,
+    note = rule.note,
+    dayOfMonth = rule.dayOfMonth,
+    isActive = rule.isActive,
+)
 
 private fun CategoryEntity.toDomain() = Category(id, name, icon, color, type)
 

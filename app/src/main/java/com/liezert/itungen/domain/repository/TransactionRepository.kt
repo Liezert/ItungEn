@@ -2,6 +2,7 @@ package com.liezert.itungen.domain.repository
 
 import com.liezert.itungen.domain.model.Category
 import com.liezert.itungen.domain.model.CategoryType
+import com.liezert.itungen.domain.model.RecurringRule
 import com.liezert.itungen.domain.model.Transaction
 import com.liezert.itungen.domain.model.TransactionType
 import kotlinx.coroutines.flow.Flow
@@ -31,4 +32,13 @@ interface TransactionRepository {
 
     /** Mencatat semua jatuh tempo aturan bulanan sampai hari ini; aman dijalankan berulang. Mengembalikan jumlah baris baru. */
     suspend fun generateRecurring(): Int
+
+    /** Aktif dulu. */
+    fun observeRecurringRules(): Flow<List<RecurringRule>>
+
+    /** Diaktifkan kembali: bulan-bulan selama nonaktif tidak dikejar, pencatatan mulai lagi hari ini. */
+    suspend fun setRecurringRuleActive(id: Long, active: Boolean)
+
+    /** Transaksi yang sudah tercatat dari aturan ini tetap ada. */
+    suspend fun deleteRecurringRule(id: Long)
 }

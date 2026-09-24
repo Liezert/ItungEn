@@ -33,9 +33,10 @@ import com.liezert.glass.components.NavBarItem
 import com.liezert.glass.tokens.GlassColors
 import com.liezert.itungen.R
 import com.liezert.itungen.ui.addtransaction.AddTransactionScreen
+import com.liezert.itungen.ui.profile.ProfileScreen
 import com.liezert.itungen.ui.transactions.TransactionsScreen
 
-// ponytail: navigasi berbasis state; pakai navigation-compose saat sub-layar Profil/Semua Transaksi dibuat (Tahap 4).
+// ponytail: navigasi berbasis state (satu sub-layar per tab); pindah ke navigation-compose saat sub-layar kedua muncul.
 @Composable
 fun ItungEnRoot() {
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -52,6 +53,7 @@ fun ItungEnRoot() {
         Box(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
             when (tab) {
                 0 -> TransactionsScreen()
+                3 -> ProfileScreen()
                 else -> Text(
                     "Menyusul di Tahap 4",
                     color = GlassColors.TextSecondary,

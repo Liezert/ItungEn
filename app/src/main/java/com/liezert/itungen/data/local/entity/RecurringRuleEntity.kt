@@ -1,10 +1,12 @@
 package com.liezert.itungen.data.local.entity
 
 import androidx.room.ColumnInfo
+import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import androidx.room.Relation
 import com.liezert.itungen.domain.model.TransactionType
 import java.time.LocalDate
 
@@ -29,4 +31,9 @@ data class RecurringRuleEntity(
     @ColumnInfo(name = "end_date") val endDate: LocalDate? = null,
     @ColumnInfo(name = "last_generated_date") val lastGeneratedDate: LocalDate? = null,
     @ColumnInfo(name = "is_active") val isActive: Boolean = true,
+)
+
+data class RecurringRuleWithCategory(
+    @Embedded val rule: RecurringRuleEntity,
+    @Relation(parentColumn = "category_id", entityColumn = "id") val category: CategoryEntity?,
 )

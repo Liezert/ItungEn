@@ -56,4 +56,32 @@ class RecurringTest {
         assertEquals(0, later.generateRecurring())
         assertEquals(9_000_000L, later.observeMainBalance().first())
     }
+
+    @Test
+    fun deactivate_reactivateWithoutBackfill_delete_keepsHistory() = runBlocking<Unit> {
+        val start = repoAt(LocalDate.of(2026, 7, 25))
+        val salary = start.observeCategories(CategoryType.INCOME).first().first { it.name == "Gaji" }
+        start.addToMainWallet(TransactionType.INCOME, 3_000_000, salary.id, "Gaji", LocalDate.of(2026, 7, 25), repeatMonthly = true)
+        val ruleId = start.observeRecurringRules().first().single().id
+
+        // Nonaktif sejak Juli: Agustus tidak tercatat.
+        start.setRecurringRuleActive(ruleId, false)
+        assertEquals(0, repoAt(LocalDate.of(2026, 8, 30)).generateRecurring())
+
+        // Aktif lagi tepat di hari gajian September: Agustus tidak dikejar, September tercatat.
+        val payday = repoAt(LocalDate.of(2026, 9, 25))
+        payday.setRecurringRuleActive(ruleId, true)
+        assertEquals(
+            listOf(LocalDate.of(2026, 9, 25), LocalDate.of(2026, 7, 25)),
+            payday.observeTransactions().first().map { it.date },
+        )
+
+        assertEquals(1, repoAt(LocalDate.of(2026, 10, 25)).generateRecurring())
+
+        // Hapus aturan: riwayat tetap, pencatatan berhenti.
+        payday.deleteRecurringRule(ruleId)
+        assertEquals(emptyList<Any>(), payday.observeRecurringRules().first())
+        assertEquals(0, repoAt(LocalDate.of(2026, 11, 25)).generateRecurring())
+        assertEquals(9_000_000L, payday.observeMainBalance().first())
+    }
 }

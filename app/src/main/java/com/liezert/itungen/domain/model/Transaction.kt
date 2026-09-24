@@ -21,6 +21,17 @@ data class Transaction(
     val date: LocalDate,
 )
 
+/** Aturan bulanan (gaji / tagihan tetap). */
+data class RecurringRule(
+    val id: Long,
+    val category: Category?,
+    val type: TransactionType,
+    val amount: Long,
+    val note: String?,
+    val dayOfMonth: Int,
+    val isActive: Boolean,
+)
+
 enum class TransactionError { AMOUNT_REQUIRED, AMOUNT_TOO_LARGE, CATEGORY_REQUIRED, DATE_IN_FUTURE }
 
 /** Aturan F1 / §7.1. [today] diinjeksi agar bisa diuji tanpa jam sistem. */
