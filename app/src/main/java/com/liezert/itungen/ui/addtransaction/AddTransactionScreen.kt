@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.InputTransformation
 import androidx.compose.foundation.text.input.OutputTransformation
@@ -35,6 +36,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -46,6 +48,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
@@ -152,6 +155,22 @@ fun AddTransactionScreen(
 
         OutlinedButton(onClick = { pickingDate = true }, modifier = Modifier.fillMaxWidth()) {
             Text("Tanggal: ${state.date.formatId()}")
+        }
+
+        Row(
+            Modifier.toggleable(value = state.repeatMonthly, role = Role.Switch, onValueChange = viewModel::setRepeatMonthly),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Ulangi tiap bulan", color = GlassColors.TextPrimary, fontSize = 16.sp)
+                Text(
+                    "Dicatat otomatis setiap tanggal ${state.date.dayOfMonth}" +
+                        if (state.date.dayOfMonth > 28) " (atau akhir bulan)" else "",
+                    color = GlassColors.TextSecondary,
+                    fontSize = 12.sp,
+                )
+            }
+            Switch(checked = state.repeatMonthly, onCheckedChange = null)
         }
 
         val message = state.error?.message() ?: if (state.saveFailed) "Gagal menyimpan. Coba lagi." else null

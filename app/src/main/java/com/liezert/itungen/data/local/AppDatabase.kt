@@ -1,6 +1,7 @@
 package com.liezert.itungen.data.local
 
 import android.content.Context
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -8,9 +9,11 @@ import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.liezert.itungen.data.local.dao.CategoryDao
+import com.liezert.itungen.data.local.dao.RecurringRuleDao
 import com.liezert.itungen.data.local.dao.TransactionDao
 import com.liezert.itungen.data.local.dao.WalletDao
 import com.liezert.itungen.data.local.entity.CategoryEntity
+import com.liezert.itungen.data.local.entity.RecurringRuleEntity
 import com.liezert.itungen.data.local.entity.TransactionEntity
 import com.liezert.itungen.data.local.entity.WalletEntity
 import com.liezert.itungen.domain.model.CategoryType
@@ -19,17 +22,21 @@ import com.liezert.itungen.domain.model.CategoryType.INCOME
 import java.time.Instant
 import java.time.LocalDate
 
-// Jangan pernah fallbackToDestructiveMigration: setiap versi baru wajib Migration eksplisit (§7.4).
+// Jangan pernah fallbackToDestructiveMigration: setiap versi baru wajib migrasi eksplisit yang diuji (§7.4).
 @Database(
-    entities = [WalletEntity::class, CategoryEntity::class, TransactionEntity::class],
-    version = 1,
+    entities = [WalletEntity::class, CategoryEntity::class, TransactionEntity::class, RecurringRuleEntity::class],
+    version = 2,
     exportSchema = true,
+    autoMigrations = [
+        AutoMigration(from = 1, to = 2), // + tabel recurring_rules (Tahap 4)
+    ],
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun walletDao(): WalletDao
     abstract fun categoryDao(): CategoryDao
     abstract fun transactionDao(): TransactionDao
+    abstract fun recurringRuleDao(): RecurringRuleDao
 
     companion object {
         /** [name] null = database in-memory, untuk test. */

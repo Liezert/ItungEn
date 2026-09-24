@@ -51,9 +51,16 @@ dependencies {
 
     implementation(libs.androidx.room.runtime)
     ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.work.runtime)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.room.testing)
+
+    constraints {
+        // room-testing butuh 1.8+, sedangkan classpath test dipaksa sama dengan runtime app (1.7.3 transitif).
+        implementation(libs.kotlinx.serialization.core) { because("MigrationTestHelper AbstractMethodError di 1.7.3") }
+    }
 }

@@ -29,6 +29,8 @@ data class AddTransactionUiState(
     val categoryId: Long? = null,
     val date: LocalDate,
     val today: LocalDate,
+    /** Gaji / tagihan tetap: dicatat otomatis setiap bulan pada tanggal yang sama. */
+    val repeatMonthly: Boolean = false,
     val error: TransactionError? = null,
     val saveFailed: Boolean = false,
     val saving: Boolean = false,
@@ -66,6 +68,8 @@ class AddTransactionViewModel(
 
     fun selectDate(date: LocalDate) = form.update { it.copy(date = date, error = null) }
 
+    fun setRepeatMonthly(repeat: Boolean) = form.update { it.copy(repeatMonthly = repeat) }
+
     /** [amountDigits] berisi angka saja, tanpa pemisah ribuan. */
     fun save(amountDigits: String, note: String) {
         val current = form.value
@@ -85,6 +89,7 @@ class AddTransactionViewModel(
                     categoryId = current.categoryId!!,
                     note = note.trim().ifEmpty { null },
                     date = current.date,
+                    repeatMonthly = current.repeatMonthly,
                 )
                 form.update { it.copy(saving = false, saved = true) }
             } catch (_: SQLiteException) {

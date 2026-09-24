@@ -16,6 +16,19 @@ interface TransactionRepository {
 
     fun observeCategories(type: CategoryType): Flow<List<Category>>
 
-    /** Mencatat pemasukan/pengeluaran di dompet utama. */
-    suspend fun addToMainWallet(type: TransactionType, amount: Long, categoryId: Long, note: String?, date: LocalDate)
+    /**
+     * Mencatat pemasukan/pengeluaran di dompet utama. Bila [repeatMonthly], dibuat aturan bulanan
+     * mulai [date] (gaji / tagihan tetap) dan transaksinya dicatat oleh [generateRecurring].
+     */
+    suspend fun addToMainWallet(
+        type: TransactionType,
+        amount: Long,
+        categoryId: Long,
+        note: String?,
+        date: LocalDate,
+        repeatMonthly: Boolean = false,
+    )
+
+    /** Mencatat semua jatuh tempo aturan bulanan sampai hari ini; aman dijalankan berulang. Mengembalikan jumlah baris baru. */
+    suspend fun generateRecurring(): Int
 }

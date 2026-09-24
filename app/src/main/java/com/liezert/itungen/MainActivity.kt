@@ -13,4 +13,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent { ItungEnTheme { ItungEnRoot() } }
     }
+
+    override fun onStart() {
+        super.onStart()
+        (application as ItungEnApp).container.catchUpRecurring()
+    }
 }

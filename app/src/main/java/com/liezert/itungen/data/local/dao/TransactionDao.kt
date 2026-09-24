@@ -2,6 +2,7 @@ package com.liezert.itungen.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import com.liezert.itungen.data.local.entity.TransactionEntity
@@ -12,6 +13,10 @@ import kotlinx.coroutines.flow.Flow
 interface TransactionDao {
     @Insert
     suspend fun insert(transaction: TransactionEntity): Long
+
+    /** -1 bila baris sudah ada (unique index recurring_rule_id + date), jadi aman dijalankan berulang. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertOrIgnore(transaction: TransactionEntity): Long
 
     @Transaction
     @Query("SELECT * FROM transactions ORDER BY date DESC, created_at DESC, id DESC")
