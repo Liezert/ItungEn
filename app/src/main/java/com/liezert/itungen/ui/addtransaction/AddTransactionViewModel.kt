@@ -30,7 +30,6 @@ data class AddTransactionUiState(
     val date: LocalDate,
     val today: LocalDate,
     /** Gaji / tagihan tetap: dicatat otomatis setiap bulan pada tanggal yang sama. */
-    val repeatMonthly: Boolean = false,
     val error: TransactionError? = null,
     val saveFailed: Boolean = false,
     val saving: Boolean = false,
@@ -42,22 +41,18 @@ class AddTransactionViewModel(
     private val clock: Clock,
 ) : ViewModel() {
 
-    private fun initialState() = LocalDate.now(clock).let { AddTransactionUiState(date = it, today = it) }
-
-    private val form = MutableStateFlow(initialState())
+    // ViewModel mengikuti layar di back stack, jadi form kosong lagi setiap layar dibuka.
+    private val form = LocalDate.now(clock).let { MutableStateFlow(AddTransactionUiState(date = it, today = it)) }
 
     val uiState: StateFlow<AddTransactionUiState> = combine(
         form,
         repository.observeCategories(CategoryType.EXPENSE),
         repository.observeCategories(CategoryType.INCOME),
     ) { form, expense, income ->
-        form.copy(categories = if (form.type == CategoryType.EXPENSE) expense else income)
+        val categories = if (form.type == CategoryType.EXPENSE) expense else income
+        // Kategori pertama terpilih sejak awal, seperti di Figma.
+        form.copy(categories = categories, categoryId = form.categoryId ?: categories.firstOrNull()?.id)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), form.value)
-
-    /** ViewModel hidup sepanjang Activity, jadi form dikosongkan setiap kali layar ditutup. */
-    fun reset() {
-        form.value = initialState()
-    }
 
     fun selectType(type: CategoryType) = form.update {
         // Kategori beda per tipe, jadi pilihan lama tidak berlaku lagi.
@@ -68,11 +63,10 @@ class AddTransactionViewModel(
 
     fun selectDate(date: LocalDate) = form.update { it.copy(date = date, error = null) }
 
-    fun setRepeatMonthly(repeat: Boolean) = form.update { it.copy(repeatMonthly = repeat) }
 
     /** [amountDigits] berisi angka saja, tanpa pemisah ribuan. */
     fun save(amountDigits: String, note: String) {
-        val current = form.value
+        val current = uiState.value
         if (current.saving) return
         val amount = amountDigits.toLongOrNull()
         val error = validateTransaction(amount, current.categoryId, current.date, LocalDate.now(clock))
@@ -89,7 +83,6 @@ class AddTransactionViewModel(
                     categoryId = current.categoryId!!,
                     note = note.trim().ifEmpty { null },
                     date = current.date,
-                    repeatMonthly = current.repeatMonthly,
                 )
                 form.update { it.copy(saving = false, saved = true) }
             } catch (_: SQLiteException) {

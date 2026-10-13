@@ -28,4 +28,6 @@ dependencies {
     api(libs.androidx.compose.ui)
     api(libs.androidx.compose.foundation)
     api(libs.backdrop)
+    api(libs.kyant.shapes)
+    implementation(libs.androidx.activity.compose) // BackHandler untuk sheet & dialog
 }

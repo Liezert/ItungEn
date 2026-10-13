@@ -1,0 +1,44 @@
+package com.liezert.itungen.data.sync
+
+import com.liezert.itungen.data.local.dao.PendingGoal
+import com.liezert.itungen.data.local.dao.PendingTransaction
+import com.liezert.itungen.data.local.entity.GoalEntity
+import com.liezert.itungen.data.local.entity.TransactionEntity
+import com.liezert.itungen.domain.model.GoalStatus
+import com.liezert.itungen.domain.model.TransactionType
+import org.junit.Assert.assertEquals
+import org.junit.Test
+import java.time.Instant
+import java.time.LocalDate
+
+/** Dokumen yang diunggah satu HP harus menghasilkan baris yang sama di HP lain (selain id lokal). */
+class SyncMappingTest {
+
+    @Test
+    fun transaction_roundTrip() {
+        val local = TransactionEntity(
+            id = 7, walletId = 1, categoryId = 3, type = TransactionType.EXPENSE, amount = 18_000, note = "Makan siang",
+            date = LocalDate.of(2026, 10, 13), transferGroupId = null, createdAt = Instant.ofEpochMilli(1_760_000_000_123),
+            uuid = "tx-1", synced = false,
+        )
+        val doc = PendingTransaction(local, walletUuid = "main", categoryUuid = "default-expense-food").toDoc()
+
+        assertEquals("main", doc["walletUuid"])
+        assertEquals("default-expense-food", doc["categoryUuid"])
+        // Di HP lain: id lokal berbeda, sudah tersinkron.
+        assertEquals(local.copy(id = 0, walletId = 11, categoryId = 33, synced = true), transactionFromDoc("tx-1", doc, 11, 33))
+    }
+
+    @Test
+    fun goal_roundTrip_withNullDate() {
+        val local = GoalEntity(
+            id = 4, walletId = 9, title = "Sepatu Lari", targetAmount = 800_000, targetDate = null, plannedMonthly = 0,
+            status = GoalStatus.ACHIEVED, createdAt = Instant.ofEpochMilli(1_760_000_000_000), uuid = "goal-1", synced = false,
+        )
+        val doc = PendingGoal(local, walletUuid = "wallet-1", walletArchived = false).toDoc()
+
+        assertEquals("wallet-1", doc["walletUuid"])
+        assertEquals(false, doc["walletArchived"])
+        assertEquals(local.copy(id = 0, walletId = 5, synced = true), goalFromDoc("goal-1", doc, 5))
+    }
+}

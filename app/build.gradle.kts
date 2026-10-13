@@ -5,6 +5,10 @@ plugins {
     alias(libs.plugins.androidx.room)
 }
 
+// Konfigurasi Firebase dari Firebase Console. Tanpa file ini app tetap ter-build dan berjalan sebagai tamu
+// (tombol "Masuk dengan Google" menampilkan pesan belum dikonfigurasi).
+if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
+
 android {
     namespace = "com.liezert.itungen"
     compileSdk {
@@ -48,10 +52,19 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.navigation.compose)
 
     implementation(libs.androidx.room.runtime)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.work.runtime)
+
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services)
+    implementation(libs.googleid)
+    implementation(libs.kotlinx.coroutines.play.services)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.junit)

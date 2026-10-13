@@ -1,0 +1,205 @@
+package com.liezert.itungen.data.sync
+
+import android.content.SharedPreferences
+import android.util.Log
+import androidx.core.content.edit
+import androidx.room.withTransaction
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.CollectionReference
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Source
+import com.liezert.itungen.data.local.AppDatabase
+import com.liezert.itungen.data.local.entity.WalletEntity
+import com.liezert.itungen.domain.model.WalletType
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeout
+import java.time.Instant
+
+sealed interface SyncStatus {
+    data object Idle : SyncStatus
+    data object Syncing : SyncStatus
+    data class Synced(val at: Instant) : SyncStatus
+    data object Failed : SyncStatus
+}
+
+/**
+ * Sinkron Room ↔ Firestore (`users/{uid}/goals`, `users/{uid}/transactions`). Room tetap sumber data layar,
+ * jadi app jalan penuh saat offline.
+ *
+ * - Unggah: baris `synced = 0` dikirim per batch, lalu ditandai `synced = 1` setelah server menerima.
+ * - Tarik: dokumen dengan `syncedAt` (waktu server) setelah kursor terakhir, per akun. Goal dulu, baru transaksi,
+ *   karena transaksi merujuk dompet goal.
+ * - Bentrok: transaksi tidak pernah diubah; goal yang masih punya perubahan lokal menang (akan diunggah).
+ */
+class SyncManager(
+    private val db: AppDatabase,
+    /** Dibuat saat pertama dipakai: hanya setelah masuk, yang berarti Firebase sudah terkonfigurasi. */
+    firestoreProvider: () -> FirebaseFirestore,
+    private val account: GoogleAccount,
+    private val prefs: SharedPreferences,
+    scope: CoroutineScope,
+) {
+    private val firestore by lazy(firestoreProvider)
+    private val dao = db.syncDao()
+    private val mutex = Mutex()
+    private val _status = MutableStateFlow<SyncStatus>(SyncStatus.Idle)
+    val status: StateFlow<SyncStatus> = _status.asStateFlow()
+
+    init {
+        // Unggah otomatis setiap ada perubahan lokal selama masuk. Jeda singkat mengumpulkan beberapa perubahan;
+        // bila gagal (offline), tunggu lebih lama agar tidak mencoba terus-menerus.
+        scope.launch {
+            combine(account.user, dao.observePendingCount()) { user, pending -> user != null && pending > 0 }
+                .conflate()
+                .collect { needed ->
+                    if (!needed) return@collect
+                    delay(1_500)
+                    if (!sync()) delay(30_000)
+                }
+        }
+    }
+
+    /** Unggah lalu tarik. false bila belum masuk atau gagal (mis. offline); data lokal tidak berubah karena gagal. */
+    suspend fun sync(): Boolean = mutex.withLock {
+        val uid = account.user.value?.uid ?: return false
+        _status.value = SyncStatus.Syncing
+        try {
+            // Tanpa koneksi, commit Firestore menunggu selamanya; batas waktu mengembalikan kontrol ke pengguna.
+            withTimeout(30_000) {
+                push(uid)
+                pull(uid)
+            }
+            _status.value = SyncStatus.Synced(Instant.now())
+            true
+        } catch (e: CancellationException) {
+            if (e !is TimeoutCancellationException) throw e
+            _status.value = SyncStatus.Failed
+            false
+        } catch (e: Exception) {
+            Log.w("ItungEn", "Sinkron gagal", e)
+            _status.value = SyncStatus.Failed
+            false
+        }
+    }
+
+    /**
+     * Keluar akun. Data di HP dihapus (tetap aman di akun) agar akun lain yang masuk berikutnya tidak tercampur.
+     * false = masih ada perubahan yang belum terunggah dan unggah gagal; tidak ada yang dihapus.
+     */
+    suspend fun signOut(): Boolean {
+        if (dao.pendingCount() > 0 && !sync()) return false
+        mutex.withLock {
+            if (dao.pendingCount() > 0) return false // berubah lagi selama unggah
+            val uid = account.user.value?.uid
+            account.signOut()
+            db.withTransaction {
+                dao.deleteTransactions()
+                dao.deleteGoals()
+                dao.deleteGoalWallets()
+            }
+            if (uid != null) prefs.edit { Collections.forEach { remove(cursorKey(uid, it)) } }
+            _status.value = SyncStatus.Idle
+        }
+        return true
+    }
+
+    private suspend fun push(uid: String) {
+        val user = firestore.collection("users").document(uid)
+        for (chunk in dao.pendingGoals().chunked(400)) {
+            val batch = firestore.batch()
+            chunk.forEach { batch.set(user.collection(GOALS).document(it.goal.uuid), it.toDoc() + SyncedAt) }
+            batch.commit().await()
+            chunk.forEach { dao.markGoalSynced(it.goal.uuid, it.goal.status) }
+        }
+        while (true) {
+            val chunk = dao.pendingTransactions().ifEmpty { break }
+            val batch = firestore.batch()
+            chunk.forEach { batch.set(user.collection(TRANSACTIONS).document(it.tx.uuid), it.toDoc() + SyncedAt) }
+            batch.commit().await()
+            dao.markTransactionsSynced(chunk.map { it.tx.uuid })
+        }
+    }
+
+    private suspend fun pull(uid: String) {
+        val user = firestore.collection("users").document(uid)
+        pullCollection(user.collection(GOALS), cursorKey(uid, GOALS), ::applyGoal)
+        pullCollection(user.collection(TRANSACTIONS), cursorKey(uid, TRANSACTIONS), ::applyTransaction)
+    }
+
+    // ponytail: satu kueri tanpa paging; cukup untuk catatan pribadi, tambahkan limit + loop bila ribuan baris per sinkron.
+    private suspend fun pullCollection(
+        collection: CollectionReference,
+        key: String,
+        apply: suspend (uuid: String, doc: Map<String, Any?>) -> Boolean,
+    ) {
+        val since = Timestamp(prefs.getLong("$key:s", 0), prefs.getInt("$key:n", 0))
+        val docs = collection.whereGreaterThan(SYNCED_AT, since).orderBy(SYNCED_AT).get(Source.SERVER).await().documents
+        for (doc in docs) {
+            val at = doc.getTimestamp(SYNCED_AT) ?: continue
+            val data = doc.data ?: continue
+            // Kursor hanya maju setelah baris berhasil diterapkan, jadi yang gagal dicoba lagi sinkron berikutnya.
+            if (!db.withTransaction { apply(doc.id, data) }) break
+            prefs.edit {
+                putLong("$key:s", at.seconds)
+                putInt("$key:n", at.nanoseconds)
+            }
+        }
+    }
+
+    private suspend fun applyGoal(uuid: String, doc: Map<String, Any?>): Boolean {
+        val walletUuid = doc["walletUuid"] as String
+        val archived = doc["walletArchived"] as Boolean
+        val local = dao.goal(uuid)
+        when {
+            local == null -> {
+                val walletId = dao.walletId(walletUuid) ?: dao.insertWallet(
+                    WalletEntity(
+                        name = doc["title"] as String,
+                        type = WalletType.GOAL,
+                        isArchived = archived,
+                        createdAt = Instant.ofEpochMilli((doc["createdAt"] as Number).toLong()),
+                        uuid = walletUuid,
+                    )
+                )
+                dao.insertGoal(goalFromDoc(uuid, doc, walletId))
+            }
+            local.synced -> {
+                dao.updateGoal(goalFromDoc(uuid, doc, local.walletId, local.id))
+                dao.setWalletArchived(local.walletId, archived)
+            }
+            else -> Unit // perubahan lokal belum terunggah menang; akan menimpa dokumen ini saat diunggah
+        }
+        return true
+    }
+
+    private suspend fun applyTransaction(uuid: String, doc: Map<String, Any?>): Boolean {
+        // Dompet goal belum ada di HP ini: berhenti di sini, dicoba lagi setelah goal-nya tertarik.
+        val walletId = dao.walletId(doc["walletUuid"] as String) ?: return false
+        val categoryId = (doc["categoryUuid"] as String?)?.let { dao.categoryId(it) }
+        dao.insertTransaction(transactionFromDoc(uuid, doc, walletId, categoryId))
+        return true
+    }
+
+    private fun cursorKey(uid: String, collection: String) = "sync:$uid:$collection"
+
+    private companion object {
+        const val GOALS = "goals"
+        const val TRANSACTIONS = "transactions"
+        const val SYNCED_AT = "syncedAt"
+        val Collections = listOf(GOALS, TRANSACTIONS)
+        val SyncedAt: Map<String, Any?> = mapOf(SYNCED_AT to FieldValue.serverTimestamp())
+    }
+}

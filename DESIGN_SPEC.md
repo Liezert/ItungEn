@@ -116,7 +116,9 @@ ItungEn/
 
 ## 4. Alur kerja fitur utama
 
-### 4.1 Gaji otomatis
+### 4.1 Gaji otomatis (dihapus)
+
+> **Dihapus (Okt 2026).** Tanggal gajian nyata sering bergeser (awal/akhir bulan), jadi otomatisasi justru mencatat transaksi yang tidak sesuai. Migrasi DB v3→v4 menghapus tabel `recurring_rules` dan kolom `recurring_rule_id`; transaksi yang sudah tercatat tetap ada. Bagian di bawah dan rujukan `recurring_rules` di §3 dan §5 tinggal sejarah.
 
 Dua pemicu yang saling melengkapi:
 
@@ -204,16 +206,14 @@ Acuan visual: file Figma "Itungen" (7 layar). Tema **gelap saja** untuk MVP; tok
 
 Warna aksen per tab di navbar (Kategori/Insight, Goals, Profil) terlihat berbeda di Figma; nilai hex final ditetapkan saat playground.
 
-### 6.2 Sistem glass dua tingkat
+### 6.2 Sistem Liquid Glass
 
-| Tingkat | Dipakai di | Cara kerja |
-|---|---|---|
-| **Glass Riil** | Navbar, tombol "+", tombol liquid, bottom sheet | Backdrop blur dan refraksi sungguhan (library Backdrop) |
-| **Glass Ringan** | Kartu, chip, tombol top bar, ikon bulat | Fill transparan + border + highlight dalam + bayangan; tanpa blur riil |
+Semua elemen interaktif dan kartu memakai **Glass Riil** (library Backdrop + komponen yang dibuat ulang dari demo [Kyant0/AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass)): `LiquidButton`, `LiquidBottomTabs` (navbar & toggle Pengeluaran/Pemasukan), `LiquidToggle`, kaca dialog/sheet, `GlassSurface`/`GlassCard`, dan blur progresif di bawah status bar.
 
-- **Anggaran GPU:** maksimal **3 permukaan Glass Riil** tampil bersamaan.
-- **Keterbacaan:** teks di atas Glass Riil diberi tint gelap tipis agar kontras ≥ 4,5:1 saat konten berwarna lewat di belakangnya. Diverifikasi di HP asli.
-- **Latar** tetap hampir hitam; navbar sudah tampak "kaca" karena konten kartu discroll di bawahnya.
+- **Latar:** wallpaper dari repo tersebut, diredupkan α0.5 untuk tema gelap, supaya kaca punya sesuatu untuk dibiaskan.
+- **Dua backdrop:** kaca di dalam layar membiaskan wallpaper; navbar, FAB, sheet, dan dialog membiaskan wallpaper + isi layar. Kaca tidak boleh merekam layer yang memuat dirinya sendiri.
+- **Sheet & dialog** digambar di `GlassOverlayHost` (window yang sama), bukan Dialog/ModalBottomSheet Material yang memakai window terpisah dan tidak bisa membaca backdrop.
+- **Keterbacaan:** kaca diberi tint gelap (#121212 α0.4, nilai tema gelap repo). Diverifikasi di HP asli.
 
 ### 6.3 Navigasi
 
@@ -249,7 +249,7 @@ Saat ditekan: membesar ≈ 8–10% dengan spring yang sedikit memantul, sorotan 
 |---|---|---|
 | **Beranda** | Kartu Total Saldo, **kartu Jatah Hari Ini** (sisa jatah, jatah minggu ini, status), kartu FYI/status, chip filter, ringkasan Target, Riwayat Terakhir | Ada, **kartu Jatah Hari Ini perlu digambar** |
 | **Semua Transaksi** | Pencarian, chip kategori, daftar dikelompokkan per hari | Ada |
-| **Tambah Transaksi** | Toggle Pengeluaran/Pemasukan (indikator geser), nominal, kategori, nama opsional, tanggal, **pilihan dompet**, **toggle "ulangi tiap bulan"**, tombol Simpan | Ada; **pilihan dompet dan toggle ulang perlu ditambah** |
+| **Tambah Transaksi** | Satu layar tanpa scroll (gaya GoPay): toggle Pengeluaran/Pemasukan, pemilih tanggal, kartu nominal + catatan opsional, chip kategori, keypad kalkulator kaca (+ − × ÷, 000), tombol Simpan | Ada; **pilihan dompet perlu ditambah** |
 | **Insight** | Total pengeluaran siklus, bar segmen per kategori, daftar kategori dengan progres | Ada (sebagai "Kategori") |
 | **Goals** | Kartu target utama, "Tambah Dana", goal lain, keadaan kosong | Ada |
 | **Profil** | Profil lokal, statistik, menu pengaturan | Ada; **"Keluar" dihapus**, "Bergabung" = tanggal pertama pakai app, menu Notifikasi disembunyikan sampai fitur ada |
@@ -330,16 +330,20 @@ Pengeluaran **boleh** membuat saldo dompet utama negatif (uang nyata tidak menun
 |---|---|
 | Stack | Kotlin + Jetpack Compose (native) |
 | minSdk | 33 |
-| Data | Offline-first: Room + DataStore; tanpa akun/cloud |
+| Data | Offline-first: Room tetap sumber data layar; login Google opsional (Firebase Auth) menyinkronkan goal & transaksi ke Firestore `users/{uid}/…` |
 | Modul | `:app` + `:glass` |
 | Tema | Gelap dulu; token siap untuk tema terang |
 | Setoran goal | `planned_monthly` manual + nilai saran |
 | Backup | JSON (pulihkan) + CSV (ekspor) manual |
-| Glass | Dua tingkat; ≤ 3 permukaan riil bersamaan |
+| Glass | Liquid Glass riil di semua elemen (lihat §6.2) |
 | Navbar | Indikator langsung mengikuti jari; layar pindah saat lepas |
 | Tombol "+" | FAB bulat 56 dp di kanan atas navbar (menggantikan tata letak "+" di samping navbar) |
 | Nama tab | "Kategori" → "Insight" |
 | Profil | Tanpa "Keluar"; "Bergabung" = tanggal pertama pakai; Notifikasi disembunyikan dulu |
+| Transaksi berulang / gaji otomatis | Dihapus: tidak cocok dengan tanggal gajian nyata (§4.1) |
+| Input nominal | Keypad kalkulator di layar, bukan keyboard sistem |
+| Login | Layar Masuk saat pertama buka: "Masuk dengan Google" atau "Lanjutkan sebagai tamu"; tamu bisa masuk dari Profil dan datanya ikut terunggah |
+| Sinkron | uuid per baris (id lokal bentrok antar-HP) + flag `synced`; tarik berdasarkan `syncedAt` waktu server; transaksi tak pernah diubah, goal: perubahan lokal yang belum terunggah menang. Keluar = data lokal dihapus (ditolak bila ada yang belum terunggah) |
 
 ---
 

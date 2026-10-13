@@ -10,6 +10,7 @@ import androidx.room.Relation
 import com.liezert.itungen.domain.model.TransactionType
 import java.time.Instant
 import java.time.LocalDate
+import java.util.UUID
 
 @Entity(
     tableName = "transactions",
@@ -21,9 +22,7 @@ import java.time.LocalDate
         Index("date"),
         Index("wallet_id", "date"),
         Index("category_id"),
-        // Gaji otomatis tahan duplikat (§3.2). NULL dianggap berbeda oleh SQLite,
-        // jadi transaksi manual di tanggal yang sama tetap boleh.
-        Index("recurring_rule_id", "date", unique = true),
+        Index("uuid", unique = true),
     ],
 )
 data class TransactionEntity(
@@ -39,10 +38,11 @@ data class TransactionEntity(
     val date: LocalDate,
     /** Pengikat dua baris transfer (TRANSFER_OUT + TRANSFER_IN). */
     @ColumnInfo(name = "transfer_group_id") val transferGroupId: String? = null,
-    // Tanpa foreign key: tabel recurring_rules baru dibuat di Tahap 4,
-    // dan menambah FK ke tabel yang sudah ada butuh migrasi rebuild tabel.
-    @ColumnInfo(name = "recurring_rule_id") val recurringRuleId: Long? = null,
     @ColumnInfo(name = "created_at") val createdAt: Instant,
+    /** Identitas lintas perangkat untuk sinkron (id lokal bisa bentrok antar-HP). */
+    @ColumnInfo(defaultValue = "") val uuid: String = UUID.randomUUID().toString(),
+    /** false = perubahan lokal belum terunggah ke akun. */
+    @ColumnInfo(defaultValue = "0") val synced: Boolean = false,
 )
 
 data class TransactionWithCategory(

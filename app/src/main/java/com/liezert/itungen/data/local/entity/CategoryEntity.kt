@@ -2,10 +2,11 @@ package com.liezert.itungen.data.local.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.liezert.itungen.domain.model.CategoryType
 
-@Entity(tableName = "categories")
+@Entity(tableName = "categories", indices = [Index("uuid", unique = true)])
 data class CategoryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
@@ -15,4 +16,6 @@ data class CategoryEntity(
     val color: Long,
     val type: CategoryType,
     @ColumnInfo(name = "is_default") val isDefault: Boolean = false,
+    /** Kategori bawaan memakai uuid tetap ("default-expense-food") agar sama di semua HP. */
+    @ColumnInfo(defaultValue = "") val uuid: String,
 )

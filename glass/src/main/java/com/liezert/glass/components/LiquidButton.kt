@@ -1,71 +1,132 @@
 package com.liezert.glass.components
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.fastCoerceAtMost
 import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
-import com.kyant.backdrop.highlight.Highlight
-import com.liezert.glass.tokens.GlassColors
+import com.kyant.shapes.Capsule
+import com.liezert.glass.utils.InteractiveHighlight
+import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.tanh
 
-// Angka §6.5, dikunci setelah uji di Realme 13+ (Tahap 2).
-private const val PressedScale = 1.1f
-private val PressSpring = spring<Float>(dampingRatio = 0.5f, stiffness = 400f)
-
-/** Tombol Glass Riil: membesar saat ditekan, memantul sedikit melewati ukuran normal saat dilepas. */
+/**
+ * Dibuat ulang dari Kyant0/AndroidLiquidGlass (catalog/components/LiquidButton.kt), tanpa perubahan efek.
+ * Tambahan untuk ItungEn (default = perilaku repo): [enabled], [contentPadding] (0 untuk tombol ikon bulat),
+ * dan [backdrop] default dari [LocalGlassBackdrop].
+ */
 @Composable
 fun LiquidButton(
     onClick: () -> Unit,
-    backdrop: Backdrop,
+    backdrop: Backdrop = LocalGlassBackdrop.current,
     modifier: Modifier = Modifier,
-    shape: Shape = CircleShape,
-    /** Warna di atas kaca; default tint gelap agar isi tetap kontras (§6.2). */
-    surface: Color = GlassColors.GlassTint,
-    content: @Composable BoxScope.() -> Unit,
+    isInteractive: Boolean = true,
+    tint: Color = Color.Unspecified,
+    surfaceColor: Color = Color.Unspecified,
+    enabled: Boolean = true,
+    contentPadding: Dp = 16f.dp,
+    content: @Composable RowScope.() -> Unit
 ) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    // Spring kurang teredam sengaja melewati 0 saat lepas: itulah efek "melewati ukuran normal".
-    val press by animateFloatAsState(if (pressed) 1f else 0f, PressSpring, label = "press")
+    val animationScope = rememberCoroutineScope()
 
-    Box(
+    val interactiveHighlight = remember(animationScope) {
+        InteractiveHighlight(
+            animationScope = animationScope
+        )
+    }
+    val interactive = isInteractive && enabled
+
+    Row(
         modifier
             .drawBackdrop(
                 backdrop = backdrop,
-                shape = { shape },
+                shape = { Capsule() },
                 effects = {
                     vibrancy()
-                    blur(2.dp.toPx())
-                    lens(lerp(12f, 20f, press).dp.toPx(), lerp(24f, 36f, press).dp.toPx())
+                    blur(2f.dp.toPx())
+                    lens(12f.dp.toPx(), 24f.dp.toPx())
                 },
-                highlight = { Highlight.Default.copy(alpha = lerp(0.6f, 1f, press).coerceIn(0f, 1f)) },
-                layerBlock = {
-                    val scale = lerp(1f, PressedScale, press)
-                    scaleX = scale
-                    scaleY = scale
+                layerBlock = if (interactive) {
+                    {
+                        val width = size.width
+                        val height = size.height
+
+                        val progress = interactiveHighlight.pressProgress
+                        val scale = lerp(1f, 1f + 4f.dp.toPx() / size.height, progress)
+
+                        val maxOffset = size.minDimension
+                        val initialDerivative = 0.05f
+                        val offset = interactiveHighlight.offset
+                        translationX = maxOffset * tanh(initialDerivative * offset.x / maxOffset)
+                        translationY = maxOffset * tanh(initialDerivative * offset.y / maxOffset)
+
+                        val maxDragScale = 4f.dp.toPx() / size.height
+                        val offsetAngle = atan2(offset.y, offset.x)
+                        scaleX =
+                            scale +
+                                    maxDragScale * abs(cos(offsetAngle) * offset.x / size.maxDimension) *
+                                    (width / height).fastCoerceAtMost(1f)
+                        scaleY =
+                            scale +
+                                    maxDragScale * abs(sin(offsetAngle) * offset.y / size.maxDimension) *
+                                    (height / width).fastCoerceAtMost(1f)
+                    }
+                } else {
+                    null
                 },
-                onDrawSurface = { drawRect(surface) },
+                onDrawSurface = {
+                    if (tint.isSpecified) {
+                        drawRect(tint, blendMode = BlendMode.Hue)
+                        drawRect(tint.copy(alpha = 0.75f * tint.alpha))
+                    }
+                    if (surfaceColor.isSpecified) {
+                        drawRect(surfaceColor)
+                    }
+                }
             )
-            .clickable(interaction, indication = null, role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center,
-        content = content,
+            .clickable(
+                interactionSource = null,
+                indication = if (isInteractive) null else LocalIndication.current,
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick
+            )
+            .then(
+                if (interactive) {
+                    Modifier
+                        .then(interactiveHighlight.modifier)
+                        .then(interactiveHighlight.gestureModifier)
+                } else {
+                    Modifier
+                }
+            )
+            .height(48f.dp)
+            .padding(horizontal = contentPadding),
+        horizontalArrangement = Arrangement.spacedBy(8f.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+        content = content
     )
 }

@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "962322584310",
+    "project_id": "itungen",
+    "storage_bucket": "itungen.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:962322584310:android:3445921531bd2fb8d992d7",
+        "android_client_info": {
+          "package_name": "com.liezert.itungen"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "962322584310-9ng2h9hntoeqkpomkcrsqmp4b24rd8rs.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.liezert.itungen",
+            "certificate_hash": "2722574ba78cc2246d65e94f03c41427f5b69aa7"
+          }
+        },
+        {
+          "client_id": "962322584310-nd4dld03nu3p9j23vflb7a3alja74125.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAJ7TrjcBQEu0P8uZHul9VtwSonSDNkwmQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "962322584310-nd4dld03nu3p9j23vflb7a3alja74125.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

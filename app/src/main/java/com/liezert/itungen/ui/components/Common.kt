@@ -1,0 +1,195 @@
+package com.liezert.itungen.ui.components
+
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.liezert.glass.components.GlassDefaults
+import com.liezert.glass.components.LiquidButton
+import com.liezert.itungen.ui.theme.Bold
+import com.liezert.itungen.ui.theme.Ink
+import com.liezert.itungen.ui.theme.appText
+
+/** Gutter horizontal yang dipakai semua frame desain. */
+fun Modifier.screenPad(): Modifier = padding(horizontal = 20.dp)
+
+/** Menampilkan SVG Figma yang sudah dikonversi pada ukuran aslinya. */
+@Composable
+fun Ico(@DrawableRes id: Int, modifier: Modifier = Modifier, contentDescription: String? = null) {
+    Image(painterResource(id), contentDescription, modifier)
+}
+
+/**
+ * Kanvas hitam; Beranda dan Semua Transaksi menambah vinyet lembut di atas (§6.1).
+ * Direkam ke [backdrop] sebagai saudara (bukan induk) konten, agar kaca di layar bisa membiaskannya.
+ */
+@Composable
+fun AppBackground(backdrop: LayerBackdrop, vignette: Boolean, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .layerBackdrop(backdrop)
+            .fillMaxSize()
+            .background(Ink.Black)
+            .then(if (vignette) Modifier.drawBehind { drawVignette() } else Modifier)
+    )
+}
+
+/** Gradien radial dari fill body Figma: elips 1085,7 × 1052,1 dp berpusat di tepi atas. */
+private fun DrawScope.drawVignette() {
+    translate(left = size.width / 2f, top = 0f) {
+        scale(1085.7.dp.toPx(), 1052.1.dp.toPx(), pivot = Offset.Zero) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    0.00f to Color(28, 28, 30, 102),
+                    0.35f to Color(14, 14, 15, 178),
+                    0.525f to Color(7, 7, 8, 217),
+                    0.70f to Color(0, 0, 0, 255),
+                    center = Offset.Zero,
+                    radius = 1f,
+                ),
+                radius = 1f,
+                center = Offset.Zero,
+            )
+        }
+    }
+}
+
+/** Tombol bulat Liquid Glass 44 dp (ukuran iOS); area sentuhnya 48 dp (PRD §6). */
+@Composable
+fun GlassIconButton(
+    @DrawableRes icon: Int,
+    onClick: () -> Unit,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    size: Dp = 44.dp,
+) {
+    Box(modifier.minimumInteractiveComponentSize(), contentAlignment = Alignment.Center) {
+        LiquidButton(
+            onClick = onClick,
+            modifier = Modifier.size(size).semantics { this.contentDescription = contentDescription },
+            contentPadding = 0.dp,
+        ) { Ico(icon) }
+    }
+}
+
+/**
+ * App bar 88 dp: [leading] — "ItungEn" — [trailing]. Slot kosong diisi `Spacer(Modifier.size(48.dp))`
+ * agar judul tetap di tengah.
+ */
+@Composable
+fun TopBar(
+    leading: @Composable () -> Unit,
+    trailing: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    Row(
+        modifier
+            .fillMaxWidth()
+            // Tombol 48 dp (area sentuh) menggantikan 40 dp desain, jadi padding bawah 16 → 12 menjaga tinggi 88 dp.
+            .padding(start = 16.dp, end = 16.dp, top = maxOf(32.dp, statusTop), bottom = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        leading()
+        Text("ItungEn", style = appText(20f, 28f, Bold, Ink.Title))
+        trailing()
+    }
+}
+
+@Composable
+fun IconCircle(
+    @DrawableRes icon: Int,
+    size: Dp,
+    background: Color,
+    modifier: Modifier = Modifier,
+    border: Color? = null,
+) {
+    Box(
+        modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(background)
+            .then(if (border != null) Modifier.border(1.dp, border, CircleShape) else Modifier),
+        contentAlignment = Alignment.Center,
+    ) { Ico(icon) }
+}
+
+@Composable
+fun ProgressBar(
+    fraction: Float,
+    brush: Brush,
+    height: Dp,
+    track: Color,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier.fillMaxWidth().height(height).clip(CircleShape).background(track)) {
+        Box(
+            Modifier
+                .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                .fillMaxHeight()
+                .clip(CircleShape)
+                .background(brush)
+        )
+    }
+}
+
+/** Chip filter / kategori: kapsul Liquid Glass; terpilih = permukaan [selectedFill]. */
+@Composable
+fun PillChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    selectedText: TextStyle,
+    unselectedText: TextStyle,
+    modifier: Modifier = Modifier,
+    horizontal: Dp = 21.dp,
+    height: Dp = 42.dp,
+    selectedFill: Color = Ink.White,
+    @DrawableRes icon: Int? = null,
+) {
+    LiquidButton(
+        onClick = onClick,
+        modifier = modifier.height(height).semantics { this.selected = selected },
+        surfaceColor = if (selected) selectedFill else GlassDefaults.Surface,
+        contentPadding = horizontal,
+    ) {
+        if (icon != null) Ico(icon)
+        Text(label, style = if (selected) selectedText else unselectedText, maxLines = 1)
+    }
+}

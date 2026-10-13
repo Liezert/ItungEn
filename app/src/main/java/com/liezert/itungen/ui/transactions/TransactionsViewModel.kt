@@ -6,34 +6,57 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.liezert.itungen.ItungEnApp
+import com.liezert.itungen.domain.model.CategoryType
 import com.liezert.itungen.domain.model.Transaction
 import com.liezert.itungen.domain.repository.TransactionRepository
+import com.liezert.itungen.domain.usecase.filterNames
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import java.time.Clock
 import java.time.LocalDate
+import java.time.YearMonth
+import java.time.ZoneId
 
 data class TransactionsUiState(
+    val today: LocalDate,
+    val zone: ZoneId,
     val loading: Boolean = true,
-    val balance: Long = 0,
-    /** Dikelompokkan per hari, terbaru dulu. */
-    val days: List<Pair<LocalDate, List<Transaction>>> = emptyList(),
+    /** Terbaru dulu. */
+    val transactions: List<Transaction> = emptyList(),
+    val filters: List<String> = emptyList(),
+    val monthCount: Int = 0,
 )
 
-class TransactionsViewModel(repository: TransactionRepository) : ViewModel() {
-    val uiState: StateFlow<TransactionsUiState> =
-        combine(repository.observeMainBalance(), repository.observeTransactions()) { balance, transactions ->
-            TransactionsUiState(
-                loading = false,
-                balance = balance,
-                days = transactions.groupBy { it.date }.toList(),
-            )
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TransactionsUiState())
+class TransactionsViewModel(repository: TransactionRepository, clock: Clock) : ViewModel() {
+    val uiState: StateFlow<TransactionsUiState> = combine(
+        repository.observeTransactions(),
+        repository.observeCategories(CategoryType.EXPENSE),
+        repository.observeCategories(CategoryType.INCOME),
+    ) { transactions, expense, income ->
+        val today = LocalDate.now(clock)
+        val month = YearMonth.from(today)
+        TransactionsUiState(
+            today = today,
+            zone = clock.zone,
+            loading = false,
+            transactions = transactions,
+            filters = filterNames(expense, income),
+            monthCount = transactions.count { YearMonth.from(it.date) == month },
+        )
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        TransactionsUiState(today = LocalDate.now(clock), zone = clock.zone),
+    )
 
     companion object {
         val Factory = viewModelFactory {
-            initializer { TransactionsViewModel((this[APPLICATION_KEY] as ItungEnApp).container.transactionRepository) }
+            initializer {
+                val container = (this[APPLICATION_KEY] as ItungEnApp).container
+                TransactionsViewModel(container.transactionRepository, container.clock)
+            }
         }
     }
 }

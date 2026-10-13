@@ -11,3 +11,18 @@ private val Indonesia = Locale.forLanguageTag("id-ID")
 /** 1500000 → "Rp 1.500.000", -50000 → "-Rp 50.000". */
 fun formatRupiah(amount: Long): String =
     (if (amount < 0) "-" else "") + "Rp " + "%,d".format(Indonesia, amount.absoluteValue)
+
+/** "+Rp 500.000" / "-Rp 18.000": tanda ditentukan arah uang, bukan tanda nominal. */
+fun formatSigned(amount: Long, incoming: Boolean): String = (if (incoming) "+" else "-") + formatRupiah(amount)
+
+/** Ringkas untuk ruang sempit: 1250000 → "Rp 1.25M", 3000000 → "Rp 3M", 250000 → "Rp 250.000". */
+fun formatRupiahShort(amount: Long): String {
+    val abs = amount.absoluteValue
+    val (divisor, suffix) = when {
+        abs >= 1_000_000_000L -> 1_000_000_000.0 to "B"
+        abs >= 1_000_000L -> 1_000_000.0 to "M"
+        else -> return formatRupiah(amount)
+    }
+    val value = "%.2f".format(Locale.US, abs / divisor).trimEnd('0').trimEnd('.')
+    return (if (amount < 0) "-" else "") + "Rp " + value + suffix
+}

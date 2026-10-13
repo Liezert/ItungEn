@@ -1,5 +1,6 @@
 package com.liezert.itungen.domain.model
 
+import java.time.Instant
 import java.time.LocalDate
 
 data class Category(
@@ -19,17 +20,8 @@ data class Transaction(
     val amount: Long,
     val note: String?,
     val date: LocalDate,
-)
-
-/** Aturan bulanan (gaji / tagihan tetap). */
-data class RecurringRule(
-    val id: Long,
-    val category: Category?,
-    val type: TransactionType,
-    val amount: Long,
-    val note: String?,
-    val dayOfMonth: Int,
-    val isActive: Boolean,
+    /** Saat dicatat; hanya untuk menampilkan jam, urutan memakai [date]. */
+    val createdAt: Instant = Instant.EPOCH,
 )
 
 enum class TransactionError { AMOUNT_REQUIRED, AMOUNT_TOO_LARGE, CATEGORY_REQUIRED, DATE_IN_FUTURE }

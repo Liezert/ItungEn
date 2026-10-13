@@ -1,0 +1,102 @@
+package com.liezert.itungen.ui.components
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
+import androidx.compose.material3.DatePickerState
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.dp
+import com.liezert.glass.components.LiquidButton
+import com.liezert.glass.components.LiquidDialog
+import com.liezert.itungen.ui.theme.Ink
+import com.liezert.itungen.ui.theme.Medium
+import com.liezert.itungen.ui.theme.Regular
+import com.liezert.itungen.ui.theme.appText
+
+/** Aksen dialog tema gelap dari repo Kyant0. */
+private val DialogAccent = Color(0xFF0091FF)
+
+/** Tombol "Batal" di dialog repo: containerColor tema gelap α0.2. */
+private val CancelSurface = Color(0xFF121212).copy(0.2f)
+
+/** Alert kaca, tata letak dari DialogContent repo Kyant0: judul, isi, lalu dua tombol kapsul sama lebar. */
+@Composable
+fun LiquidAlertDialog(
+    visible: Boolean,
+    title: String,
+    text: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    dismissLabel: String = "Batal",
+    confirmColor: Color = DialogAccent,
+) {
+    LiquidDialog(visible, onDismiss) {
+        Text(title, Modifier.padding(28.dp, 24.dp, 28.dp, 12.dp), style = appText(24f, 30f, Medium))
+        Text(
+            text,
+            Modifier
+                .graphicsLayer(blendMode = BlendMode.Plus) // "plus lighter" seperti repo (tema gelap)
+                .padding(24.dp, 12.dp, 24.dp, 12.dp),
+            style = appText(15f, 21f, Regular, Ink.White.copy(0.68f)),
+        )
+        DialogButtons {
+            LiquidButton(onDismiss, modifier = Modifier.weight(1f), surfaceColor = CancelSurface) {
+                Text(dismissLabel, style = appText(16f, 22f))
+            }
+            LiquidButton(onConfirm, modifier = Modifier.weight(1f), tint = confirmColor) {
+                Text(confirmLabel, style = appText(16f, 22f))
+            }
+        }
+    }
+}
+
+/** Pemilih tanggal Material di dalam kaca dialog (latar picker transparan agar kacanya terlihat). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LiquidDatePickerDialog(
+    visible: Boolean,
+    state: DatePickerState,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    LiquidDialog(visible, onDismiss, Modifier.padding(horizontal = 8.dp, vertical = 16.dp)) {
+        DatePicker(
+            state,
+            Modifier.padding(top = 8.dp),
+            colors = DatePickerDefaults.colors(containerColor = Color.Transparent),
+            showModeToggle = false,
+        )
+        DialogButtons {
+            LiquidButton(onDismiss, modifier = Modifier.weight(1f), surfaceColor = CancelSurface) {
+                Text("Batal", style = appText(16f, 22f))
+            }
+            LiquidButton(onConfirm, modifier = Modifier.weight(1f), tint = DialogAccent) {
+                Text("OK", style = appText(16f, 22f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun DialogButtons(content: @Composable RowScope.() -> Unit) {
+    Row(
+        Modifier
+            .padding(24.dp, 12.dp, 24.dp, 24.dp)
+            .fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        content = content,
+    )
+}

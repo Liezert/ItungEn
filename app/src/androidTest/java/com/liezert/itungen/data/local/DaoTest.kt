@@ -1,11 +1,12 @@
 package com.liezert.itungen.data.local
 
-import android.database.sqlite.SQLiteConstraintException
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.liezert.itungen.data.local.entity.GoalEntity
 import com.liezert.itungen.data.local.entity.TransactionEntity
 import com.liezert.itungen.data.local.entity.WalletEntity
 import com.liezert.itungen.domain.model.CategoryType
+import com.liezert.itungen.domain.model.GoalStatus
 import com.liezert.itungen.domain.model.TransactionType
 import com.liezert.itungen.domain.model.TransactionType.EXPENSE
 import com.liezert.itungen.domain.model.TransactionType.INCOME
@@ -41,13 +42,11 @@ class DaoTest {
         type: TransactionType,
         amount: Long,
         date: LocalDate = today,
-        recurringRuleId: Long? = null,
     ) = TransactionEntity(
         walletId = walletId,
         type = type,
         amount = amount,
         date = date,
-        recurringRuleId = recurringRuleId,
         createdAt = Instant.EPOCH,
     )
 
@@ -65,7 +64,6 @@ class DaoTest {
         val dao = db.transactionDao()
         assertEquals(0L, dao.observeBalance(main).first())
 
-        // Dua transaksi manual di tanggal yang sama juga membuktikan unique index tidak menghalanginya.
         dao.insert(tx(main, INCOME, 3_000_000))
         dao.insert(tx(main, EXPENSE, 250_000))
         dao.insert(tx(main, EXPENSE, 50_000))
@@ -74,13 +72,6 @@ class DaoTest {
 
         assertEquals(2_200_000L, dao.observeBalance(main).first())
         assertEquals(500_000L, dao.observeBalance(goal).first())
-    }
-
-    @Test(expected = SQLiteConstraintException::class)
-    fun recurringTransaction_isUniquePerRuleAndDate() = runBlocking<Unit> {
-        val main = db.walletDao().getMain().id
-        db.transactionDao().insert(tx(main, INCOME, 3_000_000, recurringRuleId = 1))
-        db.transactionDao().insert(tx(main, INCOME, 3_000_000, recurringRuleId = 1))
     }
 
     @Test
@@ -95,4 +86,39 @@ class DaoTest {
             db.transactionDao().observeAll().first().map { it.transaction.date },
         )
     }
+
+    @Test
+    fun seed_usesStableUuidsAcrossDevices() = runBlocking<Unit> {
+        assertEquals(MAIN_WALLET_UUID, db.walletDao().getMain().uuid)
+        assertTrue(db.syncDao().categoryId(defaultCategoryUuid("food", CategoryType.EXPENSE)) != null)
+        assertTrue(db.syncDao().categoryId(defaultCategoryUuid("other", CategoryType.INCOME)) != null)
+    }
+
+    @Test
+    fun sync_pendingRowsCarryUuids_andGoalStatusGuardsMarkSynced() = runBlocking<Unit> {
+        val main = db.walletDao().getMain().id
+        val sync = db.syncDao()
+        db.transactionDao().insert(tx(main, EXPENSE, 5_000))
+        val goalWallet = db.walletDao().insert(WalletEntity(name = "Sepatu", type = WalletType.GOAL, createdAt = Instant.EPOCH))
+        val goalId = db.goalDao().insert(
+            GoalEntity(walletId = goalWallet, title = "Sepatu", targetAmount = 100, createdAt = Instant.EPOCH)
+        )
+        assertEquals(2, sync.pendingCount())
+
+        val pending = sync.pendingTransactions().single()
+        assertEquals(MAIN_WALLET_UUID, pending.walletUuid)
+        sync.markTransactionsSynced(listOf(pending.tx.uuid))
+
+        // Goal berubah status selama unggah: penandaan dengan status lama tidak boleh menghapus perubahan baru.
+        val goal = sync.pendingGoals().single().goal
+        db.goalDao().setStatus(goalId, GoalStatus.ACHIEVED)
+        sync.markGoalSynced(goal.uuid, goal.status)
+        assertEquals(1, sync.pendingCount())
+        sync.markGoalSynced(goal.uuid, GoalStatus.ACHIEVED)
+        assertEquals(0, sync.pendingCount())
+
+        // Baris tarikan dengan uuid yang sudah ada dilewati, bukan digandakan.
+        assertEquals(-1L, sync.insertTransaction(pending.tx.copy(id = 0, synced = true)))
+    }
 }
+
