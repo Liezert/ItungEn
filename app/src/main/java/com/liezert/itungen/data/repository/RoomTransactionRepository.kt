@@ -63,9 +63,10 @@ class RoomTransactionRepository(
             val tx = db.transactionDao().get(id)
             require(tx.type == TransactionType.INCOME || tx.type == TransactionType.EXPENSE) { "Transfer goal tidak bisa dihapus" }
             db.transactionDao().delete(id)
-            // Yang sudah pernah terunggah perlu dikirim sebagai penanda agar HP lain ikut menghapus;
-            // yang belum cukup dicatat (pushed) agar pemulihan cadangan tidak memunculkannya lagi.
-            db.syncDao().insertTombstone(DeletedTransactionEntity(tx.uuid, pushed = !tx.synced))
+            // Penanda selalu dikirim (bila masuk akun), termasuk untuk baris yang belum tersinkron: unggahannya bisa
+            // sedang berjalan saat ini, jadi dokumennya mungkin sudah ada di server. Penanda juga mencegah pemulihan
+            // cadangan lama memunculkannya lagi.
+            db.syncDao().insertTombstone(DeletedTransactionEntity(tx.uuid))
             tx
         }
         // Urungkan: baris yang sama kembali (id & uuid tetap) dan diunggah lagi, menimpa penanda hapus di server.
@@ -77,7 +78,8 @@ class RoomTransactionRepository(
         }
     }
 
-    override suspend fun firstUseDate(): LocalDate = LocalDate.ofInstant(db.walletDao().getMain().createdAt, clock.zone)
+    // atZone, bukan LocalDate.ofInstant: yang terakhir baru ada di API 34 (minSdk 33).
+    override suspend fun firstUseDate(): LocalDate = db.walletDao().getMain().createdAt.atZone(clock.zone).toLocalDate()
 }
 
 private fun CategoryEntity.toDomain() = Category(id, name, icon, color, type)

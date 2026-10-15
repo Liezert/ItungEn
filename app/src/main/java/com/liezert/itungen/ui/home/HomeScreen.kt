@@ -94,7 +94,9 @@ fun HomeScreen(
     ReportDrawnWhen { !state.loading }
     val container = (LocalContext.current.applicationContext as ItungEnApp).container
     HomeContent(
-        state, onHistory, onSeeAll, onOpenGoals, onOpenBudget,
+        state, onHistory, onSeeAll,
+        onOpenGoals = onOpenGoals,
+        onOpenBudget = onOpenBudget,
         onQuickAdd = viewModel::quickAdd,
         balanceHidden = container.hideBalance,
         onToggleBalance = { container.setBalanceHidden(!container.hideBalance) },
@@ -108,10 +110,10 @@ fun HomeContent(
     state: HomeUiState,
     onHistory: () -> Unit,
     onSeeAll: () -> Unit,
+    modifier: Modifier = Modifier,
     onOpenGoals: () -> Unit = {},
     onOpenBudget: () -> Unit = {},
     onQuickAdd: (QuickTemplate) -> Unit = {},
-    modifier: Modifier = Modifier,
     balanceHidden: Boolean = false,
     onToggleBalance: () -> Unit = {},
 ) {
@@ -212,7 +214,7 @@ private fun BudgetCard(budget: Budget, today: LocalDate, onClick: () -> Unit, mo
                 if (remaining < 0) Ink.Red else Ink.White,
             )
             BudgetStat(
-                "Uang masuk berikutnya",
+                "Uang masuk lagi",
                 if (budget.overdue) "Belum diatur" else "${budget.cycleEnd.plusDays(1).format(ShortDate)} · ${budget.daysLeft} hari",
                 Modifier.weight(1f),
             )

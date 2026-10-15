@@ -32,7 +32,7 @@ import java.time.LocalTime
 import java.util.concurrent.TimeUnit
 
 /**
- * Pengingat malam: bila hari ini belum ada catatan, notifikasi "Sudah catat pengeluaran hari ini?" yang membuka
+ * Pengingat harian (jam dipilih di Pengaturan, bawaan 20.00): bila hari ini belum ada catatan, notifikasi "Sudah catat pengeluaran hari ini?" yang membuka
  * Tambah Transaksi, dengan aksi langsung: catat template tersering, atau "Hari ini tidak jajan".
  * Diam saja bila sudah ada catatan atau hari ini sudah ditandai tidak jajan.
  */
@@ -51,12 +51,10 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
         private const val CHANNEL = "reminder"
         private const val NOTIFICATION_ID = 1
 
-        // ponytail: jam tetap 20.00; tambahkan pilihan jam di Pengaturan bila ada yang minta.
-        private val At: LocalTime = LocalTime.of(20, 0)
-
-        fun schedule(context: Context) {
+        /** Menjadwalkan ulang setiap hari pada [hour]:00 (menimpa jadwal lama). */
+        fun schedule(context: Context, hour: Int) {
             val now = LocalDateTime.now()
-            var next = now.toLocalDate().atTime(At)
+            var next = now.toLocalDate().atTime(LocalTime.of(hour.coerceIn(0, 23), 0))
             if (!next.isAfter(now)) next = next.plusDays(1)
             val request = PeriodicWorkRequestBuilder<ReminderWorker>(1, TimeUnit.DAYS)
                 .setInitialDelay(Duration.between(now, next).toMillis(), TimeUnit.MILLISECONDS)

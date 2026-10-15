@@ -1,13 +1,173 @@
 rules_version = '2';
 
-// Setiap pengguna hanya bisa membaca dan menulis catatannya sendiri: users/{uid}/goals dan users/{uid}/transactions.
-// Tempel isi file ini di Firebase Console → Firestore Database → Rules, lalu Publish.
+// Prototipe Security Rules ItungEn. Tempel isi file ini di Firebase Console → Firestore Database → Rules → Publish
+// (atau `firebase deploy --only firestore:rules`). Tinjau dulu sebelum app dibagikan luas.
+//
+// ===============================================================
+// Model data yang diasumsikan (ditulis oleh app lewat SyncManager / SyncMapping.kt)
+// ===============================================================
+//
+// Semua data milik satu pengguna ada di bawah users/{uid}; tidak ada data publik dan tidak ada peran admin.
+// Dokumen tidak pernah dihapus oleh app: transaksi yang dihapus ditimpa penanda {deleted: true}.
+// Setiap tulisan menyertakan syncedAt = waktu server (FieldValue.serverTimestamp()).
+//
+// Koleksi: users/{uid}/transactions — id dokumen: uuid transaksi (≤ 64 karakter)
+//   Bentuk A (penanda hapus): deleted: bool (true), syncedAt: timestamp
+//   Bentuk B (transaksi):
+//   - walletUuid: string (wajib, 1–64) — "main" atau uuid dompet goal
+//   - categoryUuid: string 1–64 | null — null untuk transfer goal
+//   - type: string (INCOME | EXPENSE | TRANSFER_OUT | TRANSFER_IN)
+//   - amount: int (1 – 999.999.999.999), rupiah bulat
+//   - note: string ≤ 500 | null
+//   - date: int (epoch-day, 0 – 100000)
+//   - transferGroupId: string ≤ 64 | null
+//   - createdAt: int (epoch ms)
+//   - syncedAt: timestamp (= waktu server)
+//
+// Koleksi: users/{uid}/goals — id dokumen: uuid goal
+//   - walletUuid: string 1–64, walletArchived: bool
+//   - title: string 1–100
+//   - targetAmount: int (1 – 999.999.999.999), plannedMonthly: int (0 – 999.999.999.999)
+//   - targetDate: int (epoch-day) | null
+//   - status: string (ACTIVE | ACHIEVED | CANCELLED)
+//   - createdAt: int (epoch ms), syncedAt: timestamp
+//
+// Dokumen: users/{uid}/settings/main — pengaturan milik akun
+//   - budgetPlan: map | null — income, cycleStartDay (1–28), fixedBills, savingsTarget (int 0 – 999.999.999.999),
+//     period (MONTHLY | WEEKLY | UNTIL_DATE), startedOn / nextIncomeOn (epoch-day | null)
+//   - updatedAt: int (epoch ms, jam HP; perubahan terakhir menang)
+//   - syncedAt: timestamp
+//
+// Kueri app: koleksi milik sendiri, orderBy(syncedAt) + orderBy(__name__), startAfter, limit; get dokumen settings.
+// ===============================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{uid}/{collection}/{docId} {
-      allow read, write: if request.auth != null
-        && request.auth.uid == uid
-        && collection in ['goals', 'transactions'];
+
+    // ---------- Helper ----------
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isServerTime(value) {
+      return value is timestamp && value == request.time;
+    }
+
+    function isMoney(value, min) {
+      return value is int && value >= min && value <= 999999999999;
+    }
+
+    function isEpochDay(value) {
+      return value is int && value >= 0 && value <= 100000;
+    }
+
+    function isEpochMillis(value) {
+      return value is int && value >= 0 && value <= 4102444800000; // s.d. tahun 2100
+    }
+
+    function isId(value) {
+      return value is string && value.size() > 0 && value.size() <= 64;
+    }
+
+    function isOptionalId(value) {
+      return value == null || isId(value);
+    }
+
+    function isDocId(id) {
+      return id.size() > 0 && id.size() <= 64;
+    }
+
+    // ---------- Validator domain (dipakai di create DAN update) ----------
+    function isValidDeleteMarker(data) {
+      return hasOnlyAllowedFields(['deleted', 'syncedAt'])
+        && hasRequiredFields(['deleted', 'syncedAt'])
+        && data.deleted == true
+        && isServerTime(data.syncedAt);
+    }
+
+    function isValidTransaction(data) {
+      return hasOnlyAllowedFields(['walletUuid', 'categoryUuid', 'type', 'amount', 'note', 'date', 'transferGroupId', 'createdAt', 'syncedAt'])
+        && hasRequiredFields(['walletUuid', 'type', 'amount', 'date', 'createdAt', 'syncedAt'])
+        && isId(data.walletUuid)
+        && isOptionalId(data.get('categoryUuid', null))
+        && data.type in ['INCOME', 'EXPENSE', 'TRANSFER_OUT', 'TRANSFER_IN']
+        && isMoney(data.amount, 1)
+        && (data.get('note', null) == null || (data.note is string && data.note.size() <= 500))
+        && isEpochDay(data.date)
+        && isOptionalId(data.get('transferGroupId', null))
+        && isEpochMillis(data.createdAt)
+        && isServerTime(data.syncedAt);
+    }
+
+    function isValidGoal(data) {
+      return hasOnlyAllowedFields(['walletUuid', 'walletArchived', 'title', 'targetAmount', 'targetDate', 'plannedMonthly', 'status', 'createdAt', 'syncedAt'])
+        && hasRequiredFields(['walletUuid', 'walletArchived', 'title', 'targetAmount', 'plannedMonthly', 'status', 'createdAt', 'syncedAt'])
+        && isId(data.walletUuid)
+        && data.walletArchived is bool
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 100
+        && isMoney(data.targetAmount, 1)
+        && (data.get('targetDate', null) == null || isEpochDay(data.targetDate))
+        && isMoney(data.plannedMonthly, 0)
+        && data.status in ['ACTIVE', 'ACHIEVED', 'CANCELLED']
+        && isEpochMillis(data.createdAt)
+        && isServerTime(data.syncedAt);
+    }
+
+    function isValidBudgetPlan(plan) {
+      return plan == null || (
+        plan is map
+        && plan.keys().hasOnly(['income', 'cycleStartDay', 'fixedBills', 'savingsTarget', 'period', 'startedOn', 'nextIncomeOn'])
+        && plan.keys().hasAll(['income', 'cycleStartDay', 'period'])
+        && isMoney(plan.income, 0)
+        && plan.cycleStartDay is int && plan.cycleStartDay >= 1 && plan.cycleStartDay <= 28
+        && (plan.get('fixedBills', 0) == 0 || isMoney(plan.fixedBills, 0))
+        && (plan.get('savingsTarget', 0) == 0 || isMoney(plan.savingsTarget, 0))
+        && plan.period in ['MONTHLY', 'WEEKLY', 'UNTIL_DATE']
+        && (plan.get('startedOn', null) == null || isEpochDay(plan.startedOn))
+        && (plan.get('nextIncomeOn', null) == null || isEpochDay(plan.nextIncomeOn))
+      );
+    }
+
+    function isValidSettings(data) {
+      return hasOnlyAllowedFields(['budgetPlan', 'updatedAt', 'syncedAt'])
+        && hasRequiredFields(['updatedAt', 'syncedAt'])
+        && isValidBudgetPlan(data.get('budgetPlan', null))
+        && isEpochMillis(data.updatedAt)
+        && isServerTime(data.syncedAt);
+    }
+
+    // ---------- Aturan ----------
+    match /users/{uid} {
+      // Dokumen users/{uid} sendiri tidak dipakai.
+
+      match /transactions/{txId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid) && isDocId(txId)
+          && (isValidTransaction(request.resource.data) || isValidDeleteMarker(request.resource.data));
+        // Tidak ada delete: app menimpa dokumen dengan penanda hapus agar HP lain ikut menghapus.
+      }
+
+      match /goals/{goalId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid) && isDocId(goalId) && isValidGoal(request.resource.data);
+      }
+
+      match /settings/{docId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid) && docId == 'main' && isValidSettings(request.resource.data);
+      }
     }
   }
 }

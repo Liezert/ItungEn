@@ -23,20 +23,17 @@ class CategoryStyle(
     @param:DrawableRes val chipIcon: Int,
 )
 
-// ponytail: Figma baru menggambar ikon Makanan/Transportasi/Hiburan/Lainnya; kategori lain memakai ikon generik
-// dengan warna sendiri sampai ikonnya digambar.
-private val Generic = { color: Color -> CategoryStyle(color, R.drawable.ic_cat_other, R.drawable.ic_cat_other, R.drawable.ic_add_other) }
-
+// Ikon Makanan/Transportasi/Hiburan/Lainnya dari Figma; Tagihan/Kesehatan/Pendidikan dari Material Icons.
 private val ExpenseStyles = mapOf(
     "food" to CategoryStyle(Ink.Orange, R.drawable.ic_home_tx_food, R.drawable.ic_cat_food, R.drawable.ic_add_food),
     "transport" to CategoryStyle(Ink.Green, R.drawable.ic_home_tx_car, R.drawable.ic_cat_transport, R.drawable.ic_add_car),
     "entertainment" to CategoryStyle(Ink.Blue, R.drawable.ic_home_tx_music, R.drawable.ic_cat_entertainment, R.drawable.ic_add_film),
     "shopping" to CategoryStyle(Ink.Purple, R.drawable.ic_tx_bag, R.drawable.ic_tx_bag, R.drawable.ic_add_other),
-    "bill" to Generic(Ink.Yellow),
-    "health" to Generic(Ink.Pink),
-    "education" to Generic(Ink.Cyan),
+    "bill" to CategoryStyle(Ink.Yellow, R.drawable.ic_cat_bill, R.drawable.ic_cat_bill, R.drawable.ic_add_bill),
+    "health" to CategoryStyle(Ink.Pink, R.drawable.ic_cat_health, R.drawable.ic_cat_health, R.drawable.ic_add_health),
+    "education" to CategoryStyle(Ink.Cyan, R.drawable.ic_cat_education, R.drawable.ic_cat_education, R.drawable.ic_add_education),
 )
-private val ExpenseOther = Generic(Ink.Gray)
+private val ExpenseOther = CategoryStyle(Ink.Gray, R.drawable.ic_cat_other, R.drawable.ic_cat_other, R.drawable.ic_add_other)
 
 private val IncomeStyles = mapOf(
     "salary" to CategoryStyle(Ink.Green, R.drawable.ic_tx_salary, R.drawable.ic_tx_salary, R.drawable.ic_inc_gaji),

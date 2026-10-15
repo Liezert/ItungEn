@@ -1,13 +1,9 @@
 package com.liezert.itungen.ui.budget
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,7 +11,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -24,28 +19,23 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.liezert.glass.components.GlassCard
 import com.liezert.glass.components.LiquidBottomTab
 import com.liezert.glass.components.LiquidBottomTabs
 import com.liezert.glass.components.LiquidButton
-import com.liezert.glass.components.LiquidSheet
 import com.liezert.glass.components.LocalGlassBackdrop
 import com.liezert.itungen.ItungEnApp
 import com.liezert.itungen.R
@@ -55,6 +45,7 @@ import com.liezert.itungen.domain.usecase.BudgetPeriod
 import com.liezert.itungen.domain.usecase.BudgetPlan
 import com.liezert.itungen.domain.usecase.computeBudget
 import com.liezert.itungen.ui.components.AmountField
+import com.liezert.itungen.ui.components.ChoiceSheet
 import com.liezert.itungen.ui.components.GlassIconButton
 import com.liezert.itungen.ui.components.Ico
 import com.liezert.itungen.ui.components.LiquidDatePickerDialog
@@ -161,7 +152,7 @@ fun BudgetScreen(onBack: () -> Unit) {
                 height = 52.dp,
             ) {
                 Periods.forEach { (value, label) ->
-                    LiquidBottomTab({ period = value }) {
+                    LiquidBottomTab({ period = value }, selected = value == period) {
                         Text(label, style = appText(14f, 20f, SemiBold, if (value == period) Ink.White else Ink.Muted))
                     }
                 }
@@ -230,11 +221,11 @@ fun BudgetScreen(onBack: () -> Unit) {
     }
 
     when (period) {
-        BudgetPeriod.MONTHLY -> DayGrid("Tanggal gajian / kiriman", (1..28).map { it to it.toString() }, 7, monthDay, picking, {
+        BudgetPeriod.MONTHLY -> ChoiceSheet("Tanggal gajian / kiriman", (1..28).map { it to it.toString() }, 7, monthDay, picking, {
             monthDay = it
             picking = false
         }) { picking = false }
-        BudgetPeriod.WEEKLY -> DayGrid("Hari uang saku", (1..7).map { it to dayName(it).take(3) }, 7, weekDay, picking, {
+        BudgetPeriod.WEEKLY -> ChoiceSheet("Hari uang saku", (1..7).map { it to dayName(it).take(3) }, 7, weekDay, picking, {
             weekDay = it
             picking = false
         }) { picking = false }
@@ -267,49 +258,6 @@ private fun DateRow(title: String, value: String, onClick: () -> Unit) {
                 Text(value, style = appText(16f, 22f, SemiBold))
             }
             Ico(R.drawable.ic_chevron_right)
-        }
-    }
-}
-
-/** Pilihan tanggal/hari sekali ketuk (bukan − / + berkali-kali). */
-@Composable
-private fun DayGrid(
-    title: String,
-    options: List<Pair<Int, String>>,
-    columns: Int,
-    selected: Int,
-    visible: Boolean,
-    onPick: (Int) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    LiquidSheet(visible, onDismiss) {
-        Text(title, Modifier.padding(start = 24.dp, top = 4.dp, bottom = 12.dp), style = appText(18f, 24f, Bold))
-        Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            options.chunked(columns).forEach { row ->
-                Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(6.dp)) {
-                    row.forEach { (value, label) ->
-                        val on = value == selected
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .aspectRatio(1f)
-                                .clip(CircleShape)
-                                .background(if (on) Ink.Blue else Ink.white(0.06f))
-                                .clickable(role = Role.Button) { onPick(value) }
-                                .semantics { this.selected = on },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                label,
-                                style = appText(15f, 20f, if (on) Bold else Medium, if (on) Color.White else Ink.White),
-                                textAlign = TextAlign.Center,
-                                maxLines = 1,
-                            )
-                        }
-                    }
-                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
-                }
-            }
         }
     }
 }

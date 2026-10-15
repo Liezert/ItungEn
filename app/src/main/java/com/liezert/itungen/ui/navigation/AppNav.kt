@@ -279,7 +279,7 @@ fun AppNav(
                             accentColor = Tabs[tabIndex].accent.copy(alpha = 1f),
                         ) {
                             Tabs.forEachIndexed { index, tab ->
-                                LiquidBottomTab({ selectTab(index) }) {
+                                LiquidBottomTab({ selectTab(index) }, selected = index == tabIndex) {
                                     Box(
                                         Modifier
                                             .size(28.dp)

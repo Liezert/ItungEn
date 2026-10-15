@@ -37,6 +37,7 @@ import com.liezert.itungen.domain.usecase.GoalError
 import com.liezert.itungen.domain.usecase.TransferError
 import com.liezert.itungen.domain.usecase.suggestedMonthly
 import com.liezert.itungen.ui.components.AmountField
+import com.liezert.itungen.domain.model.MAX_TITLE
 import com.liezert.itungen.ui.components.GlassTextField
 import com.liezert.itungen.ui.components.Ico
 import com.liezert.itungen.ui.components.IconCircle
@@ -85,7 +86,7 @@ fun CreateGoalSheet(
 
     SheetBody {
         Text("Buat Target", style = appText(20f, 28f, Bold))
-        GlassTextField(title, "Nama target, mis. Sepatu Lari")
+        GlassTextField(title, "Nama target, mis. Sepatu Lari", maxLength = MAX_TITLE)
         AmountField(target, "Target dana")
         OptionRow(
             label = targetDate?.formatId() ?: "Tanggal target (opsional)",

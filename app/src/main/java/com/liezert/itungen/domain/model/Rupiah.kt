@@ -6,6 +6,10 @@ import kotlin.math.absoluteValue
 /** Batas atas wajar per transaksi (< 1 triliun), jauh dari batas `Long` (§7.1). */
 const val MAX_AMOUNT = 999_999_999_999L
 
+/** Batas panjang input; firestore.rules memakai batas yang lebih longgar (500 / 100) untuk data lama. */
+const val MAX_NOTE = 100
+const val MAX_TITLE = 60
+
 private val Indonesia = Locale.forLanguageTag("id-ID")
 
 /** 1500000 → "Rp 1.500.000", -50000 → "-Rp 50.000". */

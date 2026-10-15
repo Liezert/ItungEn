@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -57,6 +58,7 @@ import com.liezert.itungen.ui.account.AccountUiState
 import com.liezert.itungen.ui.account.AccountViewModel
 import com.liezert.itungen.ui.account.GoogleSignInButton
 import com.liezert.itungen.ui.budget.dayName
+import com.liezert.itungen.ui.components.ChoiceSheet
 import com.liezert.itungen.ui.components.GlassIconButton
 import com.liezert.itungen.ui.components.Ico
 import com.liezert.itungen.ui.components.IconCircle
@@ -83,6 +85,9 @@ import java.util.Locale
 
 private val ClockFormat = DateTimeFormatter.ofPattern("HH.mm")
 
+/** Sore sampai malam: waktu yang masuk akal untuk "sudah catat hari ini?". */
+private val ReminderHours = (16..23).toList()
+
 /** Pengaturan: akun & sinkron (otomatis), anggaran, pengingat, tampilan, data (cadangan), keluar. */
 @Composable
 fun SettingsScreen(
@@ -98,6 +103,8 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     var confirmSignOut by rememberSaveable { mutableStateOf(false) }
     var reminder by remember { mutableStateOf(container.reminderEnabled) }
+    var reminderHour by remember { mutableIntStateOf(container.reminderHour) }
+    var pickingHour by rememberSaveable { mutableStateOf(false) }
     var appLock by remember { mutableStateOf(container.appLock) }
     var dataMessage by remember { mutableStateOf<String?>(null) }
     var lockMessage by remember { mutableStateOf<String?>(null) }
@@ -112,7 +119,7 @@ fun SettingsScreen(
     fun setReminder(on: Boolean) {
         reminder = on
         container.reminderEnabled = on
-        if (on) ReminderWorker.schedule(context) else ReminderWorker.cancel(context)
+        if (on) ReminderWorker.schedule(context, reminderHour) else ReminderWorker.cancel(context)
     }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         setReminder(granted)
@@ -210,7 +217,7 @@ fun SettingsScreen(
             SectionLabel("PENGINGAT")
             val reminderBlocked = reminder && !notificationsAllowed
             ToggleRow(
-                "Pengingat malam (20.00)",
+                "Pengingat harian",
                 if (reminderBlocked) "Izin notifikasi dicabut, jadi pengingat tidak tampil. Aktifkan lagi untuk mengizinkan."
                 else "Muncul hanya bila hari itu belum ada catatan. Bisa langsung mencatat dari notifikasinya.",
                 checked = reminder && notificationsAllowed,
@@ -218,6 +225,7 @@ fun SettingsScreen(
                 subtitleColor = if (reminderBlocked) Ink.Orange else Ink.Gray,
             )
             if (reminder && notificationsAllowed) {
+                NavRow(R.drawable.ic_history, "Jam pengingat", "%02d.00 setiap hari".format(reminderHour)) { pickingHour = true }
                 Text(
                     "Di beberapa HP (mis. Realme, Oppo, Xiaomi), penghemat baterai bisa menunda pengingat. " +
                         "Bila tidak muncul, izinkan ItungEn berjalan di latar belakang di pengaturan baterai.",
@@ -288,6 +296,13 @@ fun SettingsScreen(
         }
         Spacer(Modifier.height(bottomClearance()))
     }
+
+    ChoiceSheet("Jam pengingat", ReminderHours.map { it to "%02d.00".format(it) }, 4, reminderHour, pickingHour, { hour ->
+        pickingHour = false
+        reminderHour = hour
+        container.reminderHour = hour
+        ReminderWorker.schedule(context, hour)
+    }) { pickingHour = false }
 
     LiquidAlertDialog(
         visible = confirmSignOut,

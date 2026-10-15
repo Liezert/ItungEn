@@ -93,6 +93,9 @@ interface SyncDao {
     @Query("DELETE FROM deleted_transactions WHERE uuid = :uuid")
     suspend fun deleteTombstone(uuid: String)
 
+    @Query("SELECT EXISTS(SELECT 1 FROM deleted_transactions WHERE uuid = :uuid AND pushed = 0)")
+    suspend fun hasPendingDelete(uuid: String): Boolean
+
     /** Transaksi dihapus di HP lain. */
     @Query("DELETE FROM transactions WHERE uuid = :uuid")
     suspend fun deleteTransaction(uuid: String)

@@ -90,6 +90,7 @@ fun GlassTextField(
     modifier: Modifier = Modifier,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     password: Boolean = false,
+    maxLength: Int? = null,
 ) {
     val style = appText(16f, 24f, Regular, Ink.White)
     val decorator = TextFieldDecorator { inner ->
@@ -113,6 +114,7 @@ fun GlassTextField(
             BasicTextField(
                 state = state,
                 modifier = field,
+                inputTransformation = maxLength?.let { InputTransformation.maxLength(it) },
                 textStyle = style,
                 cursorBrush = SolidColor(Ink.White),
                 keyboardOptions = keyboardOptions,

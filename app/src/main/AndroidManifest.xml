@@ -8,6 +8,7 @@
     <application
         android:name=".ItungEnApp"
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="ItungEn"
         android:theme="@style/Theme.ItungEn">
         <activity

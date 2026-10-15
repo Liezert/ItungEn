@@ -1,6 +1,6 @@
 package com.liezert.glass.components
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -25,13 +25,16 @@ internal val LocalLiquidBottomTabScale =
 fun RowScope.LiquidBottomTab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Tab aktif; dibacakan TalkBack ("terpilih"). Tambahan ItungEn, repo tidak punya. */
+    selected: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val scale = LocalLiquidBottomTabScale.current
     Column(
         modifier
             .clip(Capsule())
-            .clickable(
+            .selectable(
+                selected = selected,
                 interactionSource = null,
                 indication = null,
                 role = Role.Tab,

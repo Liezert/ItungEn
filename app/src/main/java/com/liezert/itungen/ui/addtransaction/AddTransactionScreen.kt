@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.maxLength
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.text.input.TextFieldDecorator
 import androidx.compose.foundation.text.input.TextFieldLineLimits
@@ -67,6 +69,7 @@ import com.liezert.glass.components.LiquidBottomTabs
 import com.liezert.glass.components.LiquidButton
 import com.liezert.glass.components.LocalGlassBackdrop
 import com.liezert.itungen.R
+import com.liezert.itungen.domain.model.MAX_NOTE
 import com.liezert.itungen.domain.model.Category
 import com.liezert.itungen.domain.model.CategoryType
 import com.liezert.itungen.domain.model.TransactionError
@@ -246,7 +249,7 @@ private fun TypeToggle(type: CategoryType, tint: Color, modifier: Modifier = Mod
         height = 52.dp,
     ) {
         Types.forEach { (t, label) ->
-            LiquidBottomTab({ onChange(t) }) {
+            LiquidBottomTab({ onChange(t) }, selected = t == type) {
                 Text(label, style = appText(14f, 20f, SemiBold, if (t == type) Ink.White else Ink.Muted))
             }
         }
@@ -304,6 +307,7 @@ private fun AmountCard(
                 BasicTextField(
                     state = note,
                     modifier = Modifier.weight(1f).semantics { contentDescription = "Catatan" },
+                    inputTransformation = InputTransformation.maxLength(MAX_NOTE),
                     textStyle = appText(15f, 20f, Regular, Ink.White),
                     cursorBrush = SolidColor(Ink.White),
                     lineLimits = TextFieldLineLimits.SingleLine,

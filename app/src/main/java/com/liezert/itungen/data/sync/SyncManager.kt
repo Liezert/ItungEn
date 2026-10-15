@@ -2,15 +2,17 @@ package com.liezert.itungen.data.sync
 
 import android.content.SharedPreferences
 import android.util.Log
-import androidx.core.content.edit
 import androidx.room.withTransaction
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.CollectionReference
+import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Source
 import com.liezert.itungen.data.local.AppDatabase
+import com.liezert.itungen.data.local.dao.SyncDao
+import com.liezert.itungen.data.settings.SyncedSettings
 import com.liezert.itungen.data.local.entity.DeletedTransactionEntity
 import com.liezert.itungen.data.local.entity.WalletEntity
 import com.liezert.itungen.domain.model.WalletType
@@ -39,7 +41,8 @@ sealed interface SyncStatus {
 }
 
 /**
- * Sinkron Room ↔ Firestore (`users/{uid}/goals`, `users/{uid}/transactions`). Room tetap sumber data layar,
+ * Sinkron Room ↔ Firestore (`users/{uid}/goals`, `users/{uid}/transactions`, plus dokumen pengaturan
+ * `users/{uid}/settings/main`). Room tetap sumber data layar,
  * jadi app jalan penuh saat offline.
  *
  * - Unggah: baris `synced = 0` dikirim per batch, lalu ditandai `synced = 1` setelah server menerima.
@@ -54,10 +57,12 @@ class SyncManager(
     /** Dibuat saat pertama dipakai: hanya setelah masuk, yang berarti Firebase sudah terkonfigurasi. */
     firestoreProvider: () -> FirebaseFirestore,
     private val account: GoogleAccount,
-    private val prefs: SharedPreferences,
+    private val settings: SyncedSettings,
+    prefs: SharedPreferences,
     scope: CoroutineScope,
 ) {
     private val firestore by lazy(firestoreProvider)
+    private val cursors = SyncCursors(prefs)
     private val dao = db.syncDao()
     private val mutex = Mutex()
     private val _status = MutableStateFlow<SyncStatus>(SyncStatus.Idle)
@@ -67,7 +72,9 @@ class SyncManager(
         // Unggah otomatis setiap ada perubahan lokal selama masuk. Jeda singkat mengumpulkan beberapa perubahan;
         // bila gagal (offline), tunggu lebih lama agar tidak mencoba terus-menerus.
         scope.launch {
-            combine(account.user, dao.observePendingCount()) { user, pending -> user != null && pending > 0 }
+            combine(account.user, dao.observePendingCount(), settings.dirty) { user, pending, dirty ->
+                user != null && (pending > 0 || dirty)
+            }
                 .conflate()
                 .collect { needed ->
                     if (!needed) return@collect
@@ -86,6 +93,7 @@ class SyncManager(
             withTimeout(30_000) {
                 push(uid)
                 pull(uid)
+                syncSettings(uid)
             }
             _status.value = SyncStatus.Synced(Instant.now())
             true
@@ -105,9 +113,9 @@ class SyncManager(
      * false = masih ada perubahan yang belum terunggah dan unggah gagal; tidak ada yang dihapus.
      */
     suspend fun signOut(): Boolean {
-        if (dao.pendingCount() > 0 && !sync()) return false
+        if (hasPending() && !sync()) return false
         mutex.withLock {
-            if (dao.pendingCount() > 0) return false // berubah lagi selama unggah
+            if (hasPending()) return false // berubah lagi selama unggah
             val uid = account.user.value?.uid
             account.signOut()
             db.withTransaction {
@@ -116,7 +124,8 @@ class SyncManager(
                 dao.deleteGoals()
                 dao.deleteGoalWallets()
             }
-            if (uid != null) prefs.edit { Collections.forEach { remove(cursorKey(uid, it)) } }
+            settings.clear()
+            if (uid != null) cursors.clear(uid, Collections)
             _status.value = SyncStatus.Idle
         }
         return true
@@ -147,29 +156,55 @@ class SyncManager(
         }
     }
 
-    private suspend fun pull(uid: String) {
-        val user = firestore.collection("users").document(uid)
-        pullCollection(user.collection(GOALS), cursorKey(uid, GOALS), ::applyGoal)
-        pullCollection(user.collection(TRANSACTIONS), cursorKey(uid, TRANSACTIONS), ::applyTransaction)
+    private suspend fun hasPending() = dao.pendingCount() > 0 || settings.dirty.value
+
+    /**
+     * Satu dokumen pengaturan per akun (1 baca per sinkron). Perubahan terakhir menang: yang di server lebih baru
+     * diterapkan; yang di HP ini lebih baru dan belum terunggah ditulis ke server.
+     */
+    private suspend fun syncSettings(uid: String) {
+        val ref = firestore.collection("users").document(uid).collection(SETTINGS).document(SETTINGS_DOC)
+        val remote = ref.get(Source.SERVER).await()
+        val remoteAt = remote.getLong("updatedAt") ?: -1
+        when {
+            remote.exists() && remoteAt > settings.updatedAt -> settings.applyRemote(remote.data.orEmpty())
+            settings.dirty.value -> {
+                val at = settings.updatedAt
+                ref.set(settings.toDoc() + SyncedAt).await()
+                settings.markPushed(at)
+            }
+        }
     }
 
-    // ponytail: satu kueri tanpa paging; cukup untuk catatan pribadi, tambahkan limit + loop bila ribuan baris per sinkron.
+    private suspend fun pull(uid: String) {
+        val user = firestore.collection("users").document(uid)
+        pullCollection(uid, user.collection(GOALS), GOALS, ::applyGoal)
+        pullCollection(uid, user.collection(TRANSACTIONS), TRANSACTIONS, ::applyTransaction)
+    }
+
+    /**
+     * Tarik inkremental berhalaman: dokumen setelah kursor, urut (syncedAt, id). Kursor hanya maju setelah baris
+     * berhasil diterapkan, jadi yang gagal dicoba lagi sinkron berikutnya.
+     */
     private suspend fun pullCollection(
+        uid: String,
         collection: CollectionReference,
-        key: String,
+        name: String,
         apply: suspend (uuid: String, doc: Map<String, Any?>) -> Boolean,
     ) {
-        val since = Timestamp(prefs.getLong("$key:s", 0), prefs.getInt("$key:n", 0))
-        val docs = collection.whereGreaterThan(SYNCED_AT, since).orderBy(SYNCED_AT).get(Source.SERVER).await().documents
-        for (doc in docs) {
-            val at = doc.getTimestamp(SYNCED_AT) ?: continue
-            val data = doc.data ?: continue
-            // Kursor hanya maju setelah baris berhasil diterapkan, jadi yang gagal dicoba lagi sinkron berikutnya.
-            if (!db.withTransaction { apply(doc.id, data) }) break
-            prefs.edit {
-                putLong("$key:s", at.seconds)
-                putInt("$key:n", at.nanoseconds)
+        while (true) {
+            val cursor = cursors.load(uid, name)
+            val docs = collection.orderBy(SYNCED_AT).orderBy(FieldPath.documentId())
+                .startAfter(Timestamp(cursor.seconds, cursor.nanos), cursor.docId)
+                .limit(PAGE_SIZE)
+                .get(Source.SERVER).await().documents
+            for (doc in docs) {
+                val at = doc.getTimestamp(SYNCED_AT) ?: continue
+                val data = doc.data ?: continue
+                if (!db.withTransaction { apply(doc.id, data) }) return
+                cursors.save(uid, name, PullCursor(at.seconds, at.nanoseconds, doc.id))
             }
+            if (docs.size < PAGE_SIZE) return
         }
     }
 
@@ -199,19 +234,7 @@ class SyncManager(
         return true
     }
 
-    private suspend fun applyTransaction(uuid: String, doc: Map<String, Any?>): Boolean {
-        if (doc["deleted"] == true) {
-            dao.deleteTransaction(uuid)
-            dao.insertTombstone(DeletedTransactionEntity(uuid, pushed = true))
-            return true
-        }
-        dao.deleteTombstone(uuid) // dipulihkan (Urungkan) di HP lain
-        // Dompet goal belum ada di HP ini: berhenti di sini, dicoba lagi setelah goal-nya tertarik.
-        val walletId = dao.walletId(doc["walletUuid"] as String) ?: return false
-        val categoryId = (doc["categoryUuid"] as String?)?.let { dao.categoryId(it) }
-        dao.insertTransaction(transactionFromDoc(uuid, doc, walletId, categoryId))
-        return true
-    }
+    private suspend fun applyTransaction(uuid: String, doc: Map<String, Any?>): Boolean = applyRemoteTransaction(dao, uuid, doc)
 
     private fun failureReason(e: Exception): String {
         val firestoreError = e as? FirebaseFirestoreException
@@ -228,14 +251,35 @@ class SyncManager(
         }
     }
 
-    private fun cursorKey(uid: String, collection: String) = "sync:$uid:$collection"
-
     private companion object {
         const val GOALS = "goals"
         const val TRANSACTIONS = "transactions"
         const val SYNCED_AT = "syncedAt"
+        const val PAGE_SIZE = 300L
+        const val SETTINGS = "settings"
+        const val SETTINGS_DOC = "main"
         val Collections = listOf(GOALS, TRANSACTIONS)
         val SyncedAt: Map<String, Any?> = mapOf(SYNCED_AT to FieldValue.serverTimestamp())
         val Deleted: Map<String, Any?> = mapOf("deleted" to true)
     }
+}
+
+/**
+ * Menerapkan satu dokumen transaksi dari server ke Room (dipanggil di dalam transaksi database).
+ * false = dompet goal-nya belum ada di HP ini; dicoba lagi setelah goal-nya tertarik.
+ */
+internal suspend fun applyRemoteTransaction(dao: SyncDao, uuid: String, doc: Map<String, Any?>): Boolean {
+    if (doc["deleted"] == true) {
+        dao.deleteTransaction(uuid)
+        dao.insertTombstone(DeletedTransactionEntity(uuid, pushed = true))
+        return true
+    }
+    // Dihapus di HP ini tetapi penandanya belum terkirim (mis. dihapus saat dokumennya sedang diunggah):
+    // hapus lokal menang, penandanya akan menimpa dokumen ini di server.
+    if (dao.hasPendingDelete(uuid)) return true
+    dao.deleteTombstone(uuid) // dipulihkan (Urungkan) di HP lain
+    val walletId = dao.walletId(doc["walletUuid"] as String) ?: return false
+    val categoryId = (doc["categoryUuid"] as String?)?.let { dao.categoryId(it) }
+    dao.insertTransaction(transactionFromDoc(uuid, doc, walletId, categoryId))
+    return true
 }

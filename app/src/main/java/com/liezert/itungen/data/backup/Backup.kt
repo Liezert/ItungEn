@@ -5,6 +5,8 @@ import com.liezert.itungen.data.local.AppDatabase
 import com.liezert.itungen.data.local.defaultCategoryUuid
 import com.liezert.itungen.data.local.entity.DeletedTransactionEntity
 import com.liezert.itungen.data.local.entity.WalletEntity
+import com.liezert.itungen.data.settings.SyncedSettings
+import com.liezert.itungen.data.sync.budgetPlanFromDoc
 import com.liezert.itungen.data.sync.goalFromDoc
 import com.liezert.itungen.data.sync.toDoc
 import com.liezert.itungen.data.sync.transactionFromDoc
@@ -12,14 +14,11 @@ import com.liezert.itungen.domain.model.CategoryType
 import com.liezert.itungen.domain.model.Transaction
 import com.liezert.itungen.domain.model.TransactionType
 import com.liezert.itungen.domain.model.WalletType
-import com.liezert.itungen.domain.usecase.BudgetPeriod
-import com.liezert.itungen.domain.usecase.BudgetPlan
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.InputStream
 import java.io.OutputStream
 import java.time.Instant
-import java.time.LocalDate
 
 /** File cadangan bukan buatan ItungEn atau rusak. */
 class InvalidBackupException : Exception()
@@ -35,8 +34,7 @@ data class ImportResult(val added: Int, val planRestored: Boolean)
  */
 class Backup(
     private val db: AppDatabase,
-    private val plan: () -> BudgetPlan?,
-    private val savePlan: (BudgetPlan) -> Unit,
+    private val settings: SyncedSettings,
 ) {
     private val dao = db.syncDao()
 
@@ -50,7 +48,7 @@ class Backup(
             .put("goals", goals)
             .put("transactions", transactions)
             .put("deleted", JSONArray(dao.deletedUuids()))
-        plan()?.let { root.put("budgetPlan", it.toJson()) }
+            .put("settings", JSONObject(settings.toDoc()))
         out.writer().use { it.write(root.toString(2)) }
     }
 
@@ -112,9 +110,11 @@ class Backup(
                 if (dao.insertTransaction(row) != -1L) added++
             }
         }
-        val backupPlan = root.optJSONObject("budgetPlan")?.let { runCatching { it.toPlan() }.getOrNull() }
-        val planRestored = backupPlan != null && plan() == null
-        if (planRestored) savePlan(backupPlan!!)
+        // Cadangan versi awal menyimpan rencana di "budgetPlan" (tanggal berupa teks).
+        val planDoc = root.optJSONObject("settings")?.optJSONObject("budgetPlan") ?: root.optJSONObject("budgetPlan")
+        val backupPlan = planDoc?.let { runCatching { budgetPlanFromDoc(it.toMap()) }.getOrNull() }
+        val planRestored = backupPlan != null && settings.plan.value == null
+        if (planRestored) settings.savePlan(backupPlan!!)
         return ImportResult(added, planRestored)
     }
 
@@ -134,30 +134,10 @@ class Backup(
     }
 }
 
-private fun BudgetPlan.toJson() = JSONObject()
-    .put("income", income)
-    .put("cycleStartDay", cycleStartDay)
-    .put("fixedBills", fixedBills)
-    .put("savingsTarget", savingsTarget)
-    .put("period", period.name)
-    .put("startedOn", startedOn?.toString())
-    .put("nextIncomeOn", nextIncomeOn?.toString())
-
-private fun JSONObject.toPlan() = BudgetPlan(
-    income = getLong("income"),
-    cycleStartDay = getInt("cycleStartDay"),
-    fixedBills = optLong("fixedBills"),
-    savingsTarget = optLong("savingsTarget"),
-    period = BudgetPeriod.valueOf(optString("period", BudgetPeriod.MONTHLY.name)),
-    startedOn = optString("startedOn").takeIf { it.isNotEmpty() }?.let(LocalDate::parse),
-    nextIncomeOn = optString("nextIncomeOn").takeIf { it.isNotEmpty() }?.let(LocalDate::parse),
-)
-
 /** JSONObject → Map dengan null untuk field yang tidak ada (JSONObject membuang nilai null saat ekspor). */
-private fun JSONArray.objects(): List<Map<String, Any?>> = (0 until length()).map { i ->
-    val obj = getJSONObject(i)
-    obj.keys().asSequence().associateWith { key -> obj.get(key).takeUnless { it == JSONObject.NULL } }
-}
+private fun JSONArray.objects(): List<Map<String, Any?>> = (0 until length()).map { getJSONObject(it).toMap() }
+
+private fun JSONObject.toMap(): Map<String, Any?> = keys().asSequence().associateWith { key -> get(key).takeUnless { it == JSONObject.NULL } }
 
 private fun TransactionType.label() = when (this) {
     TransactionType.INCOME -> "Pemasukan"

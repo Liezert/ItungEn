@@ -115,7 +115,7 @@ fun InsightContent(
             height = 52.dp,
         ) {
             Kinds.forEach { (type, label) ->
-                LiquidBottomTab({ onType(type) }) {
+                LiquidBottomTab({ onType(type) }, selected = type == state.type) {
                     Text(label, style = appText(14f, 20f, SemiBold, if (type == state.type) Ink.White else Ink.Muted))
                 }
             }

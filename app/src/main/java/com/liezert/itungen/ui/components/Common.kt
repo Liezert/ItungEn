@@ -66,6 +66,7 @@ fun Ico(@DrawableRes id: Int, modifier: Modifier = Modifier, contentDescription:
 private val PrimaryIcons = setOf(
     R.drawable.ic_add_food, R.drawable.ic_backspace, R.drawable.ic_chevron_right, R.drawable.ic_close,
     R.drawable.ic_delete, R.drawable.ic_history, R.drawable.ic_inc_gaji, R.drawable.ic_profile_avatar, R.drawable.ic_settings,
+    R.drawable.ic_add_bill, R.drawable.ic_add_health, R.drawable.ic_add_education,
 )
 private val MutedIcons = setOf(
     R.drawable.ic_add_car, R.drawable.ic_add_film, R.drawable.ic_add_note, R.drawable.ic_add_other, R.drawable.ic_back,

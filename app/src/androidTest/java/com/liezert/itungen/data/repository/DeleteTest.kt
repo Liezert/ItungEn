@@ -16,7 +16,7 @@ import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneOffset
 
-/** Hapus transaksi: saldo ikut berubah, dan penghapusan transaksi yang sudah terunggah tercatat untuk disinkronkan. */
+/** Hapus transaksi: saldo ikut berubah, dan setiap penghapusan tercatat untuk disinkronkan. */
 @RunWith(AndroidJUnit4::class)
 class DeleteTest {
     private lateinit var db: AppDatabase
@@ -34,7 +34,7 @@ class DeleteTest {
     fun tearDown() = db.close()
 
     @Test
-    fun delete_updatesBalance_andTombstonesOnlySyncedRows() = runBlocking<Unit> {
+    fun delete_updatesBalance_andQueuesTombstones() = runBlocking<Unit> {
         val food = money.observeCategories(CategoryType.EXPENSE).first().first { it.name == "Makanan" }
         money.addToMainWallet(TransactionType.EXPENSE, 10_000, food.id, "Belum terunggah", today)
         money.addToMainWallet(TransactionType.EXPENSE, 20_000, food.id, "Sudah terunggah", today)
@@ -43,9 +43,9 @@ class DeleteTest {
         assertEquals(-30_000L, money.observeMainBalance().first())
 
         money.deleteTransaction(local.id)
-        assertEquals(0, db.syncDao().pendingDeletes().size) // tidak pernah ada di akun: cukup dihapus
+        assertEquals(1, db.syncDao().pendingDeletes().size) // unggahannya bisa sedang berjalan: penanda tetap dikirim
         money.deleteTransaction(synced.id)
-        assertEquals(1, db.syncDao().pendingDeletes().size) // HP lain perlu ikut menghapus
+        assertEquals(2, db.syncDao().pendingDeletes().size) // HP lain perlu ikut menghapus
 
         assertEquals(0L, money.observeMainBalance().first())
         assertEquals(emptyList<Any>(), money.observeTransactions().first())

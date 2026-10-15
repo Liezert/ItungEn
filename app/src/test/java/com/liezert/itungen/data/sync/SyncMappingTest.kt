@@ -6,6 +6,8 @@ import com.liezert.itungen.data.local.entity.GoalEntity
 import com.liezert.itungen.data.local.entity.TransactionEntity
 import com.liezert.itungen.domain.model.GoalStatus
 import com.liezert.itungen.domain.model.TransactionType
+import com.liezert.itungen.domain.usecase.BudgetPeriod
+import com.liezert.itungen.domain.usecase.BudgetPlan
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.Instant
@@ -40,5 +42,18 @@ class SyncMappingTest {
         assertEquals("wallet-1", doc["walletUuid"])
         assertEquals(false, doc["walletArchived"])
         assertEquals(local.copy(id = 0, walletId = 5, synced = true), goalFromDoc("goal-1", doc, 5))
+    }
+
+    @Test
+    fun budgetPlan_roundTrip_andReadsOldTextDates() {
+        val plan = BudgetPlan(
+            income = 500_000, cycleStartDay = 1, fixedBills = 0, savingsTarget = 50_000, period = BudgetPeriod.UNTIL_DATE,
+            startedOn = LocalDate.of(2026, 10, 10), nextIncomeOn = LocalDate.of(2026, 10, 20),
+        )
+        assertEquals(plan, budgetPlanFromDoc(plan.toDoc()))
+        // Cadangan versi awal: tanggal teks, angka Int dari org.json.
+        val old = mapOf("income" to 500_000, "cycleStartDay" to 1, "period" to "UNTIL_DATE", "savingsTarget" to 50_000,
+            "startedOn" to "2026-10-10", "nextIncomeOn" to "2026-10-20")
+        assertEquals(plan, budgetPlanFromDoc(old))
     }
 }
