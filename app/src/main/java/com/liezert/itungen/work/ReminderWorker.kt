@@ -41,8 +41,11 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
         val container = (applicationContext as ItungEnApp).container
         val today = LocalDate.now(container.clock)
         if (container.noSpendDay == today) return Result.success()
-        val transactions = container.transactionRepository.observeTransactions().first()
-        if (transactions.none { it.date == today }) notify(applicationContext, quickTemplates(transactions, today, limit = 1).firstOrNull())
+        val repository = container.transactionRepository
+        if (!repository.hasTransactionOn(today)) {
+            val recent = repository.observeBetween(today.minusDays(60), today).first()
+            notify(applicationContext, quickTemplates(recent, today, limit = 1).firstOrNull())
+        }
         return Result.success()
     }
 

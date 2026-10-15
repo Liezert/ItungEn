@@ -51,7 +51,7 @@ class ApplyRemoteTest {
         // Unggahan selesai: dokumen yang sudah terbaca tetap terkirim, lalu tarikan membawanya kembali.
         db.withTransaction { applyRemoteTransaction(dao, uploading.tx.uuid, uploading.toDoc()) }
 
-        assertEquals(emptyList<Any>(), money.observeTransactions().first())
+        assertEquals(emptyList<Any>(), money.allTransactions())
         assertEquals(listOf(uploading.tx.uuid), dao.pendingDeletes()) // penanda hapus tetap akan dikirim
     }
 
@@ -64,10 +64,10 @@ class ApplyRemoteTest {
         val row = dao.pendingTransactions().single()
         dao.markTransactionsSynced(listOf(row.tx.uuid))
         db.withTransaction { applyRemoteTransaction(dao, row.tx.uuid, mapOf("deleted" to true)) } // dihapus di HP lain
-        assertEquals(emptyList<Any>(), money.observeTransactions().first())
+        assertEquals(emptyList<Any>(), money.allTransactions())
 
         db.withTransaction { applyRemoteTransaction(dao, row.tx.uuid, row.toDoc()) } // lalu diurungkan di sana
-        assertEquals(listOf(12_000L), money.observeTransactions().first().map { it.amount }) // id lokal boleh baru
+        assertEquals(listOf(12_000L), money.allTransactions().map { it.amount }) // id lokal boleh baru
         assertEquals(emptyList<String>(), dao.deletedUuids())
     }
 }

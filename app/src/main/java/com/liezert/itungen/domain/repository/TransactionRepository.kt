@@ -4,12 +4,41 @@ import com.liezert.itungen.domain.model.Category
 import com.liezert.itungen.domain.model.CategoryType
 import com.liezert.itungen.domain.model.Transaction
 import com.liezert.itungen.domain.model.TransactionType
+import com.liezert.itungen.domain.usecase.CategorySpend
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
+/** Pemasukan & pengeluaran (bukan transfer, §3.2) dan jumlah semua transaksi dalam satu rentang. */
+data class Totals(val income: Long, val expense: Long, val count: Int)
+
+/**
+ * Dompet utama. Layar tidak pernah memuat seluruh riwayat: setiap kueri berjendela (tanggal atau jumlah baris) atau
+ * teragregasi di SQL, jadi biaya per perubahan tetap kecil walau riwayat puluhan ribu baris (docs/PERFORMANCE.md).
+ */
 interface TransactionRepository {
-    /** Riwayat dompet utama, terbaru dulu (transfer ke goal tampil sekali, sebagai keluar). */
-    fun observeTransactions(): Flow<List<Transaction>>
+    /** [limit] transaksi terbaru, terbaru dulu (transfer ke goal tampil sekali, sebagai keluar). */
+    fun observeRecent(limit: Int): Flow<List<Transaction>>
+
+    /** Transaksi [from]..[to] inklusif, terbaru dulu. */
+    fun observeBetween(from: LocalDate, to: LocalDate): Flow<List<Transaction>>
+
+    /** Semua Transaksi: cari di catatan/kategori + filter nama kategori (null = semua), maksimal [limit] baris. */
+    fun observeSearch(query: String, categoryName: String?, limit: Int): Flow<List<Transaction>>
+
+    fun observeTotals(from: LocalDate, to: LocalDate): Flow<Totals>
+
+    /** Total [type] per kategori [from]..[to], terbesar dulu. */
+    fun observeCategoryTotals(type: TransactionType, from: LocalDate, to: LocalDate): Flow<List<CategorySpend>>
+
+    /** Tanggal transaksi paling awal; null bila belum ada. */
+    fun observeFirstDate(): Flow<LocalDate?>
+
+    fun observeHasTransactions(): Flow<Boolean>
+
+    suspend fun hasTransactionOn(date: LocalDate): Boolean
+
+    /** Seluruh riwayat, terbaru dulu. Hanya untuk ekspor dan tes, bukan untuk layar. */
+    suspend fun allTransactions(): List<Transaction>
 
     /** Total Saldo = saldo dompet utama (§3.2). */
     fun observeMainBalance(): Flow<Long>

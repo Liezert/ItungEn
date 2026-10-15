@@ -38,7 +38,7 @@ class DeleteTest {
         val food = money.observeCategories(CategoryType.EXPENSE).first().first { it.name == "Makanan" }
         money.addToMainWallet(TransactionType.EXPENSE, 10_000, food.id, "Belum terunggah", today)
         money.addToMainWallet(TransactionType.EXPENSE, 20_000, food.id, "Sudah terunggah", today)
-        val (local, synced) = money.observeTransactions().first().sortedBy { it.amount }
+        val (local, synced) = money.allTransactions().sortedBy { it.amount }
         db.syncDao().markTransactionsSynced(listOf(db.transactionDao().get(synced.id).uuid))
         assertEquals(-30_000L, money.observeMainBalance().first())
 
@@ -48,7 +48,7 @@ class DeleteTest {
         assertEquals(2, db.syncDao().pendingDeletes().size) // HP lain perlu ikut menghapus
 
         assertEquals(0L, money.observeMainBalance().first())
-        assertEquals(emptyList<Any>(), money.observeTransactions().first())
+        assertEquals(emptyList<Any>(), money.allTransactions())
         assertEquals(2, db.syncDao().deletedUuids().size) // keduanya tetap tercatat untuk pemulihan cadangan
     }
 

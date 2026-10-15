@@ -75,7 +75,6 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 
-private const val RecentCount = 4
 
 /** Pengganti nominal saat saldo disembunyikan. */
 const val HiddenAmount = "Rp ••••••"
@@ -132,7 +131,7 @@ fun HomeContent(
             BalanceCard(state, balanceHidden, onToggleBalance, Modifier.screenPad())
             if (state.templates.isNotEmpty()) QuickAddRow(state.templates, onQuickAdd)
             state.goal?.let { GoalPreviewCard(it, onOpenGoals, Modifier.screenPad()) }
-            RecentCard(state.transactions.take(RecentCount), state, onSeeAll, Modifier.screenPad())
+            RecentCard(state.recent, state, onSeeAll, Modifier.screenPad())
         }
         Spacer(Modifier.height(bottomClearance()))
     }

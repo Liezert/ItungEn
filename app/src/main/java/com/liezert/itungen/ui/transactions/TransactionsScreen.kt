@@ -16,7 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,11 +28,9 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,7 +53,6 @@ import com.liezert.itungen.R
 import com.liezert.itungen.domain.model.Transaction
 import com.liezert.itungen.domain.model.TransactionType
 import com.liezert.itungen.domain.model.formatSigned
-import com.liezert.itungen.domain.usecase.filterTransactions
 import com.liezert.itungen.ui.components.GlassIconButton
 import com.liezert.itungen.ui.components.Ico
 import com.liezert.itungen.ui.components.IconCircle
@@ -85,7 +83,13 @@ fun TransactionsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val undo by viewModel.undo.entries.collectAsStateWithLifecycle()
-    TransactionsContent(state, onBack, onDelete = viewModel::delete)
+    TransactionsContent(
+        state, onBack,
+        onDelete = viewModel::delete,
+        onSearch = viewModel::search,
+        onFilter = viewModel::filter,
+        onLoadMore = viewModel::loadMore,
+    )
     UndoToast(undo.toastMessage(), viewModel.undo::undoLatest)
 }
 
@@ -96,13 +100,14 @@ fun TransactionsContent(
     modifier: Modifier = Modifier,
     /** Pemasukan/pengeluaran yang digeser ke kiri. Transfer goal tidak bisa dihapus. */
     onDelete: (Transaction) -> Unit = {},
+    onSearch: (String) -> Unit = {},
+    /** null = "Semua". */
+    onFilter: (String?) -> Unit = {},
+    onLoadMore: () -> Unit = {},
 ) {
-    var query by rememberSaveable { mutableStateOf("") }
-    var selected by rememberSaveable { mutableIntStateOf(0) } // 0 = "Semua"
     // Tekan lama = alternatif geser (geser dari tepi kanan bisa bentrok dengan gestur Kembali).
     var confirmDelete by remember { mutableStateOf<Transaction?>(null) }
-    val labels = listOf("Semua") + state.filters
-    val visible = filterTransactions(state.transactions, query, state.filters.getOrNull(selected - 1))
+    val labels = listOf<String?>(null) + state.filters
 
     Column(modifier.fillMaxSize()) {
         TopBar(
@@ -117,26 +122,23 @@ fun TransactionsContent(
                     style = appText(14f, 20f, Medium, Ink.Muted),
                 )
             }
-            SearchPill(query, { query = it }, Modifier.screenPad())
+            SearchPill(state.query, onSearch, Modifier.screenPad())
             LazyRow(
                 Modifier.fillMaxWidth(),
                 contentPadding = PaddingValues(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                itemsIndexed(labels) { i, label ->
+                items(labels) { label ->
                     PillChip(
-                        label = label,
-                        selected = i == selected,
-                        onClick = { selected = i },
+                        label = label ?: "Semua",
+                        selected = label == state.category,
+                        onClick = { onFilter(label) },
                         selectedText = appText(14f, 20f, SemiBold, Ink.Black),
                         unselectedText = appText(14f, 20f, Medium, Ink.Muted),
                     )
                 }
             }
-            TransactionListCard(
-                visible, state, hasAny = state.transactions.isNotEmpty(), onDelete,
-                onLongPress = { confirmDelete = it }, Modifier.screenPad().weight(1f),
-            )
+            TransactionListCard(state, onDelete, onLongPress = { confirmDelete = it }, onLoadMore, Modifier.screenPad().weight(1f))
         }
         Spacer(Modifier.height(bottomClearance()))
     }
@@ -188,48 +190,49 @@ private fun SearchPill(query: String, onChange: (String) -> Unit, modifier: Modi
 
 @Composable
 private fun TransactionListCard(
-    transactions: List<Transaction>,
     state: TransactionsUiState,
-    hasAny: Boolean,
     onDelete: (Transaction) -> Unit,
     onLongPress: (Transaction) -> Unit,
+    onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val groups = transactions.groupBy { it.date }.toList() // urutan sumber: terbaru dulu
+    val listState = rememberLazyListState()
+    // Muat lebih banyak saat tinggal 10 item lagi sebelum akhir yang sudah dimuat.
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.layoutInfo.run { (visibleItemsInfo.lastOrNull()?.index ?: 0) >= totalItemsCount - 10 } }
+            .collect { nearEnd -> if (nearEnd) onLoadMore() }
+    }
+    val groups = state.transactions.groupBy { it.date }.toList() // urutan sumber: terbaru dulu
     GlassSurface(
         modifier.fillMaxWidth(),
         contentPadding = PaddingValues(start = 1.dp, end = 1.dp, top = 9.dp, bottom = 1.dp),
     ) {
         if (groups.isEmpty()) {
+            if (state.loading) return@GlassSurface
             Text(
-                if (hasAny) "Tidak ada transaksi yang cocok." else "Belum ada transaksi. Tekan + untuk mencatat.",
+                if (state.hasAny) "Tidak ada transaksi yang cocok." else "Belum ada transaksi. Tekan + untuk mencatat.",
                 Modifier.padding(24.dp),
                 style = appText(14f, 20f, Regular, Ink.Muted),
             )
             return@GlassSurface
         }
-        LazyColumn(
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+        // Satu item per baris (bukan per tanggal): hari dengan banyak transaksi tetap ringan discroll.
+        LazyColumn(state = listState, contentPadding = PaddingValues(16.dp)) {
             groups.forEachIndexed { index, (date, rows) ->
                 if (index > 0) {
-                    item(key = "divider-$date") { Box(Modifier.fillMaxWidth().height(1.dp).background(Ink.white(0.05f))) }
-                }
-                item(key = "group-$date") {
-                    Column(
-                        Modifier.padding(bottom = if (index < groups.lastIndex) 8.dp else 0.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        Text(
-                            groupLabel(date, state.today),
-                            Modifier.padding(horizontal = 8.dp),
-                            style = appText(12f, 16f, Bold, Ink.NavInactive, tracking = 1.2f),
-                        )
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            rows.forEach { key(it.id) { SwipeToDelete(it, onDelete, onLongPress) { TxRow(it, state) } } }
-                        }
+                    item(key = "divider-$date", contentType = "divider") {
+                        Box(Modifier.padding(top = 20.dp, bottom = 16.dp).fillMaxWidth().height(1.dp).background(Ink.white(0.05f)))
                     }
+                }
+                item(key = "group-$date", contentType = "header") {
+                    Text(
+                        groupLabel(date, state.today),
+                        Modifier.padding(start = 8.dp, end = 8.dp, bottom = 16.dp),
+                        style = appText(12f, 16f, Bold, Ink.NavInactive, tracking = 1.2f),
+                    )
+                }
+                items(rows, key = { it.id }, contentType = { "row" }) {
+                    Box(Modifier.padding(bottom = 4.dp)) { SwipeToDelete(it, onDelete, onLongPress) { TxRow(it, state) } }
                 }
             }
         }

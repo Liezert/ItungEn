@@ -108,7 +108,7 @@ fun SettingsScreen(
     var appLock by remember { mutableStateOf(container.appLock) }
     var dataMessage by remember { mutableStateOf<String?>(null) }
     var lockMessage by remember { mutableStateOf<String?>(null) }
-    val transactions by remember { container.transactionRepository.observeTransactions() }.collectAsStateWithLifecycle(null)
+    val hasTransactions by remember { container.transactionRepository.observeHasTransactions() }.collectAsStateWithLifecycle(true)
     // Izin bisa dicabut dari pengaturan HP kapan saja: dibaca ulang setiap layar kembali tampil.
     var notificationsAllowed by remember { mutableStateOf(true) }
     LifecycleResumeEffect(Unit) {
@@ -176,7 +176,7 @@ fun SettingsScreen(
     }
     val exportCsv = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) runData {
-            val transactions = container.transactionRepository.observeTransactions().first()
+            val transactions = container.transactionRepository.allTransactions()
             context.contentResolver.openOutputStream(uri)!!.use { container.backup.exportCsv(transactions, it) }
             "CSV tersimpan (${transactions.size} transaksi)."
         }
@@ -268,7 +268,7 @@ fun SettingsScreen(
                 LiquidButton(onClick = { importJson.launch(arrayOf("application/json", "application/octet-stream")) }, modifier = Modifier.fillMaxWidth()) {
                     Text("Pulihkan dari cadangan", style = appText(15f, 20f, SemiBold))
                 }
-                if (transactions?.isEmpty() == true) {
+                if (!hasTransactions) {
                     LiquidButton(onClick = { runData { seedDemoData(container); "Data contoh ditambahkan. Lihat Beranda." } }, modifier = Modifier.fillMaxWidth()) {
                         Text("Isi data contoh", style = appText(15f, 20f, SemiBold))
                     }

@@ -10,10 +10,7 @@ import com.liezert.itungen.data.repository.RoomTransactionRepository
 import com.liezert.itungen.domain.model.CategoryType
 import com.liezert.itungen.domain.model.TransactionType
 import com.liezert.itungen.domain.usecase.BudgetPlan
-import com.liezert.itungen.domain.usecase.categorySpending
 import com.liezert.itungen.domain.usecase.computeBudget
-import com.liezert.itungen.domain.usecase.monthExpense
-import com.liezert.itungen.domain.usecase.monthIncome
 import com.liezert.itungen.domain.usecase.quickTemplates
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -31,7 +28,7 @@ import kotlin.system.measureTimeMillis
 
 /**
  * Pengukuran (docs/PERFORMANCE.md), bukan pemeriksaan benar/salah: berapa lama Beranda + Insight menghitung ulang
- * setelah satu perubahan bila ada 30.000 transaksi. Hasil di logcat tag "DataScale".
+ * setelah satu perubahan bila ada 30.000 transaksi (kueri berjendela/teragregasi). Hasil di logcat tag "DataScale".
  * adb shell am instrument -w -e class com.liezert.itungen.data.DataScaleTest com.liezert.itungen.test/androidx.test.runner.AndroidJUnitRunner
  */
 @RunWith(AndroidJUnit4::class)
@@ -68,18 +65,33 @@ class DataScaleTest {
     fun homeAndInsight_recompute() = runBlocking<Unit> {
         val plan = BudgetPlan(income = 3_000_000, cycleStartDay = 25)
         val month = YearMonth.from(today)
+        val previous = month.minusMonths(1)
         val times = (1..5).map {
             measureTimeMillis {
-                val all = money.observeTransactions().first()
-                monthIncome(all, month)
-                monthExpense(all, month)
-                computeBudget(plan, all, 0, today)
-                quickTemplates(all, today)
-                categorySpending(all, month)
-                categorySpending(all, month.minusMonths(1))
+                // Beranda: total bulan ini, jendela siklus + 60 hari, riwayat terakhir.
+                money.observeTotals(month.atDay(1), month.atEndOfMonth()).first()
+                val window = money.observeBetween(today.minusDays(60), today).first()
+                money.observeRecent(4).first()
+                computeBudget(plan, window, 0, today)
+                quickTemplates(window, today)
+                // Insight: per kategori bulan ini dan bulan lalu.
+                money.observeCategoryTotals(TransactionType.EXPENSE, month.atDay(1), month.atEndOfMonth()).first()
+                money.observeCategoryTotals(TransactionType.EXPENSE, previous.atDay(1), previous.atEndOfMonth()).first()
+                money.observeFirstDate().first()
             }
         }
-        Log.i("DataScale", "rows=$Rows load+aggregate ms=$times median=${times.sorted()[2]}")
+        // Rincian per langkah (putaran terakhir, cache SQLite sudah hangat).
+        val steps = listOf<Pair<String, suspend () -> Unit>>(
+            "totals" to { money.observeTotals(month.atDay(1), month.atEndOfMonth()).first() },
+            "window60" to { money.observeBetween(today.minusDays(60), today).first() },
+            "recent" to { money.observeRecent(4).first() },
+            "categoryTotals" to { money.observeCategoryTotals(TransactionType.EXPENSE, month.atDay(1), month.atEndOfMonth()).first() },
+            "firstDate" to { money.observeFirstDate().first() },
+        ).map { (name, step) -> name to measureTimeMillis { step() } }
+        Log.i("DataScale", "steps ms=$steps")
+        // Pembanding: memuat seluruh riwayat (cara lama sebelum Fase C).
+        val loadAll = (1..3).map { measureTimeMillis { money.allTransactions() } }
+        Log.i("DataScale", "rows=$Rows windowed ms=$times median=${times.sorted()[2]} | load-all ms=$loadAll")
     }
 
     private companion object {

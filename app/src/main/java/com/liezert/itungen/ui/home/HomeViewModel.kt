@@ -15,11 +15,14 @@ import com.liezert.itungen.domain.usecase.Budget
 import com.liezert.itungen.domain.usecase.BudgetPlan
 import com.liezert.itungen.domain.usecase.QuickTemplate
 import com.liezert.itungen.domain.usecase.computeBudget
-import com.liezert.itungen.domain.usecase.monthExpense
-import com.liezert.itungen.domain.usecase.monthIncome
+import com.liezert.itungen.domain.usecase.cycleOf
 import com.liezert.itungen.domain.usecase.quickTemplates
 import com.liezert.itungen.ui.components.UndoStack
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -40,12 +43,18 @@ data class HomeUiState(
     val monthExpense: Long = 0,
     /** null = anggaran belum diatur: Beranda menampilkan ajakan mengaturnya. */
     val budget: Budget? = null,
-    /** Terbaru dulu. */
-    val transactions: List<Transaction> = emptyList(),
+    /** Riwayat terakhir, terbaru dulu. */
+    val recent: List<Transaction> = emptyList(),
     val templates: List<QuickTemplate> = emptyList(),
     /** Target yang ditampilkan di Beranda. */
     val goal: Goal? = null,
 )
+
+/** Jumlah baris "Riwayat Terakhir" di Beranda. */
+const val RecentCount = 4
+
+/** Jendela catat cepat: kebiasaan 60 hari terakhir. */
+private const val TemplateDays = 60L
 
 class HomeViewModel(
     private val repository: TransactionRepository,
@@ -55,29 +64,36 @@ class HomeViewModel(
     /** Lingkup aplikasi: Urungkan tetap bekerja walau layar ditinggalkan. */
     private val appScope: CoroutineScope,
 ) : ViewModel() {
-    val uiState: StateFlow<HomeUiState> = combine(
-        repository.observeMainBalance(),
-        repository.observeTransactions(),
-        goals.observeGoals(),
-        budgetPlan,
-    ) { balance, transactions, goalList, plan ->
+    // Tidak memuat seluruh riwayat: total bulan ini dari SQL, plus satu jendela tanggal (siklus anggaran dan
+    // 60 hari terakhir untuk catat cepat) yang dihitung di Dispatchers.Default.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val uiState: StateFlow<HomeUiState> = budgetPlan.flatMapLatest { plan ->
         val today = LocalDate.now(clock)
         val month = YearMonth.from(today)
-        val goalsMonthly = goalList.filter { it.status == GoalStatus.ACTIVE }.sumOf { it.plannedMonthly }
-        HomeUiState(
-            today = today,
-            zone = clock.zone,
-            loading = false,
-            balance = balance,
-            monthIncome = monthIncome(transactions, month),
-            monthExpense = monthExpense(transactions, month),
-            budget = plan?.let { computeBudget(it, transactions, goalsMonthly, today) },
-            transactions = transactions,
-            templates = quickTemplates(transactions, today),
-            // Target yang masih dikejar lebih berguna di Beranda daripada yang sudah tercapai.
-            goal = goalList.firstOrNull { it.status == GoalStatus.ACTIVE } ?: goalList.firstOrNull(),
-        )
-    }.stateIn(
+        val windowStart = minOf(today.minusDays(TemplateDays), plan?.cycleOf(today)?.start ?: today)
+        combine(
+            repository.observeMainBalance(),
+            repository.observeTotals(month.atDay(1), month.atEndOfMonth()),
+            repository.observeBetween(windowStart, today),
+            repository.observeRecent(RecentCount),
+            goals.observeGoals(),
+        ) { balance, totals, window, recent, goalList ->
+            val goalsMonthly = goalList.filter { it.status == GoalStatus.ACTIVE }.sumOf { it.plannedMonthly }
+            HomeUiState(
+                today = today,
+                zone = clock.zone,
+                loading = false,
+                balance = balance,
+                monthIncome = totals.income,
+                monthExpense = totals.expense,
+                budget = plan?.let { computeBudget(it, window, goalsMonthly, today) },
+                recent = recent,
+                templates = quickTemplates(window, today),
+                // Target yang masih dikejar lebih berguna di Beranda daripada yang sudah tercapai.
+                goal = goalList.firstOrNull { it.status == GoalStatus.ACTIVE } ?: goalList.firstOrNull(),
+            )
+        }
+    }.flowOn(Dispatchers.Default).stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
         HomeUiState(today = LocalDate.now(clock), zone = clock.zone),

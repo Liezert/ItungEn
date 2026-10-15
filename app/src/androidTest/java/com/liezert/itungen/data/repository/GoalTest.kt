@@ -49,7 +49,7 @@ class GoalTest {
         assertEquals(700_000L, money.observeMainBalance().first())
         assertEquals(300_000L to GoalStatus.ACTIVE, goals.observeGoals().first().single().let { it.saved to it.status })
         // Riwayat dompet utama: satu baris transfer keluar, bukan pengeluaran.
-        val out = money.observeTransactions().first().first()
+        val out = money.allTransactions().first()
         assertEquals(TransactionType.TRANSFER_OUT to "Ke Sepatu Lari", out.type to out.note)
 
         goals.addFunds(id, 500_000)
@@ -68,7 +68,7 @@ class GoalTest {
         }
         assertEquals(1_000_000L, money.observeMainBalance().first())
         assertEquals(0L, goals.observeGoals().first().single().saved)
-        assertEquals(1, money.observeTransactions().first().size) // hanya gaji
+        assertEquals(1, money.allTransactions().size) // hanya gaji
     }
 
     @Test
@@ -79,7 +79,7 @@ class GoalTest {
 
         assertEquals(1_000_000L, money.observeMainBalance().first())
         assertTrue(goals.observeGoals().first().isEmpty())
-        val back = money.observeTransactions().first().first { it.type == TransactionType.TRANSFER_IN }
+        val back = money.allTransactions().first { it.type == TransactionType.TRANSFER_IN }
         assertEquals(400_000L to "Dari Liburan (dibatalkan)", back.amount to back.note)
     }
 }

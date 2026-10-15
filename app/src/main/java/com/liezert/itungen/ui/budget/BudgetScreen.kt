@@ -44,6 +44,7 @@ import com.liezert.itungen.domain.model.formatRupiah
 import com.liezert.itungen.domain.usecase.BudgetPeriod
 import com.liezert.itungen.domain.usecase.BudgetPlan
 import com.liezert.itungen.domain.usecase.computeBudget
+import com.liezert.itungen.domain.usecase.cycleOf
 import com.liezert.itungen.ui.components.AmountField
 import com.liezert.itungen.ui.components.ChoiceSheet
 import com.liezert.itungen.ui.components.GlassIconButton
@@ -93,7 +94,6 @@ fun dayName(day: Int): String = DayOfWeek.of(day.coerceIn(1, 7)).getDisplayName(
 fun BudgetScreen(onBack: () -> Unit) {
     val container = (LocalContext.current.applicationContext as ItungEnApp).container
     val current by container.budgetPlan.collectAsStateWithLifecycle()
-    val transactions by remember { container.transactionRepository.observeTransactions() }.collectAsStateWithLifecycle(emptyList())
     val goals by remember { container.goalRepository.observeGoals() }.collectAsStateWithLifecycle(emptyList())
     val today = LocalDate.now(container.clock)
 
@@ -128,6 +128,10 @@ fun BudgetScreen(onBack: () -> Unit) {
         nextIncomeOn = nextDate.takeIf { period == BudgetPeriod.UNTIL_DATE },
     )
     val goalsMonthly = goals.filter { it.status == GoalStatus.ACTIVE }.sumOf { it.plannedMonthly }
+    // Hanya transaksi siklus rencana yang sedang diisi, sama seperti Beranda.
+    val cycleStart = draft.cycleOf(today).start
+    val transactions by remember(cycleStart) { container.transactionRepository.observeBetween(cycleStart, today) }
+        .collectAsStateWithLifecycle(emptyList())
     val preview = computeBudget(draft, transactions, goalsMonthly, today)
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding()) {

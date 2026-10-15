@@ -5,19 +5,9 @@ import com.liezert.itungen.domain.model.Transaction
 import com.liezert.itungen.domain.model.TransactionType
 import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.YearMonth
 import java.time.temporal.TemporalAdjusters
 
-// ponytail: agregasi di memori dari daftar transaksi yang sudah dimuat; pindah ke query SQL bila riwayat sangat besar.
-// Transfer (ke/dari goal) sengaja tidak dihitung sebagai pemasukan/pengeluaran (§3.2).
-
-/** Total pemasukan (bukan transfer) pada [month]. */
-fun monthIncome(transactions: List<Transaction>, month: YearMonth): Long =
-    transactions.filter { it.type == TransactionType.INCOME && YearMonth.from(it.date) == month }.sumOf { it.amount }
-
-/** Total pengeluaran (bukan transfer) pada [month]. */
-fun monthExpense(transactions: List<Transaction>, month: YearMonth): Long =
-    transactions.filter { it.type == TransactionType.EXPENSE && YearMonth.from(it.date) == month }.sumOf { it.amount }
+// Total bulanan dan per kategori dihitung di SQL (TransactionDao); di sini hanya logika atas jendela kecil.
 
 /** Transaksi yang sering diulang, untuk "Catat cepat" sekali ketuk. */
 data class QuickTemplate(
@@ -47,36 +37,11 @@ fun quickTemplates(transactions: List<Transaction>, today: LocalDate, limit: Int
             QuickTemplate(last.type, last.category!!.id, last.note?.trim(), last.amount, last.note?.trim() ?: last.category.name)
         }
 
-/** Pemasukan − pengeluaran pada [month]. */
-fun monthNet(transactions: List<Transaction>, month: YearMonth): Long =
-    transactions.filter { YearMonth.from(it.date) == month }.sumOf {
-        when (it.type) {
-            TransactionType.INCOME -> it.amount
-            TransactionType.EXPENSE -> -it.amount
-            else -> 0L
-        }
-    }
-
 /** Awal minggu (Senin) yang memuat [today] (§5.2). */
 fun weekStart(today: LocalDate): LocalDate = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
 
-/** Total pengeluaran dari [from] sampai [to], inklusif. */
-fun expenseBetween(transactions: List<Transaction>, from: LocalDate, to: LocalDate): Long =
-    transactions.filter { it.type == TransactionType.EXPENSE && it.date in from..to }.sumOf { it.amount }
-
+/** Total satu kategori dalam satu rentang (dari kueri SQL teragregasi). */
 data class CategorySpend(val category: Category, val count: Int, val total: Long)
-
-/** Pengeluaran (atau pemasukan, lewat [type]) per kategori pada [month], terbesar dulu. */
-fun categorySpending(
-    transactions: List<Transaction>,
-    month: YearMonth,
-    type: TransactionType = TransactionType.EXPENSE,
-): List<CategorySpend> =
-    transactions
-        .filter { it.type == type && it.category != null && YearMonth.from(it.date) == month }
-        .groupBy { it.category!!.id }
-        .map { (_, rows) -> CategorySpend(rows.first().category!!, rows.size, rows.sumOf { it.amount }) }
-        .sortedByDescending { it.total }
 
 /**
  * Persen bulat yang jumlahnya tepat 100 (metode sisa terbesar): 65,2% + 34,8% → 65% + 35%, bukan 65% + 34%.
@@ -94,12 +59,3 @@ fun roundedPercents(values: List<Long>): List<Int> {
 
 /** Nama chip filter: semua kategori tanpa duplikat ("Lainnya" ada di pengeluaran dan pemasukan). */
 fun filterNames(expense: List<Category>, income: List<Category>): List<String> = (expense + income).map { it.name }.distinct()
-
-/** Pencarian di judul/kategori + filter nama kategori (null = semua). Besar-kecil huruf diabaikan. */
-fun filterTransactions(transactions: List<Transaction>, query: String, categoryName: String?): List<Transaction> =
-    transactions.filter {
-        (categoryName == null || it.category?.name == categoryName) &&
-            (query.isBlank() ||
-                it.note.orEmpty().contains(query, ignoreCase = true) ||
-                it.category?.name.orEmpty().contains(query, ignoreCase = true))
-    }

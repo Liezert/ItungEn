@@ -11,7 +11,10 @@ import com.liezert.itungen.domain.model.CategoryType
 import com.liezert.itungen.domain.model.Transaction
 import com.liezert.itungen.domain.model.TransactionType
 import com.liezert.itungen.domain.repository.TransactionRepository
+import com.liezert.itungen.domain.repository.Totals
+import com.liezert.itungen.domain.usecase.CategorySpend
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -26,13 +29,37 @@ class RoomTransactionRepository(
 
     private suspend fun mainWalletId(): Long = db.walletDao().getMain().id
 
-    override fun observeTransactions(): Flow<List<Transaction>> = flow {
-        emitAll(db.transactionDao().observeForWallet(mainWalletId()).map { rows -> rows.map { it.toDomain() } })
-    }
+    /** Kueri dompet utama; Room mengirim ulang setiap tabel berubah, jadi hasil yang sama tidak diteruskan. */
+    private fun <T> main(query: (walletId: Long) -> Flow<T>): Flow<T> =
+        flow { emitAll(query(mainWalletId())) }.distinctUntilChanged()
 
-    override fun observeMainBalance(): Flow<Long> = flow {
-        emitAll(db.transactionDao().observeBalance(mainWalletId()))
-    }
+    private val dao get() = db.transactionDao()
+
+    override fun observeRecent(limit: Int) = main { dao.observeRecent(it, limit) }.map { rows -> rows.map { it.toDomain() } }
+
+    override fun observeBetween(from: LocalDate, to: LocalDate) =
+        main { dao.observeBetween(it, from, to) }.map { rows -> rows.map { it.toDomain() } }
+
+    override fun observeSearch(query: String, categoryName: String?, limit: Int) =
+        main { dao.observeSearch(it, query.trim(), categoryName, limit) }.map { rows -> rows.map { it.toDomain() } }
+
+    override fun observeTotals(from: LocalDate, to: LocalDate) =
+        main { dao.observeTotals(it, from, to) }.map { Totals(it.income, it.expense, it.count) }
+
+    override fun observeCategoryTotals(type: TransactionType, from: LocalDate, to: LocalDate) =
+        main { dao.observeCategoryTotals(it, type, from, to) }.map { rows ->
+            rows.map { CategorySpend(it.category.toDomain(), it.count, it.total) }
+        }
+
+    override fun observeFirstDate() = main { dao.observeFirstDate(it) }
+
+    override fun observeHasTransactions() = main { dao.observeHasAny(it) }
+
+    override suspend fun hasTransactionOn(date: LocalDate) = dao.hasOn(mainWalletId(), date)
+
+    override suspend fun allTransactions() = dao.allForWallet(mainWalletId()).map { it.toDomain() }
+
+    override fun observeMainBalance(): Flow<Long> = main { dao.observeBalance(it) }
 
     override fun observeCategories(type: CategoryType): Flow<List<Category>> =
         db.categoryDao().observeByType(type).map { rows -> rows.map { it.toDomain() } }
