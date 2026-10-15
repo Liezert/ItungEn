@@ -27,6 +27,13 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
+        release {
+            // R8: buang kode/resource yang tidak dipakai dan optimalkan. Room, Firebase, Credential Manager, dan
+            // coroutines membawa aturan keep sendiri; kode ItungEn tidak memakai refleksi (lihat proguard-rules.pro).
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
         // Salinan rilis untuk mengukur performa di HP (docs/PERFORMANCE.md): paket terpisah (.bench) agar data
         // asli tidak tersentuh, ditandatangani kunci debug, dan berisi pengisi data uji (src/bench).
         create("bench") {
@@ -43,10 +50,15 @@ android {
     buildFeatures {
         compose = true
     }
+    androidResources {
+        // UI hanya bahasa Indonesia; teks bawaan library cukup Indonesia + Inggris (cadangan).
+        localeFilters += listOf("in", "en")
+    }
 }
 
 // Laporan stabilitas & skippability Compose: gradlew.bat :app:assembleBench -PcomposeReports
 composeCompiler {
+    stabilityConfigurationFiles.add(layout.projectDirectory.file("compose_stability.conf"))
     if (project.hasProperty("composeReports")) {
         reportsDestination = layout.buildDirectory.dir("compose_compiler")
         metricsDestination = layout.buildDirectory.dir("compose_compiler")

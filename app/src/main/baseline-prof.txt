@@ -1,0 +1,7 @@
+# Baseline Profile ItungEn (dipasang oleh androidx.profileinstaller, yang sudah ikut lewat Compose).
+# Profil library (Compose, Room, dll.) ikut otomatis dari AAR-nya; aturan di sini menambah kode ItungEn sendiri,
+# yang hampir semuanya dipakai saat start (Beranda) atau gestur navbar, jadi dikompilasi AOT seluruhnya.
+HSPLcom/liezert/itungen/**->**(**)**
+HSPLcom/liezert/glass/**->**(**)**
+Lcom/liezert/itungen/**;
+Lcom/liezert/glass/**;

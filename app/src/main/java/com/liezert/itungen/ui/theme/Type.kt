@@ -13,6 +13,8 @@ import androidx.compose.ui.unit.sp
 import com.liezert.itungen.R
 
 @OptIn(ExperimentalTextApi::class)
+// inter_variable.ttf = subset Inter (Latin + tanda baca yang dipakai UI, sumbu bobot 400–700): 160 KB, bukan 876 KB.
+// Huruf lain di catatan pengguna (mis. emoji) memakai font sistem. Cara membuat ulang: docs/PERFORMANCE.md.
 val InterFamily = FontFamily(
     Font(R.font.inter_variable, FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
     Font(R.font.inter_variable, FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),

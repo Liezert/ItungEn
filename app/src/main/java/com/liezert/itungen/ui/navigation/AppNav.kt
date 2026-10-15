@@ -62,6 +62,7 @@ import com.liezert.glass.components.LiquidBottomTab
 import com.liezert.glass.components.LiquidBottomTabs
 import com.liezert.glass.components.LiquidButton
 import com.liezert.glass.components.LocalGlassBackdrop
+import com.liezert.glass.components.LocalGlassEconomy
 import com.liezert.glass.components.LocalGlassOverlayHost
 import com.liezert.glass.components.ProgressiveBlur
 import com.liezert.itungen.ItungEnApp
@@ -70,6 +71,7 @@ import com.liezert.itungen.ui.account.LoginScreen
 import com.liezert.itungen.ui.budget.BudgetScreen
 import com.liezert.itungen.ui.addtransaction.AddTransactionScreen
 import com.liezert.itungen.ui.components.AppBackground
+import com.liezert.itungen.ui.components.rememberBackgroundBackdrop
 import com.liezert.itungen.ui.goals.GoalsScreen
 import com.liezert.itungen.ui.home.HomeScreen
 import com.liezert.itungen.ui.insight.InsightScreen
@@ -154,11 +156,13 @@ fun AppNav(
     // Layar Masuk hanya saat pertama kali (belum memilih masuk / tamu); dihitung sekali karena NavHost butuh nilai tetap.
     val start = remember { if (container.onboarded || container.account.user.value != null) Routes.Home else Routes.Login }
     val route = nav.currentBackStackEntryAsState().value?.destination?.route
-    // Dua backdrop: kaca di dalam layar membiaskan latar; navbar, FAB, sheet, dan dialog membiaskan
-    // latar + isi layar (kartu yang discroll di bawahnya). Kaca tidak boleh merekam layer yang memuat dirinya.
-    val background = rememberLayerBackdrop()
+    // Kaca di dalam layar memakai latar polos (BackgroundBackdrop: tanpa rekaman/efek); navbar, FAB, sheet, dan
+    // dialog membiaskan latar + isi layar yang direkam ke [screen]. Kaca tidak boleh merekam layer yang memuat dirinya.
+    val vignette = route == Routes.Home || route == Routes.Transactions
+    val background = rememberBackgroundBackdrop(vignette)
     val screen = rememberLayerBackdrop()
     val overlay = remember { GlassOverlayHost() }
+    val economy = LocalGlassEconomy.current
 
     // Sub-layar menjaga tab induknya tetap aktif (DESIGN_SPEC §6.3).
     fun tabOf(r: String?) = when (r) {
@@ -182,8 +186,9 @@ fun AppNav(
 
     CompositionLocalProvider(LocalGlassOverlayHost provides overlay) {
         Box(Modifier.fillMaxSize().background(Ink.Black)) {
-            Box(Modifier.layerBackdrop(screen).fillMaxSize()) {
-                AppBackground(background, vignette = route == Routes.Home || route == Routes.Transactions)
+            // Mode hemat: tidak ada kaca yang membiaskan isi layar, jadi layar tidak perlu direkam ke backdrop.
+            Box(Modifier.then(if (economy) Modifier else Modifier.layerBackdrop(screen)).fillMaxSize()) {
+                AppBackground(vignette)
                 CompositionLocalProvider(LocalGlassBackdrop provides background) {
                     NavHost(
                         nav,
@@ -228,7 +233,8 @@ fun AppNav(
             }
 
             // Efek tepi scroll iOS 26: isi yang discroll ke bawah status bar memudar dalam blur, tidak menabrak jam/ikon.
-            ProgressiveBlur(
+            // Mode hemat: tanpa blur (isi tetap terlihat di bawah status bar).
+            if (!economy) ProgressiveBlur(
                 backdrop = screen,
                 modifier = Modifier
                     .fillMaxWidth()

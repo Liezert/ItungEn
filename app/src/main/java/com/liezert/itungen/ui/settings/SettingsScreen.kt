@@ -251,6 +251,13 @@ fun SettingsScreen(
 
             SectionLabel("TAMPILAN")
             ToggleRow("Mode gelap", "Latar hitam, nyaman di malam hari", checked = Ink.dark, onChange = ::setDark)
+            ToggleRow(
+                "Mode hemat",
+                if (container.powerSaveActive && !container.economyMode) "Aktif otomatis: Penghemat Baterai sedang menyala."
+                else "Kaca tanpa blur dan lensa: lebih ringan dan hemat baterai. Aktif otomatis saat Penghemat Baterai menyala.",
+                checked = container.glassEconomy,
+                onChange = container::setEconomy,
+            )
 
             SectionLabel("DATA")
             GlassCard(Modifier.fillMaxWidth(), padding = 17.dp, verticalArrangement = Arrangement.spacedBy(10.dp)) {

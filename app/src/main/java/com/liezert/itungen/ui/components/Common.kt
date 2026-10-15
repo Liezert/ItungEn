@@ -20,28 +20,32 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.backdrops.layerBackdrop
 import com.liezert.glass.components.GlassDefaults
 import com.liezert.glass.components.LiquidButton
+import com.liezert.glass.components.PlainBackdrop
 import com.liezert.itungen.R
 import com.liezert.itungen.ui.theme.Bold
 import com.liezert.itungen.ui.theme.Ink
@@ -74,24 +78,50 @@ private val MutedIcons = setOf(
     R.drawable.ic_eye, R.drawable.ic_eye_off,
 )
 
-/**
- * Kanvas hitam; Beranda dan Semua Transaksi menambah vinyet lembut di atas (§6.1).
- * Direkam ke [backdrop] sebagai saudara (bukan induk) konten, agar kaca di layar bisa membiaskannya.
- */
+/** Kanvas hitam; Beranda dan Semua Transaksi menambah vinyet lembut di atas (§6.1, hanya tema gelap). */
 @Composable
-fun AppBackground(backdrop: LayerBackdrop, vignette: Boolean, modifier: Modifier = Modifier) {
+fun AppBackground(vignette: Boolean, modifier: Modifier = Modifier) {
     Box(
         modifier
-            .layerBackdrop(backdrop)
             .fillMaxSize()
             .background(Ink.Black)
-            .then(if (vignette && Ink.dark) Modifier.drawBehind { drawVignette() } else Modifier)
+            .then(if (vignette && Ink.dark) Modifier.drawBehind { drawVignette(size.width) } else Modifier)
     )
 }
 
-/** Gradien radial dari fill body Figma: elips 1085,7 × 1052,1 dp berpusat di tepi atas. */
-private fun DrawScope.drawVignette() {
-    translate(left = size.width / 2f, top = 0f) {
+/**
+ * Latar app sebagai backdrop kaca di dalam layar. Latar polos/vinyet halus tidak berubah oleh blur, lensa, dan
+ * vibrancy, jadi kaca cukup menggambar latar di posisinya sendiri ([PlainBackdrop]): tampilan sama tanpa merekam
+ * layer latar dan menjalankan shader setiap frame saat discroll (docs/PERFORMANCE.md).
+ * Kaca yang melayang di atas konten (navbar, FAB, sheet, dialog, toast) tetap membiaskan isi layar sungguhan.
+ */
+class BackgroundBackdrop(private val color: Color, private val vignette: Boolean) : PlainBackdrop {
+    override val isCoordinatesDependent: Boolean get() = vignette
+
+    override fun DrawScope.drawBackdrop(
+        density: Density,
+        coordinates: LayoutCoordinates?,
+        layerBlock: (GraphicsLayerScope.() -> Unit)?,
+    ) {
+        drawRect(color)
+        if (!vignette || coordinates == null || !coordinates.isAttached) return
+        val root = coordinates.findRootCoordinates()
+        val offset = root.localPositionOf(coordinates, Offset.Zero)
+        translate(-offset.x, -offset.y) { drawVignette(root.size.width.toFloat()) }
+    }
+}
+
+/** Latar layar saat ini untuk [com.liezert.glass.components.LocalGlassBackdrop] di dalam layar. */
+@Composable
+fun rememberBackgroundBackdrop(vignette: Boolean): BackgroundBackdrop {
+    val color = Ink.Black
+    val withVignette = vignette && Ink.dark
+    return remember(color, withVignette) { BackgroundBackdrop(color, withVignette) }
+}
+
+/** Gradien radial dari fill body Figma: elips 1085,7 × 1052,1 dp berpusat di tepi atas layar selebar [width]. */
+private fun DrawScope.drawVignette(width: Float) {
+    translate(left = width / 2f, top = 0f) {
         scale(1085.7.dp.toPx(), 1052.1.dp.toPx(), pivot = Offset.Zero) {
             drawCircle(
                 brush = Brush.radialGradient(

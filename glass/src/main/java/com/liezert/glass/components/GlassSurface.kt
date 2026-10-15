@@ -20,12 +20,19 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
+import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.RoundedRectangle
 import com.liezert.glass.utils.InteractiveHighlight
+
+private val SurfaceEffects: BackdropEffectScope.() -> Unit = {
+    vibrancy()
+    blur(8.dp.toPx())
+    lens(16.dp.toPx(), 32.dp.toPx())
+}
 
 object GlassDefaults {
     /** Sudut kurva kontinu (squircle) seperti kartu iOS 26. */
@@ -38,7 +45,8 @@ object GlassDefaults {
 
 /**
  * Permukaan Liquid Glass riil (library Backdrop): vibrancy + blur + lensa di tepi, highlight dan bayangan bawaan
- * library, seperti kontainer di demo scroll repo Kyant0. Membiaskan [LocalGlassBackdrop].
+ * library, seperti kontainer di demo scroll repo Kyant0. Membiaskan [LocalGlassBackdrop]; di atas [PlainBackdrop]
+ * efeknya dilewati karena tidak mengubah piksel.
  * Bila [onClick] diberikan: cahaya mengikuti jari dan kaca sedikit membesar, sama seperti LiquidButton.
  */
 @Composable
@@ -55,7 +63,9 @@ fun GlassSurface(
     onClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    val backdrop = LocalGlassBackdrop.current
+    val economy = LocalGlassEconomy.current
+    val source = LocalGlassBackdrop.current
+    val backdrop = glassBackdrop(economy, source)
     val animationScope = rememberCoroutineScope()
     val highlight = remember(animationScope, onClick != null) {
         if (onClick != null) InteractiveHighlight(animationScope) else null
@@ -66,11 +76,7 @@ fun GlassSurface(
             .drawBackdrop(
                 backdrop = backdrop,
                 shape = { shape },
-                effects = {
-                    vibrancy()
-                    blur(8.dp.toPx())
-                    lens(16.dp.toPx(), 32.dp.toPx())
-                },
+                effects = glassEffects(economy, source, SurfaceEffects),
                 layerBlock = highlight?.let { h ->
                     {
                         val scale = lerp(1f, 1f + 4.dp.toPx() / size.height, h.pressProgress)

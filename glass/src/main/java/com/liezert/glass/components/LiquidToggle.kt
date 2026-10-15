@@ -121,6 +121,7 @@ fun LiquidToggle(
     }
 
     val trackBackdrop = rememberLayerBackdrop()
+    val economy = LocalGlassEconomy.current
 
     Box(
         modifier,
@@ -151,7 +152,7 @@ fun LiquidToggle(
                 }
                 .then(dampedDragAnimation.modifier)
                 .drawBackdrop(
-                    backdrop = rememberCombinedBackdrop(
+                    backdrop = if (economy) glassBackdrop(true, backdrop) else rememberCombinedBackdrop(
                         backdrop,
                         rememberBackdrop(trackBackdrop) { drawBackdrop ->
                             val progress = dampedDragAnimation.pressProgress
@@ -163,7 +164,8 @@ fun LiquidToggle(
                         }
                     ),
                     shape = { Capsule() },
-                    effects = {
+                    // Thumb membiaskan track (bukan hanya latar), jadi efeknya tetap jalan kecuali Mode hemat.
+                    effects = unlessEconomy(economy) {
                         val progress = dampedDragAnimation.pressProgress
                         blur(8f.dp.toPx() * (1f - progress))
                         lens(

@@ -1,6 +1,7 @@
 package com.liezert.itungen.data.sync
 
 import android.content.SharedPreferences
+import android.os.SystemClock
 import android.util.Log
 import androidx.room.withTransaction
 import com.google.firebase.Timestamp
@@ -65,6 +66,8 @@ class SyncManager(
     private val cursors = SyncCursors(prefs)
     private val dao = db.syncDao()
     private val mutex = Mutex()
+    /** elapsedRealtime sinkron terakhir yang berhasil; 0 = belum pernah sejak proses dimulai. */
+    @Volatile private var lastSuccessAt = 0L
     private val _status = MutableStateFlow<SyncStatus>(SyncStatus.Idle)
     val status: StateFlow<SyncStatus> = _status.asStateFlow()
 
@@ -96,6 +99,7 @@ class SyncManager(
                 syncSettings(uid)
             }
             _status.value = SyncStatus.Synced(Instant.now())
+            lastSuccessAt = SystemClock.elapsedRealtime()
             true
         } catch (e: CancellationException) {
             if (e !is TimeoutCancellationException) throw e
@@ -106,6 +110,19 @@ class SyncManager(
             _status.value = SyncStatus.Failed(failureReason(e))
             false
         }
+    }
+
+    /**
+     * App kembali ke depan: tarik perubahan dari HP lain, paling sering sekali per [MIN_FOREGROUND_GAP_MS].
+     * Unggah tidak menunggu ini (otomatis setiap ada perubahan), dan tidak ada tarik berkala di latar belakang.
+     */
+    suspend fun syncOnForeground() {
+        if (lastSuccessAt == 0L || SystemClock.elapsedRealtime() - lastSuccessAt >= MIN_FOREGROUND_GAP_MS) sync()
+    }
+
+    /** Jaringan tersambung lagi: coba ulang hanya bila sinkron terakhir gagal (mis. tadi offline). */
+    suspend fun retryAfterReconnect() {
+        if (_status.value is SyncStatus.Failed) sync()
     }
 
     /**
@@ -256,6 +273,7 @@ class SyncManager(
         const val TRANSACTIONS = "transactions"
         const val SYNCED_AT = "syncedAt"
         const val PAGE_SIZE = 300L
+        const val MIN_FOREGROUND_GAP_MS = 3 * 60_000L
         const val SETTINGS = "settings"
         const val SETTINGS_DOC = "main"
         val Collections = listOf(GOALS, TRANSACTIONS)

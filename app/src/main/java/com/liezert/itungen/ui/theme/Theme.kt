@@ -7,6 +7,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
+import com.liezert.glass.components.LocalGlassEconomy
 import com.liezert.glass.components.LocalLiquidLightTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -23,13 +24,22 @@ private fun scheme() = (if (Ink.dark) darkColorScheme() else lightColorScheme())
     error = Ink.Red,
 )
 
-/** Tema gelap/terang mengikuti [Ink.dark]; komponen kaca :glass ikut lewat LocalLiquidLightTheme. */
+/**
+ * Tema gelap/terang mengikuti [Ink.dark]; komponen kaca :glass ikut lewat LocalLiquidLightTheme.
+ * [glassEconomy] = Mode hemat: semua kaca versi ringan (lihat LocalGlassEconomy).
+ */
 @Composable
-fun ItungEnTheme(content: @Composable () -> Unit) {
+fun ItungEnTheme(glassEconomy: Boolean = false, content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = scheme(),
         typography = Typography().withFamily(InterFamily),
-        content = { CompositionLocalProvider(LocalLiquidLightTheme provides !Ink.dark, content = content) },
+        content = {
+            CompositionLocalProvider(
+                LocalLiquidLightTheme provides !Ink.dark,
+                LocalGlassEconomy provides glassEconomy,
+                content = content,
+            )
+        },
     )
 }
 

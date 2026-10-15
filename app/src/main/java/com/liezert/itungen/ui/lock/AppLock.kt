@@ -28,10 +28,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.liezert.glass.components.LiquidButton
 import com.liezert.glass.components.LocalGlassBackdrop
 import com.liezert.itungen.ui.components.AppBackground
+import com.liezert.itungen.ui.components.rememberBackgroundBackdrop
 import com.liezert.itungen.ui.theme.Bold
 import com.liezert.itungen.ui.theme.Ink
 import com.liezert.itungen.ui.theme.Regular
@@ -70,14 +70,14 @@ fun LockScreen(onUnlock: () -> Unit) {
     val prompt = { AppLock.authenticate(context, "Buka ItungEn") { if (it) onUnlock() } }
     LaunchedEffect(Unit) { prompt() }
     BackHandler { activity?.moveTaskToBack(true) }
-    val backdrop = rememberLayerBackdrop()
+    val backdrop = rememberBackgroundBackdrop(vignette = true)
     Box(
         Modifier
             .fillMaxSize()
             .background(Ink.Black)
             .pointerInput(Unit) { detectTapGestures { } }, // sentuhan tidak tembus ke app di bawahnya
     ) {
-        AppBackground(backdrop, vignette = true)
+        AppBackground(vignette = true)
         CompositionLocalProvider(LocalGlassBackdrop provides backdrop) { LockContent(prompt) }
     }
 }

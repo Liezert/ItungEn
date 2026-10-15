@@ -91,6 +91,7 @@ fun LiquidBottomTabs(
     val indicatorHeight = height - 8f.dp
 
     val tabsBackdrop = rememberLayerBackdrop()
+    val economy = LocalGlassEconomy.current
 
     BoxWithConstraints(
         modifier,
@@ -181,9 +182,9 @@ fun LiquidBottomTabs(
                     translationX = panelOffset
                 }
                 .drawBackdrop(
-                    backdrop = backdrop,
+                    backdrop = glassBackdrop(economy, backdrop),
                     shape = { Capsule() },
-                    effects = {
+                    effects = glassEffects(economy, backdrop) {
                         vibrancy()
                         blur(8f.dp.toPx())
                         lens(24f.dp.toPx(), 24f.dp.toPx())
@@ -218,9 +219,9 @@ fun LiquidBottomTabs(
                         translationX = panelOffset
                     }
                     .drawBackdrop(
-                        backdrop = backdrop,
+                        backdrop = glassBackdrop(economy, backdrop),
                         shape = { Capsule() },
-                        effects = {
+                        effects = glassEffects(economy, backdrop) {
                             val progress = dampedDragAnimation.pressProgress
                             vibrancy()
                             blur(8f.dp.toPx())
@@ -256,9 +257,10 @@ fun LiquidBottomTabs(
                 .then(interactiveHighlight.gestureModifier)
                 .then(dampedDragAnimation.modifier)
                 .drawBackdrop(
-                    backdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop),
+                    backdrop = if (economy) glassBackdrop(true, backdrop) else rememberCombinedBackdrop(backdrop, tabsBackdrop),
                     shape = { Capsule() },
-                    effects = {
+                    // Indikator membiaskan tab di bawahnya (bukan hanya latar), jadi lensanya tetap jalan kecuali Mode hemat.
+                    effects = unlessEconomy(economy) {
                         val progress = dampedDragAnimation.pressProgress
                         lens(
                             10f.dp.toPx() * progress,

@@ -93,6 +93,21 @@ class AppContainer(context: Context) {
         prefs.edit { putBoolean("hide_balance", hidden) }
     }
 
+    /** Mode hemat yang dipilih di Pengaturan. */
+    var economyMode by mutableStateOf(prefs.getBoolean("economy_mode", false))
+        private set
+
+    fun setEconomy(on: Boolean) {
+        economyMode = on
+        prefs.edit { putBoolean("economy_mode", on) }
+    }
+
+    /** Penghemat Baterai HP sedang menyala (diperbarui MainActivity selama app di depan). */
+    var powerSaveActive by mutableStateOf(false)
+
+    /** Kaca versi ringan: dipilih sendiri, atau otomatis saat Penghemat Baterai menyala. */
+    val glassEconomy: Boolean get() = economyMode || powerSaveActive
+
     /** Kunci sidik jari / PIN HP saat app dibuka. */
     var appLock: Boolean
         get() = prefs.getBoolean("app_lock", false)

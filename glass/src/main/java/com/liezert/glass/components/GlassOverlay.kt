@@ -99,12 +99,13 @@ private fun containerColor() =
 @Composable
 private fun Modifier.dialogGlass(cornerRadius: Float): Modifier {
     val isLightTheme = LocalLiquidLightTheme.current
+    val economy = LocalGlassEconomy.current
     val dim = dimColor()
     val container = containerColor()
     return drawBackdrop(
-        backdrop = LocalGlassBackdrop.current,
+        backdrop = glassBackdrop(economy, LocalGlassBackdrop.current),
         shape = { RoundedRectangle(cornerRadius.dp) },
-        effects = {
+        effects = glassEffects(economy, LocalGlassBackdrop.current) {
             colorControls(
                 brightness = if (isLightTheme) 0.2f else 0f,
                 saturation = 1.5f

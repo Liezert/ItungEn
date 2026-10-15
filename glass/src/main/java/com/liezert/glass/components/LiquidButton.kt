@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceAtMost
 import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
@@ -38,6 +39,12 @@ import kotlin.math.tanh
  * Tambahan untuk ItungEn (default = perilaku repo): [enabled], [contentPadding] (0 untuk tombol ikon bulat),
  * dan [backdrop] default dari [LocalGlassBackdrop].
  */
+private val ButtonEffects: BackdropEffectScope.() -> Unit = {
+    vibrancy()
+    blur(2f.dp.toPx())
+    lens(12f.dp.toPx(), 24f.dp.toPx())
+}
+
 @Composable
 fun LiquidButton(
     onClick: () -> Unit,
@@ -58,17 +65,14 @@ fun LiquidButton(
         )
     }
     val interactive = isInteractive && enabled
+    val economy = LocalGlassEconomy.current
 
     Row(
         modifier
             .drawBackdrop(
-                backdrop = backdrop,
+                backdrop = glassBackdrop(economy, backdrop),
                 shape = { Capsule() },
-                effects = {
-                    vibrancy()
-                    blur(2f.dp.toPx())
-                    lens(12f.dp.toPx(), 24f.dp.toPx())
-                },
+                effects = glassEffects(economy, backdrop, ButtonEffects),
                 layerBlock = if (interactive) {
                     {
                         val width = size.width
