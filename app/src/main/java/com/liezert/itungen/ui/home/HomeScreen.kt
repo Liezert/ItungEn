@@ -47,6 +47,8 @@ import com.liezert.itungen.domain.model.formatSigned
 import com.liezert.itungen.domain.usecase.Budget
 import com.liezert.itungen.domain.usecase.BudgetPeriod
 import com.liezert.itungen.domain.usecase.BudgetStatus
+import com.liezert.itungen.domain.usecase.LimitLevel
+import com.liezert.itungen.domain.usecase.LimitWarning
 import com.liezert.itungen.domain.usecase.QuickTemplate
 import com.liezert.itungen.ui.components.AboveNavBar
 import com.liezert.itungen.ui.components.GlassIconButton
@@ -85,6 +87,10 @@ fun HomeScreen(
     onSeeAll: () -> Unit,
     onOpenGoals: () -> Unit,
     onOpenBudget: () -> Unit,
+    /** Peringatan batas kategori diketuk: buka Insight. */
+    onOpenInsight: () -> Unit = {},
+    /** Ketuk riwayat pemasukan/pengeluaran: buka layar ubah. */
+    onEdit: (Long) -> Unit = {},
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -96,9 +102,11 @@ fun HomeScreen(
         state, onHistory, onSeeAll,
         onOpenGoals = onOpenGoals,
         onOpenBudget = onOpenBudget,
+        onOpenInsight = onOpenInsight,
         onQuickAdd = viewModel::quickAdd,
         balanceHidden = container.hideBalance,
         onToggleBalance = { container.setBalanceHidden(!container.hideBalance) },
+        onEdit = { onEdit(it.id) },
     )
     // Di atas FAB "+" (56 dp + jarak 16 dp) agar tidak menutupinya.
     UndoToast(undo.toastMessage(), viewModel.undo::undoLatest, bottomOffset = AboveNavBar + 72.dp)
@@ -112,9 +120,11 @@ fun HomeContent(
     modifier: Modifier = Modifier,
     onOpenGoals: () -> Unit = {},
     onOpenBudget: () -> Unit = {},
+    onOpenInsight: () -> Unit = {},
     onQuickAdd: (QuickTemplate) -> Unit = {},
     balanceHidden: Boolean = false,
     onToggleBalance: () -> Unit = {},
+    onEdit: (Transaction) -> Unit = {},
 ) {
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         TopBar(
@@ -128,10 +138,11 @@ fun HomeContent(
                 if (budget == null) BudgetSetupCard(onOpenBudget, Modifier.screenPad())
                 else BudgetCard(budget, state.today, onOpenBudget, Modifier.screenPad())
             }
+            if (state.limitWarnings.isNotEmpty()) LimitWarningCard(state.limitWarnings, onOpenInsight, Modifier.screenPad())
             BalanceCard(state, balanceHidden, onToggleBalance, Modifier.screenPad())
             if (state.templates.isNotEmpty()) QuickAddRow(state.templates, onQuickAdd)
             state.goal?.let { GoalPreviewCard(it, onOpenGoals, Modifier.screenPad()) }
-            RecentCard(state.recent, state, onSeeAll, Modifier.screenPad())
+            RecentCard(state.recent, state, onSeeAll, onEdit, Modifier.screenPad())
         }
         Spacer(Modifier.height(bottomClearance()))
     }
@@ -240,6 +251,30 @@ private fun BudgetStat(label: String, value: String, modifier: Modifier = Modifi
     }
 }
 
+/** Kategori yang mendekati (≥ 80%) atau melewati batas bulanannya; ketuk untuk melihat di Insight. */
+@Composable
+private fun LimitWarningCard(warnings: List<LimitWarning>, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val over = warnings.any { it.level == LimitLevel.OVER }
+    val color = if (over) Ink.Red else Ink.Orange
+    GlassCard(
+        modifier.fillMaxWidth(),
+        tint = Brush.verticalGradient(listOf(color.copy(alpha = 0.16f), Color.Transparent)),
+        onClick = onClick,
+        padding = 17.dp,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text("Batas kategori bulan ini", style = appText(14f, 20f, SemiBold, color))
+        warnings.take(3).forEach { w ->
+            val name = w.spend.category.name
+            Text(
+                if (w.level == LimitLevel.OVER) "$name lewat batas: ${formatRupiah(w.spend.total)} dari ${formatRupiah(w.limit)}"
+                else "$name sudah ${w.spend.total * 100 / w.limit}% dari ${formatRupiah(w.limit)}",
+                style = appText(13f, 18f, Regular, Ink.White),
+            )
+        }
+    }
+}
+
 @Composable
 private fun BudgetSetupCard(onSetup: () -> Unit, modifier: Modifier = Modifier) {
     GlassCard(
@@ -344,6 +379,7 @@ private fun RecentCard(
     items: List<Transaction>,
     state: HomeUiState,
     onSeeAll: () -> Unit,
+    onEdit: (Transaction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     GlassCard(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -358,17 +394,25 @@ private fun RecentCard(
         if (items.isEmpty() && !state.loading) {
             Text("Belum ada transaksi. Tekan + untuk mencatat.", style = appText(16f, 24f, Regular, Ink.Gray))
         }
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) { items.forEach { RecentRow(it, state) } }
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) { items.forEach { RecentRow(it, state, onEdit) } }
     }
 }
 
 @Composable
-private fun RecentRow(item: Transaction, state: HomeUiState) {
+private fun RecentRow(item: Transaction, state: HomeUiState, onEdit: (Transaction) -> Unit) {
     val style = item.style()
     val day = relativeDay(item.date, state.today)
     // Jam hanya untuk hari ini / kemarin, seperti Figma.
     val clock = if (item.date >= state.today.minusDays(1)) item.clockLabel(state.zone) else null
-    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+    // Transfer goal tidak bisa diubah dari sini (mengikuti goal-nya).
+    val editable = item.type == TransactionType.INCOME || item.type == TransactionType.EXPENSE
+    Row(
+        Modifier.fillMaxWidth().then(
+            if (editable) Modifier.clickable(onClickLabel = "Ubah", role = Role.Button) { onEdit(item) } else Modifier
+        ),
+        Arrangement.SpaceBetween,
+        Alignment.CenterVertically,
+    ) {
         Row(
             Modifier.weight(1f),
             horizontalArrangement = Arrangement.spacedBy(12.dp),

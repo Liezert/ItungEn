@@ -29,7 +29,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.time.Clock
-import java.time.LocalDate
 
 class ItungEnApp : Application() {
     val container by lazy { AppContainer(this) }
@@ -78,11 +77,6 @@ class AppContainer(context: Context) {
     var reminderHour: Int
         get() = prefs.getInt("reminder_hour", 20)
         set(value) = prefs.edit { putInt("reminder_hour", value) }
-
-    /** Hari yang ditandai "tidak jajan" dari notifikasi: tidak diingatkan lagi hari itu. */
-    var noSpendDay: LocalDate?
-        get() = prefs.getString("no_spend_day", null)?.let(LocalDate::parse)
-        set(value) = prefs.edit { putString("no_spend_day", value?.toString()) }
 
     /** Saldo di Beranda & Profil disamarkan (ikon mata). */
     var hideBalance by mutableStateOf(prefs.getBoolean("hide_balance", false))

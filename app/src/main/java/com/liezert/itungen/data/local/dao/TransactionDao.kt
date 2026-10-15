@@ -6,6 +6,7 @@ import androidx.room.Embedded
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import com.liezert.itungen.data.local.entity.CategoryEntity
 import com.liezert.itungen.data.local.entity.TransactionEntity
 import com.liezert.itungen.data.local.entity.TransactionWithCategory
@@ -20,6 +21,13 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun get(id: Long): TransactionEntity
+
+    @Transaction
+    @Query("SELECT * FROM transactions WHERE id = :id")
+    suspend fun getWithCategory(id: Long): TransactionWithCategory?
+
+    @Update
+    suspend fun update(transaction: TransactionEntity)
 
     @Query("DELETE FROM transactions WHERE id = :id")
     suspend fun delete(id: Long)
@@ -87,6 +95,20 @@ interface TransactionDao {
     )
     fun observeCategoryTotals(walletId: Long, type: TransactionType, from: LocalDate, to: LocalDate): Flow<List<CategoryTotalRow>>
 
+    /** Total pengeluaran per hari [from]..[to] (kalender Insight); hari tanpa pengeluaran tidak ikut. */
+    @Query(
+        """
+        SELECT date, SUM(amount) AS total FROM transactions
+        WHERE wallet_id = :walletId AND type = 'EXPENSE' AND date BETWEEN :from AND :to
+        GROUP BY date
+        """
+    )
+    fun observeDailyExpense(walletId: Long, from: LocalDate, to: LocalDate): Flow<List<DailyTotalRow>>
+
+    /** Hari yang punya transaksi apa pun [from]..[to] (streak pencatatan). */
+    @Query("SELECT DISTINCT date FROM transactions WHERE wallet_id = :walletId AND date BETWEEN :from AND :to")
+    fun observeRecordedDays(walletId: Long, from: LocalDate, to: LocalDate): Flow<List<LocalDate>>
+
     @Query("SELECT MIN(date) FROM transactions WHERE wallet_id = :walletId")
     fun observeFirstDate(walletId: Long): Flow<LocalDate?>
 
@@ -115,6 +137,8 @@ interface TransactionDao {
 }
 
 data class TotalsRow(val income: Long, val expense: Long, val count: Int)
+
+data class DailyTotalRow(val date: LocalDate, val total: Long)
 
 data class CategoryTotalRow(
     @Embedded val category: CategoryEntity,

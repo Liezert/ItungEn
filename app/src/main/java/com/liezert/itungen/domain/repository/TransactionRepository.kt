@@ -30,6 +30,12 @@ interface TransactionRepository {
     /** Total [type] per kategori [from]..[to], terbesar dulu. */
     fun observeCategoryTotals(type: TransactionType, from: LocalDate, to: LocalDate): Flow<List<CategorySpend>>
 
+    /** Pengeluaran per hari [from]..[to]; hari tanpa pengeluaran tidak ada di peta. */
+    fun observeDailyExpense(from: LocalDate, to: LocalDate): Flow<Map<LocalDate, Long>>
+
+    /** Hari yang punya transaksi apa pun [from]..[to]. */
+    fun observeRecordedDays(from: LocalDate, to: LocalDate): Flow<Set<LocalDate>>
+
     /** Tanggal transaksi paling awal; null bila belum ada. */
     fun observeFirstDate(): Flow<LocalDate?>
 
@@ -53,6 +59,15 @@ interface TransactionRepository {
         note: String?,
         date: LocalDate,
     ): Long
+
+    /** Satu transaksi; null bila sudah tidak ada (mis. dihapus di HP lain). */
+    suspend fun getTransaction(id: Long): Transaction?
+
+    /**
+     * Mengubah pemasukan/pengeluaran (jenis, nominal, kategori, catatan, tanggal); saldo ikut berubah dan perubahannya
+     * tersinkron. Transfer goal tidak bisa diubah dari sini.
+     */
+    suspend fun updateTransaction(id: Long, type: TransactionType, amount: Long, categoryId: Long, note: String?, date: LocalDate)
 
     /**
      * Menghapus pemasukan/pengeluaran saat itu juga (saldo ikut berubah). Transfer goal tidak bisa dihapus dari sini.

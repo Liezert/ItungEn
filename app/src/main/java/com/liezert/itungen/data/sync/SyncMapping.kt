@@ -28,6 +28,7 @@ fun PendingTransaction.toDoc(): Map<String, Any?> = mapOf(
     "date" to tx.date.toEpochDay(),
     "transferGroupId" to tx.transferGroupId,
     "createdAt" to tx.createdAt.toEpochMilli(),
+    "updatedAt" to tx.updatedAt,
 )
 
 /** [walletId] / [categoryId] = id lokal hasil pencarian uuid di HP ini. */
@@ -42,6 +43,7 @@ fun transactionFromDoc(uuid: String, doc: Map<String, Any?>, walletId: Long, cat
     createdAt = Instant.ofEpochMilli((doc["createdAt"] as Number).toLong()),
     uuid = uuid,
     synced = true,
+    updatedAt = (doc["updatedAt"] as Number?)?.toLong() ?: 0, // dokumen dari versi sebelum fitur ubah
 )
 
 fun PendingGoal.toDoc(): Map<String, Any?> = mapOf(

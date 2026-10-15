@@ -40,7 +40,7 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
     override suspend fun doWork(): Result {
         val container = (applicationContext as ItungEnApp).container
         val today = LocalDate.now(container.clock)
-        if (container.noSpendDay == today) return Result.success()
+        if (today in container.settings.noSpendDays.value) return Result.success()
         val repository = container.transactionRepository
         if (!repository.hasTransactionOn(today)) {
             val recent = repository.observeBetween(today.minusDays(60), today).first()
@@ -121,7 +121,7 @@ class ReminderReceiver : BroadcastReceiver() {
         val today = LocalDate.now(container.clock)
         when (intent.action) {
             ACTION_NO_SPEND -> {
-                container.noSpendDay = today
+                container.settings.setNoSpendDay(today, marked = true)
                 ReminderWorker.confirm(context, "Oke, hari ini tercatat tanpa jajan")
             }
             ACTION_QUICK_ADD -> {

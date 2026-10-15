@@ -15,7 +15,10 @@ import com.liezert.itungen.domain.usecase.Budget
 import com.liezert.itungen.domain.usecase.BudgetPlan
 import com.liezert.itungen.domain.usecase.QuickTemplate
 import com.liezert.itungen.domain.usecase.computeBudget
+import com.liezert.itungen.domain.model.TransactionType
+import com.liezert.itungen.domain.usecase.LimitWarning
 import com.liezert.itungen.domain.usecase.cycleOf
+import com.liezert.itungen.domain.usecase.limitWarnings
 import com.liezert.itungen.domain.usecase.quickTemplates
 import com.liezert.itungen.ui.components.UndoStack
 import kotlinx.coroutines.CoroutineScope
@@ -48,6 +51,8 @@ data class HomeUiState(
     val templates: List<QuickTemplate> = emptyList(),
     /** Target yang ditampilkan di Beranda. */
     val goal: Goal? = null,
+    /** Kategori yang sudah ≥ 80% dari batas bulanannya. */
+    val limitWarnings: List<LimitWarning> = emptyList(),
 )
 
 /** Jumlah baris "Riwayat Terakhir" di Beranda. */
@@ -60,6 +65,7 @@ class HomeViewModel(
     private val repository: TransactionRepository,
     goals: GoalRepository,
     budgetPlan: Flow<BudgetPlan?>,
+    categoryLimits: Flow<Map<String, Long>>,
     private val clock: Clock,
     /** Lingkup aplikasi: Urungkan tetap bekerja walau layar ditinggalkan. */
     private val appScope: CoroutineScope,
@@ -71,13 +77,18 @@ class HomeViewModel(
         val today = LocalDate.now(clock)
         val month = YearMonth.from(today)
         val windowStart = minOf(today.minusDays(TemplateDays), plan?.cycleOf(today)?.start ?: today)
+        // Batas per kategori: total pengeluaran per kategori bulan ini (SQL) dibanding batasnya.
+        val warnings = combine(
+            repository.observeCategoryTotals(TransactionType.EXPENSE, month.atDay(1), month.atEndOfMonth()),
+            categoryLimits,
+        ) { spending, limits -> if (limits.isEmpty()) emptyList() else limitWarnings(spending, limits) }
         combine(
-            repository.observeMainBalance(),
-            repository.observeTotals(month.atDay(1), month.atEndOfMonth()),
+            combine(repository.observeMainBalance(), repository.observeTotals(month.atDay(1), month.atEndOfMonth()), ::Pair),
             repository.observeBetween(windowStart, today),
             repository.observeRecent(RecentCount),
             goals.observeGoals(),
-        ) { balance, totals, window, recent, goalList ->
+            warnings,
+        ) { (balance, totals), window, recent, goalList, limitWarnings ->
             val goalsMonthly = goalList.filter { it.status == GoalStatus.ACTIVE }.sumOf { it.plannedMonthly }
             HomeUiState(
                 today = today,
@@ -91,6 +102,7 @@ class HomeViewModel(
                 templates = quickTemplates(window, today),
                 // Target yang masih dikejar lebih berguna di Beranda daripada yang sudah tercapai.
                 goal = goalList.firstOrNull { it.status == GoalStatus.ACTIVE } ?: goalList.firstOrNull(),
+                limitWarnings = limitWarnings,
             )
         }
     }.flowOn(Dispatchers.Default).stateIn(
@@ -118,7 +130,7 @@ class HomeViewModel(
         val Factory = viewModelFactory {
             initializer {
                 val c = (this[APPLICATION_KEY] as ItungEnApp).container
-                HomeViewModel(c.transactionRepository, c.goalRepository, c.budgetPlan, c.clock, c.appScope)
+                HomeViewModel(c.transactionRepository, c.goalRepository, c.budgetPlan, c.settings.categoryLimits, c.clock, c.appScope)
             }
         }
     }

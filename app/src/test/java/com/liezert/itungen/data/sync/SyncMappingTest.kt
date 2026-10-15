@@ -56,4 +56,15 @@ class SyncMappingTest {
             "startedOn" to "2026-10-10", "nextIncomeOn" to "2026-10-20")
         assertEquals(plan, budgetPlanFromDoc(old))
     }
+
+    @Test
+    fun transaction_updatedAt_roundTrip_andOldDocsAreUnedited() {
+        val local = TransactionEntity(
+            walletId = 1, categoryId = 3, type = TransactionType.EXPENSE, amount = 18_000, date = LocalDate.of(2026, 10, 13),
+            createdAt = Instant.ofEpochMilli(1_000), uuid = "tx-2", updatedAt = 9_000,
+        )
+        val doc = PendingTransaction(local, walletUuid = "main", categoryUuid = null).toDoc()
+        assertEquals(9_000L, transactionFromDoc("tx-2", doc, 1, 3).updatedAt)
+        assertEquals(0L, transactionFromDoc("tx-2", doc - "updatedAt", 1, 3).updatedAt)
+    }
 }

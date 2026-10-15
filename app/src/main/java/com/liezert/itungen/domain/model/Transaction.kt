@@ -9,6 +9,8 @@ data class Category(
     val icon: String,
     val color: Long,
     val type: CategoryType,
+    /** Identitas lintas HP (batas per kategori disimpan per uuid). */
+    val uuid: String = "",
 )
 
 data class Transaction(

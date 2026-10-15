@@ -18,6 +18,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,7 +41,10 @@ import com.liezert.glass.components.LiquidButton
 import com.liezert.glass.components.LocalGlassBackdrop
 import com.liezert.itungen.domain.model.CategoryType
 import com.liezert.itungen.domain.model.formatRupiah
+import com.liezert.itungen.domain.model.Category
 import com.liezert.itungen.domain.usecase.CategorySpend
+import com.liezert.itungen.domain.usecase.LimitLevel
+import com.liezert.itungen.domain.usecase.limitLevel
 import com.liezert.itungen.domain.usecase.roundedPercents
 import com.liezert.itungen.ui.components.DonutChart
 import com.liezert.itungen.ui.components.DonutSlice
@@ -53,6 +59,7 @@ import com.liezert.itungen.ui.theme.Medium
 import com.liezert.itungen.ui.theme.Regular
 import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -64,7 +71,12 @@ fun InsightScreen(
     viewModel: InsightViewModel = viewModel(factory = InsightViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    InsightContent(state, viewModel::selectType, viewModel::previousMonth, viewModel::nextMonth)
+    InsightContent(
+        state, viewModel::selectType, viewModel::previousMonth, viewModel::nextMonth,
+        onSelectDay = viewModel::selectDay,
+        onToggleNoSpend = viewModel::toggleNoSpend,
+        onSetLimit = viewModel::setLimit,
+    )
 }
 
 private val Kinds = listOf(CategoryType.EXPENSE to "Pengeluaran", CategoryType.INCOME to "Pemasukan")
@@ -80,8 +92,13 @@ fun InsightContent(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     modifier: Modifier = Modifier,
+    onSelectDay: (LocalDate?) -> Unit = {},
+    onToggleNoSpend: (LocalDate) -> Unit = {},
+    /** uuid kategori, batas (null = hapus). */
+    onSetLimit: (String, Long?) -> Unit = { _, _ -> },
 ) {
     val total = state.total
+    var limitFor by remember { mutableStateOf<Category?>(null) }
     val lastMonth = state.month.minusMonths(1).format(MonthOnly)
     val accent = if (state.income) Ink.Green else Ink.Red
 
@@ -122,18 +139,35 @@ fun InsightContent(
         }
         Spacer(Modifier.height(20.dp))
         SummaryCard(state, Modifier.screenPad())
+        if (!state.income) {
+            Spacer(Modifier.height(16.dp))
+            SpendingCalendar(state, onSelectDay, onToggleNoSpend, Modifier.screenPad())
+        }
         Spacer(Modifier.height(22.dp))
         Column(Modifier.screenPad(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("Detail Kategori", style = appText(15f, 22.5f, SemiBold, Ink.white(0.9f)))
             if (state.spending.isEmpty() && !state.loading) {
                 Text("Belum ada ${state.noun} di bulan ini.", style = appText(14f, 20f, Regular, Ink.Gray))
             }
+            if (!state.income && state.spending.isNotEmpty()) {
+                Text("Ketuk kategori untuk mengatur batas bulanan.", style = appText(12f, 16f, Regular, Ink.Gray))
+            }
             state.spending.forEach {
-                BreakdownItem(it, it.total.toFloat() / total, state.previous[it.category.id] ?: 0, lastMonth, state.income)
+                // Batas hanya untuk pengeluaran.
+                val limit = if (state.income) null else state.limits[it.category.uuid]
+                BreakdownItem(
+                    it, it.total.toFloat() / total, state.previous[it.category.id] ?: 0, lastMonth, state.income, limit,
+                    onClick = if (state.income) null else ({ limitFor = it.category }),
+                )
             }
         }
         Spacer(Modifier.height(bottomClearance()))
     }
+
+    CategoryLimitSheet(limitFor, limitFor?.let { state.limits[it.uuid] }, onSave = { limit ->
+        limitFor?.let { onSetLimit(it.uuid, limit) }
+        limitFor = null
+    }) { limitFor = null }
 }
 
 @Composable
@@ -235,9 +269,24 @@ private fun LegendRow(color: Color, label: String, percent: Int) {
 }
 
 @Composable
-private fun BreakdownItem(item: CategorySpend, share: Float, previous: Long, lastMonth: String, income: Boolean) {
+private fun BreakdownItem(
+    item: CategorySpend,
+    share: Float,
+    previous: Long,
+    lastMonth: String,
+    income: Boolean,
+    /** Batas bulanan kategori ini; null = tanpa batas. */
+    limit: Long?,
+    onClick: (() -> Unit)?,
+) {
     val style = item.category.style()
-    GlassSurface(Modifier.fillMaxWidth()) {
+    val level = limit?.let { limitLevel(item.total, it) }
+    val limitColor = when (level) {
+        LimitLevel.OVER -> Ink.Red
+        LimitLevel.NEAR -> Ink.Orange
+        else -> style.color
+    }
+    GlassSurface(Modifier.fillMaxWidth(), onClick = onClick) {
         Row(
             Modifier.fillMaxWidth().padding(start = 17.dp, end = 17.dp, top = 17.dp, bottom = 29.dp),
             Arrangement.SpaceBetween,
@@ -253,6 +302,15 @@ private fun BreakdownItem(item: CategorySpend, share: Float, previous: Long, las
                     Text(item.category.name, style = appText(16f, 24f, SemiBold), maxLines = 1)
                     Text("${item.count} transaksi", style = appText(13f, 19.5f, Regular, Ink.Gray))
                     ComparisonText(item.total, previous, lastMonth, 12f, income, compact = true)
+                    if (limit != null) {
+                        Text(
+                            when (level) {
+                                LimitLevel.OVER -> "Lewat batas ${formatRupiah(limit)}"
+                                else -> "${item.total * 100 / limit}% dari batas ${formatRupiah(limit)}"
+                            },
+                            style = appText(12f, 16f, SemiBold, if (level == LimitLevel.OK) Ink.Gray else limitColor),
+                        )
+                    }
                 }
             }
             Text(
@@ -262,9 +320,10 @@ private fun BreakdownItem(item: CategorySpend, share: Float, previous: Long, las
                 maxLines = 1,
             )
         }
-        // garis progres tipis di tepi bawah kartu
-        Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(style.color.copy(alpha = 0.2f))) {
-            Box(Modifier.fillMaxWidth(share).fillMaxHeight().background(style.color))
+        // Garis progres tipis di tepi bawah kartu: terhadap batas bila ada, selain itu porsi dari total bulan ini.
+        val progress = if (limit != null) (item.total.toFloat() / limit).coerceIn(0f, 1f) else share
+        Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(limitColor.copy(alpha = 0.2f))) {
+            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(limitColor))
         }
     }
 }

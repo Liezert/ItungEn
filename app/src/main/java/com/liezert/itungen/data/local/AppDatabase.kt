@@ -31,7 +31,7 @@ import java.time.LocalDate
 // Jangan pernah fallbackToDestructiveMigration: setiap versi baru wajib migrasi eksplisit yang diuji (§7.4).
 @Database(
     entities = [WalletEntity::class, CategoryEntity::class, TransactionEntity::class, GoalEntity::class, DeletedTransactionEntity::class],
-    version = 7,
+    version = 8,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2), // + tabel recurring_rules (Tahap 4)
@@ -39,6 +39,7 @@ import java.time.LocalDate
         AutoMigration(from = 3, to = 4, spec = DropRecurring::class), // − transaksi berulang
         AutoMigration(from = 5, to = 6), // + tabel deleted_transactions (hapus transaksi ikut tersinkron)
         AutoMigration(from = 6, to = 7), // + deleted_transactions.pushed (penanda hapus disimpan permanen)
+        AutoMigration(from = 7, to = 8), // + transactions.updated_at (transaksi bisa diubah)
     ],
 )
 @TypeConverters(Converters::class)

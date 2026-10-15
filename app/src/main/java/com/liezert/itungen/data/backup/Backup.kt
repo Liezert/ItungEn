@@ -115,6 +115,7 @@ class Backup(
         val backupPlan = planDoc?.let { runCatching { budgetPlanFromDoc(it.toMap()) }.getOrNull() }
         val planRestored = backupPlan != null && settings.plan.value == null
         if (planRestored) settings.savePlan(backupPlan!!)
+        root.optJSONObject("settings")?.let { settings.restoreBackup(it.toMap().mapValues { (_, v) -> v.toPlain() }) }
         return ImportResult(added, planRestored)
     }
 
@@ -138,6 +139,13 @@ class Backup(
 private fun JSONArray.objects(): List<Map<String, Any?>> = (0 until length()).map { getJSONObject(it).toMap() }
 
 private fun JSONObject.toMap(): Map<String, Any?> = keys().asSequence().associateWith { key -> get(key).takeUnless { it == JSONObject.NULL } }
+
+/** Nilai bersarang org.json (JSONObject/JSONArray) → Map/List biasa. */
+private fun Any?.toPlain(): Any? = when (this) {
+    is JSONObject -> toMap().mapValues { (_, v) -> v.toPlain() }
+    is JSONArray -> (0 until length()).map { get(it).toPlain() }
+    else -> this
+}
 
 private fun TransactionType.label() = when (this) {
     TransactionType.INCOME -> "Pemasukan"

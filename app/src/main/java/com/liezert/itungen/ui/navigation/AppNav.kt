@@ -52,7 +52,9 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
+import androidx.navigation.NavType
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.kyant.backdrop.backdrops.layerBackdrop
@@ -68,6 +70,7 @@ import com.liezert.glass.components.ProgressiveBlur
 import com.liezert.itungen.ItungEnApp
 import com.liezert.itungen.R
 import com.liezert.itungen.ui.account.LoginScreen
+import com.liezert.itungen.ui.addtransaction.AddTransactionViewModel
 import com.liezert.itungen.ui.budget.BudgetScreen
 import com.liezert.itungen.ui.addtransaction.AddTransactionScreen
 import com.liezert.itungen.ui.components.AppBackground
@@ -88,7 +91,9 @@ private object Routes {
     const val Goals = "goals"
     const val Profile = "profile"
     const val Transactions = "transactions"
-    const val Add = "add"
+    /** Tambah transaksi; dengan `edit=<id>` mengubah transaksi yang sudah ada. */
+    const val Add = "add?edit={edit}"
+    fun edit(id: Long) = "add?edit=$id"
     const val Login = "login"
     const val Settings = "settings"
     const val Budget = "budget"
@@ -180,7 +185,7 @@ fun AppNav(
     LaunchedEffect(addRequests) {
         // Hanya setelah layar Masuk dilewati; sebelum itu pengguna memilih masuk/tamu dulu.
         if (addRequests > 0 && (container.onboarded || container.account.user.value != null)) {
-            nav.navigate(Routes.Add) { launchSingleTop = true }
+            nav.navigate("add") { launchSingleTop = true }
         }
     }
 
@@ -211,6 +216,8 @@ fun AppNav(
                                 onSeeAll = openHistory,
                                 onOpenGoals = { selectTab(2) },
                                 onOpenBudget = { nav.navigate(Routes.Budget) { launchSingleTop = true } },
+                                onEdit = { nav.navigate(Routes.edit(it)) },
+                                onOpenInsight = { selectTab(1) },
                             )
                         }
                         composable(Routes.Budget) { BudgetScreen(onBack = { nav.popBackStack() }) }
@@ -226,8 +233,13 @@ fun AppNav(
                                 onOpenBudget = { nav.navigate(Routes.Budget) { launchSingleTop = true } },
                             )
                         }
-                        composable(Routes.Transactions) { TransactionsScreen(onBack = { nav.popBackStack() }) }
-                        composable(Routes.Add) { AddTransactionScreen(onClose = { nav.popBackStack() }) }
+                        composable(Routes.Transactions) {
+                            TransactionsScreen(onBack = { nav.popBackStack() }, onEdit = { nav.navigate(Routes.edit(it)) })
+                        }
+                        composable(
+                            Routes.Add,
+                            arguments = listOf(navArgument(AddTransactionViewModel.EditArg) { type = NavType.LongType; defaultValue = -1L }),
+                        ) { AddTransactionScreen(onClose = { nav.popBackStack() }) }
                     }
                 }
             }
@@ -267,7 +279,7 @@ fun AppNav(
                             exit = scaleOut(spring(stiffness = Spring.StiffnessMedium), 0.3f) + fadeOut(tween(120)),
                         ) {
                             LiquidButton(
-                                onClick = { nav.navigate(Routes.Add) { launchSingleTop = true } },
+                                onClick = { nav.navigate("add") { launchSingleTop = true } },
                                 modifier = Modifier.size(56.dp).semantics { contentDescription = "Tambah transaksi" },
                                 tint = Ink.Blue,
                                 contentPadding = 0.dp,

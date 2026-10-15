@@ -103,6 +103,16 @@ interface SyncDao {
     @Query("UPDATE transactions SET synced = 1 WHERE uuid IN (:uuids)")
     suspend fun markTransactionsSynced(uuids: List<String>)
 
+    /** Hanya bila tidak diubah lagi selama mengunggah ([updatedAt] masih sama); kalau berubah, tetap perlu diunggah. */
+    @Query("UPDATE transactions SET synced = 1 WHERE uuid = :uuid AND updated_at = :updatedAt")
+    suspend fun markTransactionSynced(uuid: String, updatedAt: Long)
+
+    @Query("SELECT * FROM transactions WHERE uuid = :uuid")
+    suspend fun transaction(uuid: String): TransactionEntity?
+
+    @Update
+    suspend fun updateTransaction(transaction: TransactionEntity)
+
     /** Status ikut dicek: bila goal berubah lagi selama unggah, ia tetap tertandai belum tersinkron. */
     @Query("UPDATE goals SET synced = 1 WHERE uuid = :uuid AND status = :status")
     suspend fun markGoalSynced(uuid: String, status: GoalStatus)

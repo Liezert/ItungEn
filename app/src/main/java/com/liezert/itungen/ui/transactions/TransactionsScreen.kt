@@ -2,7 +2,7 @@ package com.liezert.itungen.ui.transactions
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,7 +38,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
@@ -79,6 +78,8 @@ import com.liezert.itungen.ui.theme.appText
 @Composable
 fun TransactionsScreen(
     onBack: () -> Unit,
+    /** Ketuk baris pemasukan/pengeluaran: buka layar ubah. */
+    onEdit: (Long) -> Unit = {},
     viewModel: TransactionsViewModel = viewModel(factory = TransactionsViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -89,6 +90,7 @@ fun TransactionsScreen(
         onSearch = viewModel::search,
         onFilter = viewModel::filter,
         onLoadMore = viewModel::loadMore,
+        onEdit = { onEdit(it.id) },
     )
     UndoToast(undo.toastMessage(), viewModel.undo::undoLatest)
 }
@@ -104,6 +106,7 @@ fun TransactionsContent(
     /** null = "Semua". */
     onFilter: (String?) -> Unit = {},
     onLoadMore: () -> Unit = {},
+    onEdit: (Transaction) -> Unit = {},
 ) {
     // Tekan lama = alternatif geser (geser dari tepi kanan bisa bentrok dengan gestur Kembali).
     var confirmDelete by remember { mutableStateOf<Transaction?>(null) }
@@ -118,7 +121,7 @@ fun TransactionsContent(
             Column(Modifier.screenPad(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Semua Transaksi", style = appText(20f, 28f, Bold, Ink.White, tracking = -0.5f))
                 Text(
-                    "${state.monthCount} transaksi bulan ini · geser ke kiri atau tekan lama untuk menghapus",
+                    "${state.monthCount} transaksi bulan ini · ketuk untuk mengubah, geser ke kiri atau tekan lama untuk menghapus",
                     style = appText(14f, 20f, Medium, Ink.Muted),
                 )
             }
@@ -138,7 +141,7 @@ fun TransactionsContent(
                     )
                 }
             }
-            TransactionListCard(state, onDelete, onLongPress = { confirmDelete = it }, onLoadMore, Modifier.screenPad().weight(1f))
+            TransactionListCard(state, onDelete, onLongPress = { confirmDelete = it }, onEdit, onLoadMore, Modifier.screenPad().weight(1f))
         }
         Spacer(Modifier.height(bottomClearance()))
     }
@@ -193,6 +196,7 @@ private fun TransactionListCard(
     state: TransactionsUiState,
     onDelete: (Transaction) -> Unit,
     onLongPress: (Transaction) -> Unit,
+    onEdit: (Transaction) -> Unit,
     onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -232,7 +236,7 @@ private fun TransactionListCard(
                     )
                 }
                 items(rows, key = { it.id }, contentType = { "row" }) {
-                    Box(Modifier.padding(bottom = 4.dp)) { SwipeToDelete(it, onDelete, onLongPress) { TxRow(it, state) } }
+                    Box(Modifier.padding(bottom = 4.dp)) { SwipeToDelete(it, onDelete, onLongPress, onEdit) { TxRow(it, state) } }
                 }
             }
         }
@@ -274,8 +278,8 @@ private fun TxRow(item: Transaction, state: TransactionsUiState) {
 }
 
 /**
- * Geser ke kiri → latar merah "Hapus"; lepas melewati batas = hapus (bisa diurungkan). Tekan lama = konfirmasi hapus,
- * dan TalkBack mendapat aksi "Hapus". Transfer goal tidak bisa dihapus.
+ * Geser ke kiri → latar merah "Hapus"; lepas melewati batas = hapus (bisa diurungkan). Ketuk = ubah, tekan lama =
+ * konfirmasi hapus; TalkBack membacakan keduanya ("Ubah", "Hapus"). Transfer goal tidak bisa diubah/dihapus.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -283,6 +287,7 @@ private fun SwipeToDelete(
     item: Transaction,
     onDelete: (Transaction) -> Unit,
     onLongPress: (Transaction) -> Unit,
+    onEdit: (Transaction) -> Unit,
     content: @Composable () -> Unit,
 ) {
     if (item.type != TransactionType.INCOME && item.type != TransactionType.EXPENSE) {
@@ -298,7 +303,6 @@ private fun SwipeToDelete(
         enableDismissFromStartToEnd = false,
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
-            .pointerInput(item.id) { detectTapGestures(onLongPress = { onLongPress(item) }) }
             .semantics { customActions = listOf(CustomAccessibilityAction("Hapus") { onDelete(item); true }) },
         backgroundContent = {
             if (state.dismissDirection != SwipeToDismissBoxValue.EndToStart) return@SwipeToDismissBox
@@ -314,7 +318,16 @@ private fun SwipeToDelete(
     ) {
         // Saat digeser, baris diberi latar agar merah hanya terlihat di bagian yang terbuka; saat diam tetap transparan di atas kaca.
         val swiping = state.dismissDirection == SwipeToDismissBoxValue.EndToStart
-        Box(Modifier.background(if (swiping) Ink.Black else Color.Transparent)) { content() }
+        Box(
+            Modifier
+                .background(if (swiping) Ink.Black else Color.Transparent)
+                .combinedClickable(
+                    onClickLabel = "Ubah",
+                    onLongClickLabel = "Hapus",
+                    onLongClick = { onLongPress(item) },
+                    onClick = { onEdit(item) },
+                ),
+        ) { content() }
     }
 }
 

@@ -14,6 +14,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
 
 @RunWith(AndroidJUnit4::class)
@@ -73,5 +74,37 @@ class SyncedSettingsTest {
         settings.clear()
         assertEquals(null, settingsAt(1_000).plan.value)
         assertFalse(settings.dirty.value)
+    }
+
+    @Test
+    fun limits_setAndRemove() {
+        val settings = settingsAt(1_000)
+        settings.setCategoryLimit("food", 500_000)
+        assertEquals(mapOf("food" to 500_000L), settingsAt(1_000).categoryLimits.value) // tersimpan
+        settings.setCategoryLimit("food", null)
+        assertEquals(emptyMap<String, Long>(), settings.categoryLimits.value)
+    }
+
+    /** Hari tidak jajan dari dua HP digabung; bila gabungan lebih banyak dari server, perlu diunggah lagi. */
+    @Test
+    fun noSpendDays_mergeWithRemote() {
+        val settings = settingsAt(1_000)
+        val local = LocalDate.of(2026, 10, 14)
+        val remote = LocalDate.of(2026, 10, 13)
+        settings.setNoSpendDay(local, marked = true)
+        settings.applyRemote(mapOf("noSpendDays" to listOf(remote.toEpochDay()), "updatedAt" to 5_000L))
+        assertEquals(setOf(local, remote), settings.noSpendDays.value)
+        assertTrue(settings.dirty.value)
+
+        settings.applyRemote(mapOf("noSpendDays" to listOf(remote.toEpochDay(), local.toEpochDay()), "updatedAt" to 6_000L))
+        assertFalse(settings.dirty.value) // sudah sama dengan server
+    }
+
+    /** Versi lama menyimpan satu hari di "no_spend_day": dipindah ke himpunan. */
+    @Test
+    fun legacyNoSpendDay_isMigrated() {
+        prefs.edit { putString("no_spend_day", "2026-10-12") }
+        assertEquals(setOf(LocalDate.of(2026, 10, 12)), settingsAt(1_000).noSpendDays.value)
+        assertFalse(prefs.contains("no_spend_day"))
     }
 }

@@ -22,6 +22,7 @@ rules_version = '2';
 //   - date: int (epoch-day, 0 – 100000)
 //   - transferGroupId: string ≤ 64 | null
 //   - createdAt: int (epoch ms)
+//   - updatedAt: int (epoch ms, 0 = belum pernah diubah) — opsional, dokumen versi lama tidak punya
 //   - syncedAt: timestamp (= waktu server)
 //
 // Koleksi: users/{uid}/goals — id dokumen: uuid goal
@@ -35,6 +36,10 @@ rules_version = '2';
 // Dokumen: users/{uid}/settings/main — pengaturan milik akun
 //   - budgetPlan: map | null — income, cycleStartDay (1–28), fixedBills, savingsTarget (int 0 – 999.999.999.999),
 //     period (MONTHLY | WEEKLY | UNTIL_DATE), startedOn / nextIncomeOn (epoch-day | null)
+//   - categoryLimits: map uuid kategori → int (opsional, ≤ 50 kategori)
+//   - noSpendDays: list epoch-day (opsional, ≤ 400 hari: setahun terakhir)
+//     Catatan: bahasa Rules tidak bisa memeriksa setiap isi map/list yang panjangnya tidak tetap; tipe dan ukurannya
+//     dibatasi, isinya hanya bisa ditulis pemilik akun sendiri.
 //   - updatedAt: int (epoch ms, jam HP; perubahan terakhir menang)
 //   - syncedAt: timestamp
 //
@@ -98,7 +103,7 @@ service cloud.firestore {
     }
 
     function isValidTransaction(data) {
-      return hasOnlyAllowedFields(['walletUuid', 'categoryUuid', 'type', 'amount', 'note', 'date', 'transferGroupId', 'createdAt', 'syncedAt'])
+      return hasOnlyAllowedFields(['walletUuid', 'categoryUuid', 'type', 'amount', 'note', 'date', 'transferGroupId', 'createdAt', 'updatedAt', 'syncedAt'])
         && hasRequiredFields(['walletUuid', 'type', 'amount', 'date', 'createdAt', 'syncedAt'])
         && isId(data.walletUuid)
         && isOptionalId(data.get('categoryUuid', null))
@@ -108,6 +113,7 @@ service cloud.firestore {
         && isEpochDay(data.date)
         && isOptionalId(data.get('transferGroupId', null))
         && isEpochMillis(data.createdAt)
+        && isEpochMillis(data.get('updatedAt', 0))
         && isServerTime(data.syncedAt);
     }
 
@@ -141,9 +147,11 @@ service cloud.firestore {
     }
 
     function isValidSettings(data) {
-      return hasOnlyAllowedFields(['budgetPlan', 'updatedAt', 'syncedAt'])
+      return hasOnlyAllowedFields(['budgetPlan', 'categoryLimits', 'noSpendDays', 'updatedAt', 'syncedAt'])
         && hasRequiredFields(['updatedAt', 'syncedAt'])
         && isValidBudgetPlan(data.get('budgetPlan', null))
+        && data.get('categoryLimits', {}) is map && data.get('categoryLimits', {}).size() <= 50
+        && data.get('noSpendDays', []) is list && data.get('noSpendDays', []).size() <= 400
         && isEpochMillis(data.updatedAt)
         && isServerTime(data.syncedAt);
     }

@@ -49,8 +49,8 @@ sealed interface SyncStatus {
  * - Unggah: baris `synced = 0` dikirim per batch, lalu ditandai `synced = 1` setelah server menerima.
  * - Tarik: dokumen dengan `syncedAt` (waktu server) setelah kursor terakhir, per akun. Goal dulu, baru transaksi,
  *   karena transaksi merujuk dompet goal.
- * - Bentrok: transaksi tidak pernah diubah, hanya dihapus (dokumen ditimpa `{deleted: true}`) atau dipulihkan lewat
- *   Urungkan (dokumen ditimpa lagi dengan isinya);
+ * - Bentrok: transaksi yang diubah di dua HP → perubahan terakhir menang (`updatedAt`, jam HP); hapus selalu menang
+ *   atas ubah (dokumen ditimpa `{deleted: true}`), kecuali dipulihkan lewat Urungkan (dokumen ditimpa lagi);
  *   goal yang masih punya perubahan lokal menang (akan diunggah).
  */
 class SyncManager(
@@ -169,7 +169,7 @@ class SyncManager(
             val batch = firestore.batch()
             chunk.forEach { batch.set(user.collection(TRANSACTIONS).document(it.tx.uuid), it.toDoc() + SyncedAt) }
             batch.commit().await()
-            dao.markTransactionsSynced(chunk.map { it.tx.uuid })
+            db.withTransaction { chunk.forEach { dao.markTransactionSynced(it.tx.uuid, it.tx.updatedAt) } }
         }
     }
 
@@ -298,6 +298,14 @@ internal suspend fun applyRemoteTransaction(dao: SyncDao, uuid: String, doc: Map
     dao.deleteTombstone(uuid) // dipulihkan (Urungkan) di HP lain
     val walletId = dao.walletId(doc["walletUuid"] as String) ?: return false
     val categoryId = (doc["categoryUuid"] as String?)?.let { dao.categoryId(it) }
-    dao.insertTransaction(transactionFromDoc(uuid, doc, walletId, categoryId))
+    val remote = transactionFromDoc(uuid, doc, walletId, categoryId)
+    val local = dao.transaction(uuid)
+    when {
+        local == null -> dao.insertTransaction(remote)
+        // Diubah di HP ini, belum terunggah, dan tidak lebih lama: menang, lalu menimpa dokumen ini saat diunggah.
+        !local.synced && local.updatedAt >= remote.updatedAt -> Unit
+        // Diubah di HP lain (atau dokumen sendiri yang kembali): tulis hanya bila isinya berbeda.
+        remote.copy(id = local.id) != local.copy(synced = true) -> dao.updateTransaction(remote.copy(id = local.id))
+    }
     return true
 }

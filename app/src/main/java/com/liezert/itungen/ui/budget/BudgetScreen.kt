@@ -39,6 +39,8 @@ import com.liezert.glass.components.LiquidButton
 import com.liezert.glass.components.LocalGlassBackdrop
 import com.liezert.itungen.ItungEnApp
 import com.liezert.itungen.R
+import com.liezert.itungen.domain.model.Category
+import com.liezert.itungen.domain.model.CategoryType
 import com.liezert.itungen.domain.model.GoalStatus
 import com.liezert.itungen.domain.model.formatRupiah
 import com.liezert.itungen.domain.usecase.BudgetPeriod
@@ -46,6 +48,7 @@ import com.liezert.itungen.domain.usecase.BudgetPlan
 import com.liezert.itungen.domain.usecase.computeBudget
 import com.liezert.itungen.domain.usecase.cycleOf
 import com.liezert.itungen.ui.components.AmountField
+import com.liezert.itungen.ui.insight.CategoryLimitSheet
 import com.liezert.itungen.ui.components.ChoiceSheet
 import com.liezert.itungen.ui.components.GlassIconButton
 import com.liezert.itungen.ui.components.Ico
@@ -95,6 +98,10 @@ fun BudgetScreen(onBack: () -> Unit) {
     val container = (LocalContext.current.applicationContext as ItungEnApp).container
     val current by container.budgetPlan.collectAsStateWithLifecycle()
     val goals by remember { container.goalRepository.observeGoals() }.collectAsStateWithLifecycle(emptyList())
+    val expenseCategories by remember { container.transactionRepository.observeCategories(CategoryType.EXPENSE) }
+        .collectAsStateWithLifecycle(emptyList())
+    val limits by container.settings.categoryLimits.collectAsStateWithLifecycle()
+    var limitFor by remember { mutableStateOf<Category?>(null) }
     val today = LocalDate.now(container.clock)
 
     val income = rememberTextFieldState(current?.income?.takeIf { it > 0 }?.toString().orEmpty())
@@ -220,9 +227,30 @@ fun BudgetScreen(onBack: () -> Unit) {
                 tint = Ink.Blue.copy(alpha = if (incomeValue > 0) 1f else 0.5f),
                 enabled = incomeValue > 0,
             ) { Text("Simpan anggaran", style = appText(16f, 22f, Bold, Color.White)) }
+
+            // Batas per kategori tersimpan langsung (tidak menunggu "Simpan anggaran").
+            Text("Batas per kategori (opsional)", Modifier.padding(start = 4.dp, top = 12.dp), style = appText(15f, 22f, SemiBold))
+            Text(
+                "Diingatkan di Beranda dan Insight saat pengeluaran kategori mencapai 80% dan 100% batas bulan ini.",
+                Modifier.padding(horizontal = 4.dp),
+                style = appText(12f, 16f, Regular, Ink.Gray),
+            )
+            expenseCategories.forEach { category ->
+                val limit = limits[category.uuid]
+                DateRow(
+                    title = category.name,
+                    value = if (limit != null) "${formatRupiah(limit)} / bulan" else "Tanpa batas",
+                    onClick = { limitFor = category },
+                )
+            }
         }
         Spacer(Modifier.height(bottomClearance()))
     }
+
+    CategoryLimitSheet(limitFor, limitFor?.let { limits[it.uuid] }, onSave = { limit ->
+        limitFor?.let { container.settings.setCategoryLimit(it.uuid, limit) }
+        limitFor = null
+    }) { limitFor = null }
 
     when (period) {
         BudgetPeriod.MONTHLY -> ChoiceSheet("Tanggal gajian / kiriman", (1..28).map { it to it.toString() }, 7, monthDay, picking, {

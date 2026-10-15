@@ -1,7 +1,9 @@
 package com.liezert.itungen.ui.addtransaction
 
 import android.database.sqlite.SQLiteException
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
@@ -29,8 +31,12 @@ data class AddTransactionUiState(
     val categoryId: Long? = null,
     val date: LocalDate,
     val today: LocalDate,
-    /** Gaji / tagihan tetap: dicatat otomatis setiap bulan pada tanggal yang sama. */
     val error: TransactionError? = null,
+    /** Mengubah transaksi yang sudah ada (bukan mencatat baru). */
+    val editing: Boolean = false,
+    /** Isi awal nominal & catatan saat mengubah; diterapkan sekali oleh layar setelah dimuat. */
+    val initialAmount: Long? = null,
+    val initialNote: String? = null,
     val saveFailed: Boolean = false,
     val saving: Boolean = false,
     val saved: Boolean = false,
@@ -39,10 +45,34 @@ data class AddTransactionUiState(
 class AddTransactionViewModel(
     private val repository: TransactionRepository,
     private val clock: Clock,
+    saved: SavedStateHandle,
 ) : ViewModel() {
+    /** Id transaksi yang diubah (argumen rute `edit`); null = catat baru. */
+    private val editId: Long? = saved.get<Long>(EditArg)?.takeIf { it > 0 }
 
     // ViewModel mengikuti layar di back stack, jadi form kosong lagi setiap layar dibuka.
-    private val form = LocalDate.now(clock).let { MutableStateFlow(AddTransactionUiState(date = it, today = it)) }
+    private val form = LocalDate.now(clock).let {
+        MutableStateFlow(AddTransactionUiState(date = it, today = it, editing = editId != null))
+    }
+
+    init {
+        if (editId != null) viewModelScope.launch {
+            val tx = repository.getTransaction(editId)
+            if (tx == null) {
+                form.update { it.copy(saved = true) } // sudah dihapus (mis. di HP lain): tutup saja
+                return@launch
+            }
+            form.update {
+                it.copy(
+                    type = if (tx.type == TransactionType.INCOME) CategoryType.INCOME else CategoryType.EXPENSE,
+                    categoryId = tx.category?.id,
+                    date = tx.date,
+                    initialAmount = tx.amount,
+                    initialNote = tx.note,
+                )
+            }
+        }
+    }
 
     val uiState: StateFlow<AddTransactionUiState> = combine(
         form,
@@ -76,14 +106,14 @@ class AddTransactionViewModel(
         }
         form.update { it.copy(saving = true, saveFailed = false) }
         viewModelScope.launch {
+            val type = if (current.type == CategoryType.EXPENSE) TransactionType.EXPENSE else TransactionType.INCOME
+            val cleanNote = note.trim().ifEmpty { null }
             try {
-                repository.addToMainWallet(
-                    type = if (current.type == CategoryType.EXPENSE) TransactionType.EXPENSE else TransactionType.INCOME,
-                    amount = amount!!,
-                    categoryId = current.categoryId!!,
-                    note = note.trim().ifEmpty { null },
-                    date = current.date,
-                )
+                if (editId != null) {
+                    repository.updateTransaction(editId, type, amount!!, current.categoryId!!, cleanNote, current.date)
+                } else {
+                    repository.addToMainWallet(type, amount!!, current.categoryId!!, cleanNote, current.date)
+                }
                 form.update { it.copy(saving = false, saved = true) }
             } catch (_: SQLiteException) {
                 // Jangan crash; isian tetap ada agar pengguna bisa coba lagi (§7.3).
@@ -93,10 +123,13 @@ class AddTransactionViewModel(
     }
 
     companion object {
+        /** Argumen rute: id transaksi yang diubah. */
+        const val EditArg = "edit"
+
         val Factory = viewModelFactory {
             initializer {
                 val container = (this[APPLICATION_KEY] as ItungEnApp).container
-                AddTransactionViewModel(container.transactionRepository, container.clock)
+                AddTransactionViewModel(container.transactionRepository, container.clock, createSavedStateHandle())
             }
         }
     }

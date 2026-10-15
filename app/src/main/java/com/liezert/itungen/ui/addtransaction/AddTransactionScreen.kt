@@ -34,6 +34,7 @@ import androidx.compose.foundation.text.input.TextFieldDecorator
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SelectableDates
@@ -127,6 +128,14 @@ fun AddTransactionContent(
 ) {
     var amount by rememberSaveable { mutableStateOf("") } // ekspresi keypad, mis. "15000+2000"
     val note = rememberTextFieldState()
+    // Mengubah transaksi: isi nominal & catatan lama sekali setelah dimuat (tidak menimpa ketikan setelah rotasi).
+    LaunchedEffect(state.initialAmount) {
+        val initial = state.initialAmount ?: return@LaunchedEffect
+        if (amount.isEmpty()) {
+            amount = initial.toString()
+            note.setTextAndPlaceCursorAtEnd(state.initialNote.orEmpty())
+        }
+    }
     var showPicker by rememberSaveable { mutableStateOf(false) }
     val pickerState = rememberDatePickerState(
         initialSelectedDateMillis = state.date.toEpochDay() * DayMillis,
@@ -135,6 +144,7 @@ fun AddTransactionContent(
             override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis / DayMillis <= state.today.toEpochDay()
         },
     )
+    LaunchedEffect(state.date) { pickerState.selectedDateMillis = state.date.toEpochDay() * DayMillis }
     val focus = LocalFocusManager.current
 
     val income = state.type == CategoryType.INCOME
@@ -159,7 +169,7 @@ fun AddTransactionContent(
             Alignment.CenterVertically,
         ) {
             GlassIconButton(R.drawable.ic_close, onClose, "Tutup")
-            Text("Tambah Transaksi", style = appText(16f, 24f, Bold))
+            Text(if (state.editing) "Ubah Transaksi" else "Tambah Transaksi", style = appText(16f, 24f, Bold))
             Spacer(Modifier.size(48.dp))
         }
 
@@ -210,7 +220,7 @@ fun AddTransactionContent(
                 tint = tint.copy(alpha = if (enabled) 1f else 0.5f),
                 enabled = enabled,
             ) {
-                Text("Simpan Transaksi", style = appText(16f, 24f, Bold, Color.White))
+                Text(if (state.editing) "Simpan Perubahan" else "Simpan Transaksi", style = appText(16f, 24f, Bold, Color.White))
             }
         }
     }

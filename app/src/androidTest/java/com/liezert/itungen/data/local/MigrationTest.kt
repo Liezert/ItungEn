@@ -170,5 +170,20 @@ class MigrationTest {
             assertEquals(0, it.getInt(0)) // masih harus dikirim ke server
         }
     }
-}
 
+    @Test
+    fun migrate7To8_existingTransactionsAreUnedited() {
+        helper.createDatabase(dbName, 7).apply {
+            execSQL("INSERT INTO wallets (id, name, type, is_archived, created_at, uuid) VALUES (1, 'Saldo ItungEn', 'MAIN', 0, 0, 'main')")
+            execSQL("INSERT INTO transactions (wallet_id, type, amount, date, created_at, uuid, synced) VALUES (1, 'EXPENSE', 18000, 20720, 0, 'a', 1)")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(dbName, 8, true)
+        db.query("SELECT amount, updated_at, synced FROM transactions WHERE uuid = 'a'").use {
+            it.moveToFirst()
+            assertEquals(18_000L, it.getLong(0))
+            assertEquals(0L, it.getLong(1)) // belum pernah diubah
+            assertEquals(1, it.getInt(2)) // tidak perlu diunggah ulang
+        }
+    }
+}

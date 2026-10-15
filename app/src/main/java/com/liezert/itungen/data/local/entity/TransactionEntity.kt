@@ -43,6 +43,11 @@ data class TransactionEntity(
     @ColumnInfo(defaultValue = "") val uuid: String = UUID.randomUUID().toString(),
     /** false = perubahan lokal belum terunggah ke akun. */
     @ColumnInfo(defaultValue = "0") val synced: Boolean = false,
+    /**
+     * Waktu terakhir diubah (epoch ms, jam HP); 0 = belum pernah diubah sejak dicatat. Penentu bentrok sinkron:
+     * perubahan terakhir menang.
+     */
+    @ColumnInfo(name = "updated_at", defaultValue = "0") val updatedAt: Long = 0,
 )
 
 data class TransactionWithCategory(

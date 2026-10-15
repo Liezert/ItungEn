@@ -51,6 +51,12 @@ class RoomTransactionRepository(
             rows.map { CategorySpend(it.category.toDomain(), it.count, it.total) }
         }
 
+    override fun observeDailyExpense(from: LocalDate, to: LocalDate) =
+        main { dao.observeDailyExpense(it, from, to) }.map { rows -> rows.associate { it.date to it.total } }
+
+    override fun observeRecordedDays(from: LocalDate, to: LocalDate) =
+        main { dao.observeRecordedDays(it, from, to) }.map { it.toSet() }
+
     override fun observeFirstDate() = main { dao.observeFirstDate(it) }
 
     override fun observeHasTransactions() = main { dao.observeHasAny(it) }
@@ -85,10 +91,30 @@ class RoomTransactionRepository(
         )
     }
 
+    override suspend fun getTransaction(id: Long): Transaction? = dao.getWithCategory(id)?.toDomain()
+
+    override suspend fun updateTransaction(
+        id: Long,
+        type: TransactionType,
+        amount: Long,
+        categoryId: Long,
+        note: String?,
+        date: LocalDate,
+    ) = db.withTransaction {
+        val tx = dao.get(id)
+        require(tx.type.editable && type.editable) { "Transfer goal tidak bisa diubah" }
+        dao.update(
+            tx.copy(
+                type = type, amount = amount, categoryId = categoryId, note = note, date = date,
+                updatedAt = clock.millis(), synced = false,
+            )
+        )
+    }
+
     override suspend fun deleteTransaction(id: Long): suspend () -> Unit {
         val tx = db.withTransaction {
             val tx = db.transactionDao().get(id)
-            require(tx.type == TransactionType.INCOME || tx.type == TransactionType.EXPENSE) { "Transfer goal tidak bisa dihapus" }
+            require(tx.type.editable) { "Transfer goal tidak bisa dihapus" }
             db.transactionDao().delete(id)
             // Penanda selalu dikirim (bila masuk akun), termasuk untuk baris yang belum tersinkron: unggahannya bisa
             // sedang berjalan saat ini, jadi dokumennya mungkin sudah ada di server. Penanda juga mencegah pemulihan
@@ -109,7 +135,10 @@ class RoomTransactionRepository(
     override suspend fun firstUseDate(): LocalDate = db.walletDao().getMain().createdAt.atZone(clock.zone).toLocalDate()
 }
 
-private fun CategoryEntity.toDomain() = Category(id, name, icon, color, type)
+private fun CategoryEntity.toDomain() = Category(id, name, icon, color, type, uuid)
+
+/** Hanya pemasukan/pengeluaran yang dicatat pengguna; transfer goal mengikuti goal-nya. */
+private val TransactionType.editable get() = this == TransactionType.INCOME || this == TransactionType.EXPENSE
 
 private fun TransactionWithCategory.toDomain() = Transaction(
     id = transaction.id,
