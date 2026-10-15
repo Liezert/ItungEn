@@ -24,8 +24,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
@@ -52,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -68,6 +67,7 @@ import com.liezert.glass.components.LiquidBottomTabs
 import com.liezert.glass.components.LiquidButton
 import com.liezert.glass.components.LocalGlassBackdrop
 import com.liezert.itungen.R
+import com.liezert.itungen.domain.model.Category
 import com.liezert.itungen.domain.model.CategoryType
 import com.liezert.itungen.domain.model.TransactionError
 import com.liezert.itungen.domain.model.formatRupiah
@@ -80,7 +80,6 @@ import com.liezert.itungen.ui.components.GlassIconButton
 import com.liezert.itungen.ui.components.Ico
 import com.liezert.itungen.ui.components.IconCircle
 import com.liezert.itungen.ui.components.LiquidDatePickerDialog
-import com.liezert.itungen.ui.components.PillChip
 import com.liezert.itungen.ui.components.relativeDay
 import com.liezert.itungen.ui.components.screenPad
 import com.liezert.itungen.ui.components.style
@@ -173,23 +172,7 @@ fun AddTransactionContent(
             DateSelector(state.date, state.today, Modifier.screenPad()) { showPicker = true }
             // Tap area nominal menutup keyboard catatan sehingga keypad muncul lagi.
             AmountCard(amount, result, note, Modifier.screenPad()) { focus.clearFocus() }
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                items(state.categories, key = { it.id }) { category ->
-                    PillChip(
-                        label = category.name,
-                        selected = category.id == state.categoryId,
-                        onClick = { onCategory(category.id) },
-                        selectedText = appText(14f, 20f, SemiBold, Ink.Title),
-                        unselectedText = appText(14f, 20f, Medium, Ink.Muted),
-                        horizontal = 17.dp,
-                        selectedFill = Ink.white(0.22f),
-                        icon = category.style().chipIcon,
-                    )
-                }
-            }
+            CategoryGrid(state.categories, state.categoryId, onCategory, Modifier.screenPad())
         }
 
         // Keypad + CTA menempel di bawah. Saat keyboard sistem terbuka (isi catatan) keypad disembunyikan.
@@ -208,6 +191,9 @@ fun AddTransactionContent(
                     onDigit = { amount = keypadDigit(amount, it) },
                     onOperator = { amount = keypadOperator(amount, it) },
                     onBackspace = { amount = amount.dropLast(1) },
+                    onClear = { amount = "" },
+                    // "=": ekspresi diganti hasilnya. Simpan juga memakai hasil, jadi "=" tidak wajib.
+                    onEquals = { result?.takeIf { it > 0 }?.let { amount = it.toString() } },
                 )
             }
 
@@ -221,7 +207,7 @@ fun AddTransactionContent(
                 tint = tint.copy(alpha = if (enabled) 1f else 0.5f),
                 enabled = enabled,
             ) {
-                Text("Simpan Transaksi", style = appText(16f, 24f, Bold, Ink.White))
+                Text("Simpan Transaksi", style = appText(16f, 24f, Bold, Color.White))
             }
         }
     }
@@ -339,20 +325,30 @@ private val KeypadRows = listOf(
     listOf("1", "2", "3", "÷"),
     listOf("4", "5", "6", "×"),
     listOf("7", "8", "9", "-"),
-    listOf("0", "000", "<", "+"),
+    listOf("000", "0", "<", "+"),
 )
 
 private val OperatorNames = mapOf("÷" to "bagi", "×" to "kali", "-" to "kurang", "+" to "tambah")
+private val KeyHeight = 48.dp
 
-/** Keypad kalkulator (pengganti keyboard sistem untuk nominal): angka kaca, operator kaca lebih terang. */
+/**
+ * Keypad kalkulator (pengganti keyboard sistem untuk nominal): angka kaca, operator kaca lebih terang,
+ * baris bawah C (kosongkan) dan = (ganti ekspresi dengan hasilnya).
+ */
 @Composable
-private fun AmountKeypad(onDigit: (String) -> Unit, onOperator: (Char) -> Unit, onBackspace: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+private fun AmountKeypad(
+    onDigit: (String) -> Unit,
+    onOperator: (Char) -> Unit,
+    onBackspace: () -> Unit,
+    onClear: () -> Unit,
+    onEquals: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         KeypadRows.forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { key ->
                     val operator = key in OperatorNames
-                    LiquidButton(
+                    Key(
                         onClick = {
                             when {
                                 key == "<" -> onBackspace()
@@ -360,26 +356,73 @@ private fun AmountKeypad(onDigit: (String) -> Unit, onOperator: (Char) -> Unit, 
                                 else -> onDigit(key)
                             }
                         },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(54.dp)
-                            .semantics {
-                                contentDescription = when {
-                                    key == "<" -> "Hapus angka"
-                                    operator -> OperatorNames.getValue(key)
-                                    else -> key
-                                }
-                            },
-                        surfaceColor = if (operator) Ink.white(0.14f) else GlassDefaults.Surface,
-                        contentPadding = 0.dp,
+                        description = when {
+                            key == "<" -> "Hapus angka"
+                            operator -> OperatorNames.getValue(key)
+                            else -> key
+                        },
+                        operator = operator,
+                        modifier = Modifier.weight(1f),
                     ) {
-                        if (key == "<") {
-                            Ico(R.drawable.ic_backspace)
-                        } else {
-                            Text(key, style = appText(if (operator) 26f else 24f, 30f, if (operator) Medium else SemiBold))
+                        if (key == "<") Ico(R.drawable.ic_backspace)
+                        else Text(key, style = appText(if (operator) 26f else 24f, 30f, if (operator) Medium else SemiBold))
+                    }
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Key(onClear, "Kosongkan nominal", operator = false, Modifier.weight(1f)) {
+                Text("C", style = appText(22f, 28f, SemiBold, Ink.Red))
+            }
+            Key(onEquals, "Sama dengan, hitung hasil", operator = true, Modifier.weight(3f)) {
+                Text("=", style = appText(26f, 30f, Medium))
+            }
+        }
+    }
+}
+
+@Composable
+private fun Key(
+    onClick: () -> Unit,
+    description: String,
+    operator: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    LiquidButton(
+        onClick = onClick,
+        modifier = modifier.height(KeyHeight).semantics { contentDescription = description },
+        surfaceColor = if (operator) Ink.white(0.14f) else GlassDefaults.Surface,
+        contentPadding = 0.dp,
+    ) { content() }
+}
+
+/** Semua kategori terlihat sekaligus: grid 4 kolom ikon + nama, bukan satu baris yang terpotong. */
+@Composable
+private fun CategoryGrid(categories: List<Category>, selectedId: Long?, onSelect: (Long) -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        categories.chunked(4).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { category ->
+                    val selected = category.id == selectedId
+                    LiquidButton(
+                        onClick = { onSelect(category.id) },
+                        modifier = Modifier.weight(1f).height(56.dp).semantics { this.selected = selected },
+                        surfaceColor = if (selected) Ink.white(0.22f) else GlassDefaults.Surface,
+                        contentPadding = 4.dp,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Ico(category.style().chipIcon)
+                            Text(
+                                category.name,
+                                style = appText(11f, 14f, if (selected) SemiBold else Medium, if (selected) Ink.Title else Ink.Muted),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                     }
                 }
+                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }

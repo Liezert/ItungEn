@@ -8,8 +8,10 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Source
 import com.liezert.itungen.data.local.AppDatabase
+import com.liezert.itungen.data.local.entity.DeletedTransactionEntity
 import com.liezert.itungen.data.local.entity.WalletEntity
 import com.liezert.itungen.domain.model.WalletType
 import kotlinx.coroutines.CancellationException
@@ -32,7 +34,8 @@ sealed interface SyncStatus {
     data object Idle : SyncStatus
     data object Syncing : SyncStatus
     data class Synced(val at: Instant) : SyncStatus
-    data object Failed : SyncStatus
+    /** [reason] = penyebab yang bisa dipahami pengguna, mis. "Tidak ada koneksi internet." */
+    data class Failed(val reason: String) : SyncStatus
 }
 
 /**
@@ -42,7 +45,9 @@ sealed interface SyncStatus {
  * - Unggah: baris `synced = 0` dikirim per batch, lalu ditandai `synced = 1` setelah server menerima.
  * - Tarik: dokumen dengan `syncedAt` (waktu server) setelah kursor terakhir, per akun. Goal dulu, baru transaksi,
  *   karena transaksi merujuk dompet goal.
- * - Bentrok: transaksi tidak pernah diubah; goal yang masih punya perubahan lokal menang (akan diunggah).
+ * - Bentrok: transaksi tidak pernah diubah, hanya dihapus (dokumen ditimpa `{deleted: true}`) atau dipulihkan lewat
+ *   Urungkan (dokumen ditimpa lagi dengan isinya);
+ *   goal yang masih punya perubahan lokal menang (akan diunggah).
  */
 class SyncManager(
     private val db: AppDatabase,
@@ -86,11 +91,11 @@ class SyncManager(
             true
         } catch (e: CancellationException) {
             if (e !is TimeoutCancellationException) throw e
-            _status.value = SyncStatus.Failed
+            _status.value = SyncStatus.Failed("Tidak ada koneksi internet atau server lambat merespons.")
             false
         } catch (e: Exception) {
             Log.w("ItungEn", "Sinkron gagal", e)
-            _status.value = SyncStatus.Failed
+            _status.value = SyncStatus.Failed(failureReason(e))
             false
         }
     }
@@ -107,6 +112,7 @@ class SyncManager(
             account.signOut()
             db.withTransaction {
                 dao.deleteTransactions()
+                dao.deleteTombstones()
                 dao.deleteGoals()
                 dao.deleteGoalWallets()
             }
@@ -123,6 +129,14 @@ class SyncManager(
             chunk.forEach { batch.set(user.collection(GOALS).document(it.goal.uuid), it.toDoc() + SyncedAt) }
             batch.commit().await()
             chunk.forEach { dao.markGoalSynced(it.goal.uuid, it.goal.status) }
+        }
+        // Penghapusan dulu: dokumen ditimpa penanda agar HP lain ikut menghapus saat menarik.
+        while (true) {
+            val chunk = dao.pendingDeletes().ifEmpty { break }
+            val batch = firestore.batch()
+            chunk.forEach { batch.set(user.collection(TRANSACTIONS).document(it), Deleted + SyncedAt) }
+            batch.commit().await()
+            dao.markDeletesSynced(chunk)
         }
         while (true) {
             val chunk = dao.pendingTransactions().ifEmpty { break }
@@ -186,11 +200,32 @@ class SyncManager(
     }
 
     private suspend fun applyTransaction(uuid: String, doc: Map<String, Any?>): Boolean {
+        if (doc["deleted"] == true) {
+            dao.deleteTransaction(uuid)
+            dao.insertTombstone(DeletedTransactionEntity(uuid, pushed = true))
+            return true
+        }
+        dao.deleteTombstone(uuid) // dipulihkan (Urungkan) di HP lain
         // Dompet goal belum ada di HP ini: berhenti di sini, dicoba lagi setelah goal-nya tertarik.
         val walletId = dao.walletId(doc["walletUuid"] as String) ?: return false
         val categoryId = (doc["categoryUuid"] as String?)?.let { dao.categoryId(it) }
         dao.insertTransaction(transactionFromDoc(uuid, doc, walletId, categoryId))
         return true
+    }
+
+    private fun failureReason(e: Exception): String {
+        val firestoreError = e as? FirebaseFirestoreException
+        return when {
+            firestoreError == null -> "Terjadi kesalahan tak terduga."
+            // Pesan server saat project Firebase belum punya database Firestore.
+            firestoreError.message.orEmpty().let { "has not been used" in it || "does not exist" in it || "disabled" in it } ->
+                "Database Firestore belum dibuat di Firebase Console."
+            firestoreError.code == FirebaseFirestoreException.Code.PERMISSION_DENIED ->
+                "Akses ditolak oleh server. Periksa Rules Firestore."
+            firestoreError.code == FirebaseFirestoreException.Code.UNAVAILABLE -> "Tidak ada koneksi internet."
+            firestoreError.code == FirebaseFirestoreException.Code.UNAUTHENTICATED -> "Sesi akun berakhir. Keluar lalu masuk lagi."
+            else -> "Server menolak (${firestoreError.code.name})."
+        }
     }
 
     private fun cursorKey(uid: String, collection: String) = "sync:$uid:$collection"
@@ -201,5 +236,6 @@ class SyncManager(
         const val SYNCED_AT = "syncedAt"
         val Collections = listOf(GOALS, TRANSACTIONS)
         val SyncedAt: Map<String, Any?> = mapOf(SYNCED_AT to FieldValue.serverTimestamp())
+        val Deleted: Map<String, Any?> = mapOf("deleted" to true)
     }
 }

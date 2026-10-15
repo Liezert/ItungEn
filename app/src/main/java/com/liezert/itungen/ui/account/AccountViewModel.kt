@@ -15,6 +15,7 @@ import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.liezert.itungen.AppContainer
 import com.liezert.itungen.ItungEnApp
+import com.liezert.itungen.data.demo.seedDemoData
 import com.liezert.itungen.data.sync.AccountUnavailableException
 import com.liezert.itungen.data.sync.AccountUser
 import com.liezert.itungen.data.sync.SyncStatus
@@ -104,8 +105,16 @@ class AccountViewModel(private val container: AppContainer) : ViewModel() {
         container.onboarded = true
     }
 
-    fun syncNow() = run {
-        if (container.sync.sync()) null else "Gagal sinkron. Periksa koneksi internet lalu coba lagi."
+    /** Tamu + data contoh, untuk mencoba app tanpa mencatat dulu. */
+    fun continueWithDemo() {
+        container.onboarded = true
+        container.appScope.launch { seedDemoData(container) }
+    }
+
+    /** "Coba lagi" setelah sinkron gagal; penyebabnya tampil dari status sinkron. */
+    fun retrySync() = run {
+        container.sync.sync()
+        null
     }
 
     fun signOut() = run {

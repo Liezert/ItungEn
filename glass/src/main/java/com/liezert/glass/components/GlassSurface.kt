@@ -31,8 +31,9 @@ object GlassDefaults {
     /** Sudut kurva kontinu (squircle) seperti kartu iOS 26. */
     val CardShape: Shape = RoundedRectangle(24.dp)
 
-    /** containerColor tema gelap dari repo Kyant0: menjaga teks putih kontras di atas kaca. */
-    val Surface = Color(0xFF121212).copy(0.4f)
+    /** containerColor dari repo Kyant0 (gelap #121212 / terang #FAFAFA, α0.4): menjaga teks kontras di atas kaca. */
+    val Surface: Color
+        @Composable get() = if (LocalLiquidLightTheme.current) Color(0xFFFAFAFA).copy(0.4f) else Color(0xFF121212).copy(0.4f)
 }
 
 /**

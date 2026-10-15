@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.Composable
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -66,12 +67,14 @@ import com.liezert.glass.components.ProgressiveBlur
 import com.liezert.itungen.ItungEnApp
 import com.liezert.itungen.R
 import com.liezert.itungen.ui.account.LoginScreen
+import com.liezert.itungen.ui.budget.BudgetScreen
 import com.liezert.itungen.ui.addtransaction.AddTransactionScreen
 import com.liezert.itungen.ui.components.AppBackground
 import com.liezert.itungen.ui.goals.GoalsScreen
 import com.liezert.itungen.ui.home.HomeScreen
 import com.liezert.itungen.ui.insight.InsightScreen
 import com.liezert.itungen.ui.profile.ProfileScreen
+import com.liezert.itungen.ui.settings.SettingsScreen
 import com.liezert.itungen.ui.theme.Ink
 import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
@@ -85,6 +88,8 @@ private object Routes {
     const val Transactions = "transactions"
     const val Add = "add"
     const val Login = "login"
+    const val Settings = "settings"
+    const val Budget = "budget"
     const val LoginEmail = "login-email"
 }
 
@@ -93,7 +98,7 @@ private val TabRoutes = listOf(Routes.Home, Routes.Insight, Routes.Goals, Routes
 
 // Transisi ala iOS: push geser dari kanan dengan paralaks, modal naik dari bawah, tab cross-fade cepat.
 // Spring teredam kritis (tanpa pantul) seperti UINavigationController. Nilai awal; disetel di HP.
-private val PushRoutes = setOf(Routes.Transactions)
+private val PushRoutes = setOf(Routes.Transactions, Routes.Settings, Routes.Budget)
 private val Slide = spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMediumLow, IntOffset.VisibilityThreshold)
 private val TabIn = fadeIn(tween(220, delayMillis = 60)) + scaleIn(spring(stiffness = Spring.StiffnessMediumLow), 0.97f)
 private val TabOut = fadeOut(tween(120))
@@ -140,7 +145,10 @@ private val Tabs = listOf(
 )
 
 @Composable
-fun AppNav() {
+fun AppNav(
+    /** Bertambah = buka Tambah Transaksi (pintasan ikon / notifikasi pengingat). */
+    addRequests: Int = 0,
+) {
     val nav = rememberNavController()
     val container = (LocalContext.current.applicationContext as ItungEnApp).container
     // Layar Masuk hanya saat pertama kali (belum memilih masuk / tamu); dihitung sekali karena NavHost butuh nilai tetap.
@@ -153,16 +161,24 @@ fun AppNav() {
     val overlay = remember { GlassOverlayHost() }
 
     // Sub-layar menjaga tab induknya tetap aktif (DESIGN_SPEC §6.3).
-    val tabIndex = when (route) {
+    fun tabOf(r: String?) = when (r) {
         Routes.Home, Routes.Transactions -> 0
         Routes.Insight -> 1
         Routes.Goals -> 2
-        Routes.Profile -> 3
-        else -> 0
+        Routes.Profile, Routes.Settings -> 3
+        else -> -1
     }
+    // Anggaran dibuka dari Beranda maupun Pengaturan: ikut tab layar yang membukanya.
+    val tabIndex = tabOf(route).takeIf { it >= 0 } ?: tabOf(nav.previousBackStackEntry?.destination?.route).coerceAtLeast(0)
     val currentTab by rememberUpdatedState(tabIndex)
     val selectTab = { index: Int -> if (index != currentTab) nav.switchTab(index) }
     val openHistory = { nav.navigate(Routes.Transactions) { launchSingleTop = true } }
+    LaunchedEffect(addRequests) {
+        // Hanya setelah layar Masuk dilewati; sebelum itu pengguna memilih masuk/tamu dulu.
+        if (addRequests > 0 && (container.onboarded || container.account.user.value != null)) {
+            nav.navigate(Routes.Add) { launchSingleTop = true }
+        }
+    }
 
     CompositionLocalProvider(LocalGlassOverlayHost provides overlay) {
         Box(Modifier.fillMaxSize().background(Ink.Black)) {
@@ -180,15 +196,30 @@ fun AppNav() {
                         composable(Routes.Login) {
                             LoginScreen(onDone = { nav.navigate(Routes.Home) { popUpTo(Routes.Login) { inclusive = true } } })
                         }
-                        // Dibuka dari Profil: selesai (atau kembali) berarti pulang ke Profil.
+                        // Dibuka dari Pengaturan: selesai (atau kembali) berarti pulang ke Pengaturan.
                         composable(Routes.LoginEmail) {
                             LoginScreen(onDone = { nav.popBackStack() }, startWithEmail = true)
                         }
-                        composable(Routes.Home) { HomeScreen(onHistory = openHistory, onSeeAll = openHistory, onOpenGoals = { selectTab(2) }) }
-                        composable(Routes.Insight) { InsightScreen(onHistory = openHistory) }
-                        composable(Routes.Goals) { GoalsScreen(onHistory = openHistory) }
+                        composable(Routes.Home) {
+                            HomeScreen(
+                                onHistory = openHistory,
+                                onSeeAll = openHistory,
+                                onOpenGoals = { selectTab(2) },
+                                onOpenBudget = { nav.navigate(Routes.Budget) { launchSingleTop = true } },
+                            )
+                        }
+                        composable(Routes.Budget) { BudgetScreen(onBack = { nav.popBackStack() }) }
+                        composable(Routes.Insight) { InsightScreen() }
+                        composable(Routes.Goals) { GoalsScreen() }
                         composable(Routes.Profile) {
-                            ProfileScreen(onHistory = openHistory, onEmailSignIn = { nav.navigate(Routes.LoginEmail) { launchSingleTop = true } })
+                            ProfileScreen(onOpenSettings = { nav.navigate(Routes.Settings) { launchSingleTop = true } })
+                        }
+                        composable(Routes.Settings) {
+                            SettingsScreen(
+                                onBack = { nav.popBackStack() },
+                                onEmailSignIn = { nav.navigate(Routes.LoginEmail) { launchSingleTop = true } },
+                                onOpenBudget = { nav.navigate(Routes.Budget) { launchSingleTop = true } },
+                            )
                         }
                         composable(Routes.Transactions) { TransactionsScreen(onBack = { nav.popBackStack() }) }
                         composable(Routes.Add) { AddTransactionScreen(onClose = { nav.popBackStack() }) }
@@ -210,7 +241,7 @@ fun AppNav() {
             CompositionLocalProvider(LocalGlassBackdrop provides screen) {
                 // Navbar hanya di tab dan Semua Transaksi; layar Masuk dan Tambah Transaksi tampil penuh (DESIGN_SPEC §6.3).
                 AnimatedVisibility(
-                    visible = route in TabRoutes || route == Routes.Transactions,
+                    visible = route in TabRoutes || route in PushRoutes,
                     modifier = Modifier.align(Alignment.BottomCenter),
                     enter = slideInVertically(Slide) { it } + fadeIn(),
                     exit = slideOutVertically(Slide) { it } + fadeOut(),

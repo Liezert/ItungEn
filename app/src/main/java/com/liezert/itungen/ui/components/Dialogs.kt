@@ -27,8 +27,8 @@ import com.liezert.itungen.ui.theme.appText
 /** Aksen dialog tema gelap dari repo Kyant0. */
 private val DialogAccent = Color(0xFF0091FF)
 
-/** Tombol "Batal" di dialog repo: containerColor tema gelap α0.2. */
-private val CancelSurface = Color(0xFF121212).copy(0.2f)
+/** Tombol "Batal" di dialog repo: containerColor α0.2 (gelap #121212, terang #FAFAFA). */
+private val CancelSurface: Color @Composable get() = Color(if (Ink.dark) 0xFF121212 else 0xFFFAFAFA).copy(0.2f)
 
 /** Alert kaca, tata letak dari DialogContent repo Kyant0: judul, isi, lalu dua tombol kapsul sama lebar. */
 @Composable
@@ -47,7 +47,8 @@ fun LiquidAlertDialog(
         Text(
             text,
             Modifier
-                .graphicsLayer(blendMode = BlendMode.Plus) // "plus lighter" seperti repo (tema gelap)
+                // "plus lighter" di tema gelap seperti repo; di tema terang biasa (Plus membuat teks hitam hilang).
+                .then(if (Ink.dark) Modifier.graphicsLayer(blendMode = BlendMode.Plus) else Modifier)
                 .padding(24.dp, 12.dp, 24.dp, 12.dp),
             style = appText(15f, 21f, Regular, Ink.White.copy(0.68f)),
         )
@@ -56,7 +57,7 @@ fun LiquidAlertDialog(
                 Text(dismissLabel, style = appText(16f, 22f))
             }
             LiquidButton(onConfirm, modifier = Modifier.weight(1f), tint = confirmColor) {
-                Text(confirmLabel, style = appText(16f, 22f))
+                Text(confirmLabel, style = appText(16f, 22f, color = Color.White))
             }
         }
     }
@@ -83,7 +84,7 @@ fun LiquidDatePickerDialog(
                 Text("Batal", style = appText(16f, 22f))
             }
             LiquidButton(onConfirm, modifier = Modifier.weight(1f), tint = DialogAccent) {
-                Text("OK", style = appText(16f, 22f))
+                Text("OK", style = appText(16f, 22f, color = Color.White))
             }
         }
     }

@@ -24,6 +24,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -242,5 +243,5 @@ private fun SheetButton(label: String, enabled: Boolean, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth().height(52.dp),
         tint = Ink.Accent.copy(alpha = if (enabled) 1f else 0.5f),
         enabled = enabled,
-    ) { Text(label, style = appText(16f, 24f, Bold, Ink.White)) }
+    ) { Text(label, style = appText(16f, 24f, Bold, Color.White)) }
 }

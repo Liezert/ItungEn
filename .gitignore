@@ -23,3 +23,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Konfigurasi Firebase (berisi API key project). Unduh sendiri dari Firebase Console.
+google-services.json

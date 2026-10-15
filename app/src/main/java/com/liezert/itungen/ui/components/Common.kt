@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
@@ -41,6 +42,7 @@ import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.liezert.glass.components.GlassDefaults
 import com.liezert.glass.components.LiquidButton
+import com.liezert.itungen.R
 import com.liezert.itungen.ui.theme.Bold
 import com.liezert.itungen.ui.theme.Ink
 import com.liezert.itungen.ui.theme.appText
@@ -51,8 +53,25 @@ fun Modifier.screenPad(): Modifier = padding(horizontal = 20.dp)
 /** Menampilkan SVG Figma yang sudah dikonversi pada ukuran aslinya. */
 @Composable
 fun Ico(@DrawableRes id: Int, modifier: Modifier = Modifier, contentDescription: String? = null) {
-    Image(painterResource(id), contentDescription, modifier)
+    // Ikon Figma berwarna terang (putih / abu muda) untuk tema gelap; di tema terang diwarnai ulang agar terlihat.
+    val tint = when {
+        Ink.dark -> null
+        id in PrimaryIcons -> Ink.White
+        id in MutedIcons -> Ink.Muted
+        else -> null
+    }
+    Image(painterResource(id), contentDescription, modifier, colorFilter = tint?.let { ColorFilter.tint(it) })
 }
+
+private val PrimaryIcons = setOf(
+    R.drawable.ic_add_food, R.drawable.ic_backspace, R.drawable.ic_chevron_right, R.drawable.ic_close,
+    R.drawable.ic_delete, R.drawable.ic_history, R.drawable.ic_inc_gaji, R.drawable.ic_profile_avatar, R.drawable.ic_settings,
+)
+private val MutedIcons = setOf(
+    R.drawable.ic_add_car, R.drawable.ic_add_film, R.drawable.ic_add_note, R.drawable.ic_add_other, R.drawable.ic_back,
+    R.drawable.ic_inc_bonus, R.drawable.ic_inc_other, R.drawable.ic_inc_transfer, R.drawable.ic_search,
+    R.drawable.ic_eye, R.drawable.ic_eye_off,
+)
 
 /**
  * Kanvas hitam; Beranda dan Semua Transaksi menambah vinyet lembut di atas (§6.1).
@@ -65,7 +84,7 @@ fun AppBackground(backdrop: LayerBackdrop, vignette: Boolean, modifier: Modifier
             .layerBackdrop(backdrop)
             .fillMaxSize()
             .background(Ink.Black)
-            .then(if (vignette) Modifier.drawBehind { drawVignette() } else Modifier)
+            .then(if (vignette && Ink.dark) Modifier.drawBehind { drawVignette() } else Modifier)
     )
 }
 

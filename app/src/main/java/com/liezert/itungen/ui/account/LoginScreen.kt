@@ -144,10 +144,14 @@ fun LoginScreen(
             ) { Text("Lanjutkan sebagai tamu", style = appText(16f, 22f, SemiBold)) }
             Text(
                 "Sebagai tamu, catatan hanya tersimpan di HP ini. Kamu bisa masuk kapan saja dari Profil.",
-                Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 16.dp),
+                Modifier.fillMaxWidth().padding(top = 12.dp),
                 style = appText(13f, 18f, Regular, Ink.Gray),
                 textAlign = TextAlign.Center,
             )
+            LinkText("Coba dengan data contoh") {
+                viewModel.continueWithDemo()
+                onDone()
+            }
         }
     }
 }

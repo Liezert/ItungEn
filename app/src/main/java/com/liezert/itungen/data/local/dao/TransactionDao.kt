@@ -13,6 +13,12 @@ interface TransactionDao {
     @Insert
     suspend fun insert(transaction: TransactionEntity): Long
 
+    @Query("SELECT * FROM transactions WHERE id = :id")
+    suspend fun get(id: Long): TransactionEntity
+
+    @Query("DELETE FROM transactions WHERE id = :id")
+    suspend fun delete(id: Long)
+
     @Transaction
     @Query("SELECT * FROM transactions ORDER BY date DESC, created_at DESC, id DESC")
     fun observeAll(): Flow<List<TransactionWithCategory>>

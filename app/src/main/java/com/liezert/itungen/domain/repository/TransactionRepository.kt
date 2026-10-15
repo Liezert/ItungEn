@@ -16,14 +16,20 @@ interface TransactionRepository {
 
     fun observeCategories(type: CategoryType): Flow<List<Category>>
 
-    /** Mencatat pemasukan/pengeluaran di dompet utama. */
+    /** Mencatat pemasukan/pengeluaran di dompet utama. Mengembalikan id (untuk Urungkan). */
     suspend fun addToMainWallet(
         type: TransactionType,
         amount: Long,
         categoryId: Long,
         note: String?,
         date: LocalDate,
-    )
+    ): Long
+
+    /**
+     * Menghapus pemasukan/pengeluaran saat itu juga (saldo ikut berubah). Transfer goal tidak bisa dihapus dari sini.
+     * Mengembalikan aksi Urungkan yang memulihkan baris yang sama.
+     */
+    suspend fun deleteTransaction(id: Long): suspend () -> Unit
 
     /** Tanggal pertama app dipakai = saat dompet utama dibuat (§6.6 "Bergabung"). */
     suspend fun firstUseDate(): LocalDate

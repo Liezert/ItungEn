@@ -53,6 +53,10 @@ fun Category.style(): CategoryStyle =
 
 fun Transaction.style(): CategoryStyle = category?.style() ?: TransferStyle
 
+/** Nama kategori; "Transfer" hanya untuk transfer goal, bukan untuk pemasukan/pengeluaran yang kategorinya hilang. */
+val Transaction.categoryLabel: String
+    get() = category?.name ?: if (type == TransactionType.INCOME || type == TransactionType.EXPENSE) "Lainnya" else "Transfer"
+
 val Transaction.incoming: Boolean get() = type == TransactionType.INCOME || type == TransactionType.TRANSFER_IN
 
 /** Hijau untuk pemasukan, merah untuk pengeluaran, abu-abu untuk transfer (bukan pemasukan/pengeluaran, §3.2). */

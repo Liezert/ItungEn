@@ -61,6 +61,13 @@ class SummariesTest {
     }
 
     @Test
+    fun categorySpending_incomeIsSeparateFromExpense() {
+        val income = categorySpending(all, sep, TransactionType.INCOME)
+        assertEquals(listOf("Gaji"), income.map { it.category.name })
+        assertEquals(1_000_000L, income.single().total)
+    }
+
+    @Test
     fun filter_bySearchAndCategory() {
         assertEquals(listOf("Makan siang"), filterTransactions(all, "SIANG", null).map { it.note })
         assertEquals(3, filterTransactions(all, "", "Makanan").size) // 20k, 30k, 99k
@@ -89,5 +96,50 @@ class SummariesTest {
         assertEquals(100, Goal("Sepatu", 900_000, 800_000).percent)
         assertEquals(0L, Goal("Sepatu", 900_000, 800_000).remaining)
         assertEquals(0, Goal("Kosong", 0, 0).percent)
+    }
+
+    @Test
+    fun roundedPercents_alwaysSumTo100() {
+        assertEquals(listOf(65, 35), roundedPercents(listOf(30_000, 16_000))) // 65,2% + 34,8%
+        assertEquals(listOf(34, 33, 33), roundedPercents(listOf(1, 1, 1)))
+        assertEquals(100, roundedPercents(listOf(7, 13, 29, 51, 3)).sum())
+        assertEquals(listOf(0, 0), roundedPercents(listOf(0, 0)))
+    }
+
+    @Test
+    fun quickTemplates_needTwoRepeatsAndRankByCount() {
+        val food = Category(1, "Makanan", "food", 0, CategoryType.EXPENSE)
+        val today = LocalDate.of(2026, 10, 14)
+        fun tx(note: String?, amount: Long, daysAgo: Long) =
+            Transaction(0, 1, food, TransactionType.EXPENSE, amount, note, today.minusDays(daysAgo))
+        val templates = quickTemplates(
+            listOf(
+                tx("Makan siang", 15_000, 1), tx("makan siang ", 15_000, 2), tx("Makan siang", 15_000, 3),
+                tx(null, 5_000, 1), tx(null, 5_000, 4),
+                tx("Sekali", 99_000, 1),
+                tx("Lama", 7_000, 70), tx("Lama", 7_000, 80), // di luar 60 hari
+            ),
+            today,
+        )
+        assertEquals(listOf("Makan siang", "Makanan"), templates.map { it.label })
+        assertEquals(15_000L, templates.first().amount)
+    }
+
+    @Test
+    fun quickTemplates_groupAcrossAmounts_useLatest_skipIncome() {
+        val food = Category(1, "Makanan", "food", 0, CategoryType.EXPENSE)
+        val salary = Category(2, "Gaji", "salary", 0, CategoryType.INCOME)
+        val today = LocalDate.of(2026, 10, 14)
+        val templates = quickTemplates(
+            listOf(
+                Transaction(0, 1, food, TransactionType.EXPENSE, 6_000, "Makan siang", today.minusDays(3)),
+                Transaction(0, 1, food, TransactionType.EXPENSE, 7_000, "Makan siang", today.minusDays(1)),
+                Transaction(0, 1, salary, TransactionType.INCOME, 3_000_000, "Gaji", today.minusDays(40)),
+                Transaction(0, 1, salary, TransactionType.INCOME, 3_000_000, "Gaji", today.minusDays(10)),
+            ),
+            today,
+        )
+        assertEquals(listOf("Makan siang"), templates.map { it.label }) // "Gaji" tidak bisa tercatat dengan sekali ketuk
+        assertEquals(7_000L, templates.single().amount)
     }
 }

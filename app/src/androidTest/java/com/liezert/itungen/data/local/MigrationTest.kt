@@ -139,5 +139,36 @@ class MigrationTest {
             assertEquals(32, it.getInt(1))
         }
     }
+
+    @Test
+    fun migrate5To6_keepsTransactions_andAddsDeleteQueue() {
+        helper.createDatabase(dbName, 5).apply {
+            execSQL("INSERT INTO wallets (id, name, type, is_archived, created_at, uuid) VALUES (1, 'Saldo ItungEn', 'MAIN', 0, 0, 'main')")
+            execSQL("INSERT INTO transactions (wallet_id, type, amount, date, created_at, uuid, synced) VALUES (1, 'EXPENSE', 18000, 20720, 0, 'a', 1)")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(dbName, 6, true)
+        db.query("SELECT amount FROM transactions").use {
+            it.moveToFirst()
+            assertEquals(18_000L, it.getLong(0))
+        }
+        db.query("SELECT COUNT(*) FROM deleted_transactions").use {
+            it.moveToFirst()
+            assertEquals(0, it.getInt(0))
+        }
+    }
+
+    @Test
+    fun migrate6To7_keepsQueuedDeletesUnpushed() {
+        helper.createDatabase(dbName, 6).apply {
+            execSQL("INSERT INTO deleted_transactions (uuid) VALUES ('a')")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(dbName, 7, true)
+        db.query("SELECT pushed FROM deleted_transactions WHERE uuid = 'a'").use {
+            it.moveToFirst()
+            assertEquals(0, it.getInt(0)) // masih harus dikirim ke server
+        }
+    }
 }
 

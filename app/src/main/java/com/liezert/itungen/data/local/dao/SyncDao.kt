@@ -7,6 +7,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import com.liezert.itungen.data.local.entity.DeletedTransactionEntity
 import com.liezert.itungen.data.local.entity.GoalEntity
 import com.liezert.itungen.data.local.entity.TransactionEntity
 import com.liezert.itungen.data.local.entity.WalletEntity
@@ -28,7 +29,8 @@ data class PendingGoal(
 )
 
 private const val PendingCount =
-    "SELECT (SELECT COUNT(*) FROM transactions WHERE synced = 0) + (SELECT COUNT(*) FROM goals WHERE synced = 0)"
+    "SELECT (SELECT COUNT(*) FROM transactions WHERE synced = 0) + (SELECT COUNT(*) FROM goals WHERE synced = 0) + " +
+        "(SELECT COUNT(*) FROM deleted_transactions WHERE pushed = 0)"
 
 @Dao
 interface SyncDao {
@@ -55,6 +57,45 @@ interface SyncDao {
         """
     )
     suspend fun pendingTransactions(): List<PendingTransaction>
+
+    // Cadangan (ekspor): semua baris, bentuk sama dengan dokumen sinkron.
+    @Query(
+        """
+        SELECT g.*, w.uuid AS wallet_uuid, w.is_archived AS wallet_archived
+        FROM goals g JOIN wallets w ON w.id = g.wallet_id ORDER BY g.id
+        """
+    )
+    suspend fun allGoals(): List<PendingGoal>
+
+    @Query(
+        """
+        SELECT t.*, w.uuid AS wallet_uuid, c.uuid AS category_uuid
+        FROM transactions t JOIN wallets w ON w.id = t.wallet_id LEFT JOIN categories c ON c.id = t.category_id
+        ORDER BY t.date, t.id
+        """
+    )
+    suspend fun allTransactions(): List<PendingTransaction>
+
+    @Query("SELECT uuid FROM deleted_transactions WHERE pushed = 0 LIMIT 400")
+    suspend fun pendingDeletes(): List<String>
+
+    @Query("UPDATE deleted_transactions SET pushed = 1 WHERE uuid IN (:uuids)")
+    suspend fun markDeletesSynced(uuids: List<String>)
+
+    /** Semua uuid yang pernah dihapus (cadangan dan pemulihan melewatinya). */
+    @Query("SELECT uuid FROM deleted_transactions")
+    suspend fun deletedUuids(): List<String>
+
+    /** Penanda dari HP lain (sudah ada di server) atau dari cadangan. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertTombstone(tombstone: DeletedTransactionEntity)
+
+    @Query("DELETE FROM deleted_transactions WHERE uuid = :uuid")
+    suspend fun deleteTombstone(uuid: String)
+
+    /** Transaksi dihapus di HP lain. */
+    @Query("DELETE FROM transactions WHERE uuid = :uuid")
+    suspend fun deleteTransaction(uuid: String)
 
     @Query("UPDATE transactions SET synced = 1 WHERE uuid IN (:uuids)")
     suspend fun markTransactionsSynced(uuids: List<String>)
@@ -91,6 +132,9 @@ interface SyncDao {
     // Keluar akun: data milik akun dihapus dari HP; dompet utama dan kategori bawaan tetap (urutan mengikuti FK).
     @Query("DELETE FROM transactions")
     suspend fun deleteTransactions()
+
+    @Query("DELETE FROM deleted_transactions")
+    suspend fun deleteTombstones()
 
     @Query("DELETE FROM goals")
     suspend fun deleteGoals()

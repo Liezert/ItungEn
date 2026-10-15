@@ -18,6 +18,7 @@ import com.liezert.itungen.data.local.dao.SyncDao
 import com.liezert.itungen.data.local.dao.TransactionDao
 import com.liezert.itungen.data.local.dao.WalletDao
 import com.liezert.itungen.data.local.entity.CategoryEntity
+import com.liezert.itungen.data.local.entity.DeletedTransactionEntity
 import com.liezert.itungen.data.local.entity.GoalEntity
 import com.liezert.itungen.data.local.entity.TransactionEntity
 import com.liezert.itungen.data.local.entity.WalletEntity
@@ -29,13 +30,15 @@ import java.time.LocalDate
 
 // Jangan pernah fallbackToDestructiveMigration: setiap versi baru wajib migrasi eksplisit yang diuji (§7.4).
 @Database(
-    entities = [WalletEntity::class, CategoryEntity::class, TransactionEntity::class, GoalEntity::class],
-    version = 5,
+    entities = [WalletEntity::class, CategoryEntity::class, TransactionEntity::class, GoalEntity::class, DeletedTransactionEntity::class],
+    version = 7,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2), // + tabel recurring_rules (Tahap 4)
         AutoMigration(from = 2, to = 3), // + tabel goals (Tahap 4)
         AutoMigration(from = 3, to = 4, spec = DropRecurring::class), // − transaksi berulang
+        AutoMigration(from = 5, to = 6), // + tabel deleted_transactions (hapus transaksi ikut tersinkron)
+        AutoMigration(from = 6, to = 7), // + deleted_transactions.pushed (penanda hapus disimpan permanen)
     ],
 )
 @TypeConverters(Converters::class)

@@ -332,7 +332,7 @@ Pengeluaran **boleh** membuat saldo dompet utama negatif (uang nyata tidak menun
 | minSdk | 33 |
 | Data | Offline-first: Room tetap sumber data layar; login Google opsional (Firebase Auth) menyinkronkan goal & transaksi ke Firestore `users/{uid}/…` |
 | Modul | `:app` + `:glass` |
-| Tema | Gelap dulu; token siap untuk tema terang |
+| Tema | Gelap (bawaan) dan terang, diganti di Pengaturan; token `Ink` mengikuti tema aktif, ikon putih Figma diwarnai ulang di tema terang |
 | Setoran goal | `planned_monthly` manual + nilai saran |
 | Backup | JSON (pulihkan) + CSV (ekspor) manual |
 | Glass | Liquid Glass riil di semua elemen (lihat §6.2) |
@@ -342,6 +342,21 @@ Pengeluaran **boleh** membuat saldo dompet utama negatif (uang nyata tidak menun
 | Profil | Tanpa "Keluar"; "Bergabung" = tanggal pertama pakai; Notifikasi disembunyikan dulu |
 | Transaksi berulang / gaji otomatis | Dihapus: tidak cocok dengan tanggal gajian nyata (§4.1) |
 | Input nominal | Keypad kalkulator di layar, bukan keyboard sistem |
+| Hapus transaksi | Pemasukan/pengeluaran bisa dihapus dari Semua Transaksi; yang sudah terunggah dicatat di `deleted_transactions` dan diunggah sebagai dokumen `{deleted: true}` agar HP lain ikut menghapus. Transfer goal tidak bisa dihapus |
+| Siklus anggaran | Bulanan (tanggal 1–28), Mingguan (hari uang saku), atau Tak tentu (sampai tanggal kiriman berikutnya); nominal per periode. Tanggal dipilih dari grid sekali ketuk. Pratinjau di layar Anggaran memakai `computeBudget` yang sama dengan Beranda |
+| Proyeksi jatah | Status tren & "uang habis tanggal…" baru dihitung setelah 3 hari penuh, dan hanya dari hari yang sudah selesai; kelebihan minggu ditampilkan "Lewat Rp …" |
+| Hapus & Urungkan | Hapus langsung tersimpan; Urungkan memulihkan baris yang sama (bertumpuk, 5 detik per aksi). Tekan lama = alternatif geser + aksi TalkBack "Hapus". Penanda hapus disimpan permanen (DB v7) agar cadangan lama tidak memunculkannya lagi |
+| Catat cepat | Pengeluaran dengan kategori + catatan sama ≥ 2× dalam 60 hari, nominal terakhir; pemasukan tidak ikut; ketukan ganda < 1 detik diabaikan |
+| Cadangan | JSON ikut menyimpan rencana anggaran & penanda hapus; kategori tak dikenal → "Lainnya". CSV pakai titik koma + BOM (Excel regional Indonesia) |
+| Privasi | Kunci aplikasi (BiometricPrompt bawaan, sidik jari/PIN; kunci ulang setelah 30 detik di latar; pratinjau Recents disamarkan), sembunyikan saldo (ikon mata) |
+| Pengingat | Toggle membaca izin notifikasi sebenarnya; notifikasi punya aksi "Catat …" (template tersering) dan "Hari ini tidak jajan" |
+| Data contoh | "Coba dengan data contoh" di layar masuk, atau Pengaturan → Data saat belum ada transaksi |
+| Insight | Toggle Pengeluaran (merah, "-") / Pemasukan (hijau, "+"); diagram lingkaran per kategori (persen dibulatkan sisa-terbesar agar berjumlah 100%), pilihan bulan, perbandingan dengan bulan lalu (naik = merah untuk pengeluaran, hijau untuk pemasukan) |
+| Jatah hari ini | `domain/usecase/Budget.kt` (§5). Pemasukan = maks(tercatat, rencana bulanan); tagihan tetap dicadangkan dan pengeluaran kategori Tagihan memakai cadangan itu dulu. Rencana disimpan di HP (belum sinkron) |
+| Hapus transaksi (UI) | Geser kiri; baris disembunyikan 5 detik dengan Urungkan sebelum benar-benar dihapus |
+| Catat cepat | Template = kategori+catatan+nominal yang muncul ≥ 2× dalam 60 hari; pintasan ikon; pengingat 20.00 hanya bila hari itu kosong |
+| Cadangan | JSON berbentuk dokumen sinkron (uuid); pulihkan = tambah yang belum ada. CSV untuk spreadsheet |
+| Pengaturan | Akun, status sinkron (otomatis: unggah tiap perubahan, tarik saat dibuka & tiap 60 detik), mode gelap, keluar. Profil hanya menautkan ke sini |
 | Login | Layar Masuk saat pertama buka: "Masuk dengan Google" atau "Lanjutkan sebagai tamu"; tamu bisa masuk dari Profil dan datanya ikut terunggah |
 | Sinkron | uuid per baris (id lokal bentrok antar-HP) + flag `synced`; tarik berdasarkan `syncedAt` waktu server; transaksi tak pernah diubah, goal: perubahan lokal yang belum terunggah menang. Keluar = data lokal dihapus (ditolak bila ada yang belum terunggah) |
 

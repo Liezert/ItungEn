@@ -1,6 +1,8 @@
 package com.liezert.itungen.data.repository
 
+import androidx.room.withTransaction
 import com.liezert.itungen.data.local.AppDatabase
+import com.liezert.itungen.data.local.entity.DeletedTransactionEntity
 import com.liezert.itungen.data.local.entity.CategoryEntity
 import com.liezert.itungen.data.local.entity.TransactionEntity
 import com.liezert.itungen.data.local.entity.TransactionWithCategory
@@ -41,9 +43,9 @@ class RoomTransactionRepository(
         categoryId: Long,
         note: String?,
         date: LocalDate,
-    ) {
+    ): Long {
         require(type == TransactionType.INCOME || type == TransactionType.EXPENSE) { "Transfer lewat TransferToGoal" }
-        db.transactionDao().insert(
+        return db.transactionDao().insert(
             TransactionEntity(
                 walletId = mainWalletId(),
                 categoryId = categoryId,
@@ -54,6 +56,25 @@ class RoomTransactionRepository(
                 createdAt = Instant.now(clock),
             )
         )
+    }
+
+    override suspend fun deleteTransaction(id: Long): suspend () -> Unit {
+        val tx = db.withTransaction {
+            val tx = db.transactionDao().get(id)
+            require(tx.type == TransactionType.INCOME || tx.type == TransactionType.EXPENSE) { "Transfer goal tidak bisa dihapus" }
+            db.transactionDao().delete(id)
+            // Yang sudah pernah terunggah perlu dikirim sebagai penanda agar HP lain ikut menghapus;
+            // yang belum cukup dicatat (pushed) agar pemulihan cadangan tidak memunculkannya lagi.
+            db.syncDao().insertTombstone(DeletedTransactionEntity(tx.uuid, pushed = !tx.synced))
+            tx
+        }
+        // Urungkan: baris yang sama kembali (id & uuid tetap) dan diunggah lagi, menimpa penanda hapus di server.
+        return {
+            db.withTransaction {
+                db.syncDao().deleteTombstone(tx.uuid)
+                db.syncDao().insertTransaction(tx.copy(synced = false))
+            }
+        }
     }
 
     override suspend fun firstUseDate(): LocalDate = LocalDate.ofInstant(db.walletDao().getMain().createdAt, clock.zone)

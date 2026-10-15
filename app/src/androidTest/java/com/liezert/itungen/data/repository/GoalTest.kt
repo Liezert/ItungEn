@@ -30,7 +30,7 @@ class GoalTest {
     private lateinit var money: RoomTransactionRepository
 
     @Before
-    fun setUp() = runBlocking {
+    fun setUp() = runBlocking<Unit> {
         db = AppDatabase.create(ApplicationProvider.getApplicationContext(), name = null)
         goals = RoomGoalRepository(db, clock)
         money = RoomTransactionRepository(db, clock)

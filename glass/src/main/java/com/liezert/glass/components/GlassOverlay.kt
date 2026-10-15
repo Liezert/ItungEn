@@ -208,7 +208,7 @@ fun LiquidSheet(
                         .padding(top = 8.dp, bottom = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Box(Modifier.size(36.dp, 5.dp).clip(Capsule()).background(Color.White.copy(alpha = 0.3f)))
+                    Box(Modifier.size(36.dp, 5.dp).clip(Capsule()).background((if (LocalLiquidLightTheme.current) Color.Black else Color.White).copy(alpha = 0.3f)))
                 }
                 content()
             }

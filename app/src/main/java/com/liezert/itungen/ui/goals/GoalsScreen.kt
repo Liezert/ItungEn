@@ -49,7 +49,6 @@ import com.liezert.glass.components.LiquidSheet
 import com.liezert.itungen.R
 import com.liezert.itungen.domain.model.Goal
 import com.liezert.itungen.domain.model.formatRupiah
-import com.liezert.itungen.ui.components.GlassIconButton
 import com.liezert.itungen.ui.components.Ico
 import com.liezert.itungen.ui.components.IconCircle
 import com.liezert.itungen.ui.components.ProgressBar
@@ -74,7 +73,6 @@ private sealed interface Sheet {
 
 @Composable
 fun GoalsScreen(
-    onHistory: () -> Unit,
     viewModel: GoalsViewModel = viewModel(factory = GoalsViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -92,7 +90,6 @@ fun GoalsScreen(
     }
 
     GoalsContent(
-        onHistory = onHistory,
         goals = state.goals,
         loading = state.loading,
         onAddGoal = { open(Sheet.Create) },
@@ -122,7 +119,6 @@ fun GoalsScreen(
  */
 @Composable
 fun GoalsContent(
-    onHistory: () -> Unit,
     modifier: Modifier = Modifier,
     goals: List<Goal> = emptyList(),
     loading: Boolean = false,
@@ -134,7 +130,7 @@ fun GoalsContent(
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         TopBar(
             leading = { Spacer(Modifier.size(48.dp)) }, // hamburger ditunda sampai punya isi (DESIGN_SPEC §11.2)
-            trailing = { GlassIconButton(R.drawable.ic_history, onHistory, "Semua transaksi") },
+            trailing = { Spacer(Modifier.size(48.dp)) },
         )
         Column(Modifier.screenPad(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
@@ -159,7 +155,7 @@ fun GoalsContent(
                     style = appText(12f, 18f, Bold, Ink.Subtle, tracking = 1.2f),
                 )
             }
-            if (loading) Unit else if (others.isEmpty()) EmptyGoals(onAddGoal, hasHero = hero != null) else others.forEach { goal ->
+            if (loading) Unit else if (others.isEmpty()) EmptyGoals(hasHero = hero != null) else others.forEach { goal ->
                 ImageGoalCard(goal, onAddFunds = onAddFunds?.let { { it(goal) } })
             }
         }
@@ -171,7 +167,7 @@ fun GoalsContent(
 private fun PrimaryButton(label: String, @DrawableRes icon: Int, onClick: () -> Unit) {
     LiquidButton(onClick = onClick, modifier = Modifier.fillMaxWidth(), tint = Ink.Accent) {
         Ico(icon)
-        Text(label, style = appText(14f, 20f, Bold, Ink.White))
+        Text(label, style = appText(14f, 20f, Bold, Color.White))
     }
 }
 
@@ -219,8 +215,9 @@ private fun HeroGoalCard(goal: Goal, onAddFunds: (() -> Unit)?) {
     }
 }
 
+/** Keadaan kosong tanpa tombol sendiri: "Tambah Target" di judul sudah cukup (tidak ada dua tombol yang sama). */
 @Composable
-private fun EmptyGoals(onAddGoal: (() -> Unit)?, hasHero: Boolean) {
+private fun EmptyGoals(hasHero: Boolean) {
     GlassCard(
         Modifier.fillMaxWidth(),
         padding = 33.dp,
@@ -234,18 +231,11 @@ private fun EmptyGoals(onAddGoal: (() -> Unit)?, hasHero: Boolean) {
             }
         }
         Text(
-            if (hasHero) "Belum ada target lain, yuk mulai menabung..." else "Belum ada target, yuk mulai menabung...",
+            (if (hasHero) "Belum ada target lain." else "Belum ada target.") + " Ketuk Tambah Target di atas untuk mulai menabung.",
             Modifier.padding(horizontal = 37.dp),
             style = appText(14f, 20f, Regular, Ink.Muted),
             textAlign = TextAlign.Center,
         )
-        if (onAddGoal != null) {
-            Box(Modifier.padding(top = 8.dp)) {
-                LiquidButton(onClick = onAddGoal, modifier = Modifier.height(42.dp), contentPadding = 21.dp) {
-                    Text("+ Buat Target Baru", style = appText(14f, 20f, SemiBold))
-                }
-            }
-        }
     }
 }
 
@@ -311,9 +301,9 @@ private val PreviewGoals = listOf(
 @Preview(widthDp = 390, heightDp = 1100, showBackground = true, backgroundColor = 0xFF000000)
 @Composable
 private fun GoalsPreview() = ItungEnTheme {
-    GoalsContent(onHistory = {}, goals = PreviewGoals, onAddGoal = {}, onAddFunds = {})
+    GoalsContent(goals = PreviewGoals, onAddGoal = {}, onAddFunds = {})
 }
 
 @Preview(widthDp = 390, heightDp = 600, showBackground = true, backgroundColor = 0xFF000000)
 @Composable
-private fun GoalsEmptyPreview() = ItungEnTheme { GoalsContent(onHistory = {}) }
+private fun GoalsEmptyPreview() = ItungEnTheme { GoalsContent() }
