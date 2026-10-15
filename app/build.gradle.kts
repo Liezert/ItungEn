@@ -26,12 +26,30 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+    buildTypes {
+        // Salinan rilis untuk mengukur performa di HP (docs/PERFORMANCE.md): paket terpisah (.bench) agar data
+        // asli tidak tersentuh, ditandatangani kunci debug, dan berisi pengisi data uji (src/bench).
+        create("bench") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".bench"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
     buildFeatures {
         compose = true
+    }
+}
+
+// Laporan stabilitas & skippability Compose: gradlew.bat :app:assembleBench -PcomposeReports
+composeCompiler {
+    if (project.hasProperty("composeReports")) {
+        reportsDestination = layout.buildDirectory.dir("compose_compiler")
+        metricsDestination = layout.buildDirectory.dir("compose_compiler")
     }
 }
 

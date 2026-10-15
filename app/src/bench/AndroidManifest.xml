@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hanya build "bench" (pengukuran performa): bisa diprofilkan dan punya pengisi data uji. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <profileable android:shell="true" />
+        <!-- adb shell am broadcast -n com.liezert.itungen.bench/com.liezert.itungen.BenchSeedReceiver -\-ei count 30000 -->
+        <receiver
+            android:name=".BenchSeedReceiver"
+            android:exported="true" />
+    </application>
+</manifest>

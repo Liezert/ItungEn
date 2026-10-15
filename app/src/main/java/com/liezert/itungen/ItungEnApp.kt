@@ -49,7 +49,7 @@ class AppContainer(context: Context) {
     val clock: Clock = Clock.systemDefaultZone()
     /** Untuk kerja yang harus selesai walau layar ditutup (mis. hapus dengan Urungkan). */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val database = AppDatabase.create(context)
+    internal val database = AppDatabase.create(context)
     private val prefs = context.getSharedPreferences("itungen", Context.MODE_PRIVATE)
     val transactionRepository: TransactionRepository = RoomTransactionRepository(database, clock)
     val goalRepository: GoalRepository = RoomGoalRepository(database, clock)

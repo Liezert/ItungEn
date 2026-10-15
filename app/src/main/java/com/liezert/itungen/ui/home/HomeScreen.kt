@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.home
 
+import androidx.activity.compose.ReportDrawnWhen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -89,6 +90,8 @@ fun HomeScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val undo by viewModel.undo.entries.collectAsStateWithLifecycle()
+    // Waktu "siap dipakai" untuk pengukuran start dingin (docs/PERFORMANCE.md): saat data Beranda pertama tampil.
+    ReportDrawnWhen { !state.loading }
     val container = (LocalContext.current.applicationContext as ItungEnApp).container
     HomeContent(
         state, onHistory, onSeeAll, onOpenGoals, onOpenBudget,
