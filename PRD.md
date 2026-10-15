@@ -108,3 +108,23 @@ Kategori kustom, ubah profil lokal, sinkron rencana anggaran antar-HP, pilihan j
 ## 9. Pertanyaan terbuka
 
 Daftar keputusan yang belum final ada di `DESIGN_SPEC.md` §11.
+
+## Addendum v0.2 (Oktober 2026)
+
+PRD v0.1 adalah gambaran awal. Sumber kebenaran sekarang adalah kode + `DESIGN_SPEC.md` §10. Ringkasan perubahan:
+
+**Fitur yang ditambahkan di luar v0.1**
+- Akun opsional (Google/email, Firebase) dengan sinkron otomatis; mode tamu tetap offline penuh.
+- Jatah hari ini: siklus bulanan, mingguan, atau sampai kiriman berikutnya; batas bulanan per kategori dengan
+  peringatan 80%/100%.
+- Catat cepat sekali ketuk, Urungkan bertumpuk, **ubah transaksi**, hapus (geser/tekan lama).
+- Insight per bulan (pengeluaran/pemasukan), **kalender pengeluaran + streak hari tercatat**, tandai hari tidak jajan.
+- Pengingat harian dengan jam pilihan dan aksi langsung di notifikasi.
+- Privasi: kunci biometrik, sembunyikan saldo. Cadangan/pemulihan JSON, ekspor CSV, data contoh.
+- Mode hemat (kaca ringan, otomatis saat Penghemat Baterai).
+
+**Penyimpangan dari v0.1**
+- "Tanpa jaringan" → offline-first dengan sinkron opsional (Firestore, hanya data milik akun sendiri).
+- "Maksimal 3 permukaan Glass Riil" → kaca bertingkat menurut apa yang dibiaskan (DESIGN_SPEC §6.2), diukur di
+  docs/PERFORMANCE.md.
+- Transaksi berulang/gaji otomatis dihapus (tanggal gajian sering bergeser) dan tidak dihidupkan lagi.

@@ -208,10 +208,12 @@ Warna aksen per tab di navbar (Kategori/Insight, Goals, Profil) terlihat berbeda
 
 ### 6.2 Sistem Liquid Glass
 
-Semua elemen interaktif dan kartu memakai **Glass Riil** (library Backdrop + komponen yang dibuat ulang dari demo [Kyant0/AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass)): `LiquidButton`, `LiquidBottomTabs` (navbar & toggle Pengeluaran/Pemasukan), `LiquidToggle`, kaca dialog/sheet, `GlassSurface`/`GlassCard`, dan blur progresif di bawah status bar.
+Semua elemen memakai komponen kaca yang dibuat ulang dari demo [Kyant0/AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass) (library Backdrop): `LiquidButton`, `LiquidBottomTabs` (navbar & toggle segmen), `LiquidToggle`, kaca dialog/sheet, `GlassSurface`/`GlassCard`, dan blur progresif di bawah status bar. Tingkatnya ditentukan oleh **apa yang ada di belakang kaca** (diukur, docs/PERFORMANCE.md):
 
-- **Latar:** wallpaper dari repo tersebut, diredupkan α0.5 untuk tema gelap, supaya kaca punya sesuatu untuk dibiaskan.
-- **Dua backdrop:** kaca di dalam layar membiaskan wallpaper; navbar, FAB, sheet, dan dialog membiaskan wallpaper + isi layar. Kaca tidak boleh merekam layer yang memuat dirinya sendiri.
+- **Kaca riil** (blur + lensa + vibrancy atas isi layar yang direkam): navbar, FAB, sheet, dialog, toast Urungkan, blur status bar — elemen yang melayang di atas konten yang bergerak.
+- **Kaca di atas latar** (kartu, tombol, toggle, segmen di dalam layar): latarnya hitam/terang polos atau vinyet halus, jadi blur/lensa tidak mengubah piksel. Backdrop-nya `BackgroundBackdrop` (`PlainBackdrop`): latar digambar langsung di posisi kaca tanpa rekaman layer dan tanpa efek. Highlight tepi, bayangan, warna permukaan, dan animasi tekan sama persis (selisih screenshot 0%). Thumb toggle dan indikator segmen tetap membiaskan track/tab di bawahnya.
+- **Mode hemat** (Pengaturan → Tampilan, otomatis saat Penghemat Baterai menyala): semua kaca tanpa efek, blur status bar mati, isi layar tidak direkam. Perubahan visual yang terlihat, jadi opsional.
+- **Latar:** hitam (tema gelap, vinyet di Beranda & Semua Transaksi) atau terang polos.
 - **Sheet & dialog** digambar di `GlassOverlayHost` (window yang sama), bukan Dialog/ModalBottomSheet Material yang memakai window terpisah dan tidak bisa membaca backdrop.
 - **Keterbacaan:** kaca diberi tint gelap (#121212 α0.4, nilai tema gelap repo). Diverifikasi di HP asli.
 
@@ -335,7 +337,7 @@ Pengeluaran **boleh** membuat saldo dompet utama negatif (uang nyata tidak menun
 | Tema | Gelap (bawaan) dan terang, diganti di Pengaturan; token `Ink` mengikuti tema aktif, ikon putih Figma diwarnai ulang di tema terang |
 | Setoran goal | `planned_monthly` manual + nilai saran |
 | Backup | JSON (pulihkan) + CSV (ekspor) manual |
-| Glass | Liquid Glass riil di semua elemen (lihat §6.2) |
+| Glass | Bertingkat (§6.2): kaca riil hanya untuk elemen yang melayang di atas konten (navbar, FAB, sheet, dialog, toast, blur status bar); kaca di dalam layar menggambar latar polos tanpa efek (tampilan sama, scroll Beranda jank 36,6% → 24%, Pengaturan 54% → 40%); Mode hemat untuk semua. Menggantikan "maksimal 3 permukaan Glass Riil" di PRD v0.1: batasnya bukan jumlah, tetapi apakah ada konten bergerak untuk dibiaskan |
 | Navbar | Indikator langsung mengikuti jari; layar pindah saat lepas |
 | Tombol "+" | FAB bulat 56 dp di kanan atas navbar (menggantikan tata letak "+" di samping navbar) |
 | Nama tab | "Kategori" → "Insight" |
@@ -351,6 +353,13 @@ Pengeluaran **boleh** membuat saldo dompet utama negatif (uang nyata tidak menun
 | Privasi | Kunci aplikasi (BiometricPrompt bawaan, sidik jari/PIN; kunci ulang setelah 30 detik di latar; pratinjau Recents disamarkan), sembunyikan saldo (ikon mata) |
 | Pengingat | Toggle membaca izin notifikasi sebenarnya; notifikasi punya aksi "Catat …" (template tersering) dan "Hari ini tidak jajan" |
 | Data contoh | "Coba dengan data contoh" di layar masuk, atau Pengaturan → Data saat belum ada transaksi |
+| Data di layar | Tidak ada layar yang memuat seluruh riwayat: total bulanan & per kategori lewat SQL (GROUP BY), jendela tanggal untuk siklus anggaran + catat cepat (60 hari), LIMIT untuk riwayat terakhir, Semua Transaksi dimuat 200 baris bertahap; dihitung di Dispatchers.Default |
+| Sinkron | Tarik saat app ke depan (jeda min. 3 menit) + coba ulang saat jaringan kembali bila gagal; unggah otomatis setiap ada perubahan; tidak ada kerja jaringan di latar. Tarik berhalaman 300 dokumen dengan kursor (waktu server, id dokumen) |
+| Pengaturan tersinkron | Rencana anggaran, batas per kategori, hari tidak jajan di dokumen `users/{uid}/settings/main` (perubahan terakhir menang; hari tidak jajan digabung) dan cadangan JSON |
+| Ubah transaksi | Ketuk baris pemasukan/pengeluaran membuka layar Tambah dalam mode ubah. DB v8 `transactions.updated_at`; bentrok antar-HP: perubahan terakhir menang, hapus menang atas ubah |
+| Batas per kategori | Bulanan (bulan kalender), diatur di Anggaran atau dengan mengetuk kategori di Insight; peringatan 80% (oranye) dan 100% (merah) di Beranda dan Insight |
+| Kalender & streak | Heatmap pengeluaran harian di Insight (seperempat-an dari hari terbesar bulan itu); streak = hari tercatat berturut-turut (ada transaksi atau ditandai tidak jajan), hari ini belum memutus streak |
+| Rilis | R8 + shrinkResources + locale in/en, font Inter subset, baseline profile kode app (manual), konfigurasi stabilitas Compose; build bench (`.bench`) untuk mengukur tanpa menyentuh data asli |
 | Insight | Toggle Pengeluaran (merah, "-") / Pemasukan (hijau, "+"); diagram lingkaran per kategori (persen dibulatkan sisa-terbesar agar berjumlah 100%), pilihan bulan, perbandingan dengan bulan lalu (naik = merah untuk pengeluaran, hijau untuk pemasukan) |
 | Jatah hari ini | `domain/usecase/Budget.kt` (§5). Pemasukan = maks(tercatat, rencana bulanan); tagihan tetap dicadangkan dan pengeluaran kategori Tagihan memakai cadangan itu dulu. Rencana disimpan di HP (belum sinkron) |
 | Hapus transaksi (UI) | Geser kiri; baris disembunyikan 5 detik dengan Urungkan sebelum benar-benar dihapus |
@@ -364,9 +373,9 @@ Pengeluaran **boleh** membuat saldo dompet utama negatif (uang nyata tidak menun
 
 ## 11. Keputusan yang masih terbuka
 
-1. **Definisi Total Saldo.** Default: saldo dompet utama saja (dana yang sudah masuk goal tidak dihitung). Alternatif: tampilkan total semua dompet.
-2. **Tombol hamburger dan ikon riwayat di top bar** (Figma) belum punya fungsi yang ditentukan. Default: ikon riwayat membuka Semua Transaksi; hamburger dihapus sampai ada isinya.
-3. **Android Auto Backup.** Default: dimatikan agar satu-satunya cadangan adalah ekspor manual yang terkontrol.
+1. ~~**Definisi Total Saldo.**~~ Diputuskan (default): saldo dompet utama saja; dana yang sudah masuk goal tampil di Goals.
+2. ~~**Tombol hamburger dan ikon riwayat di top bar.**~~ Diputuskan (default): ikon riwayat membuka Semua Transaksi; hamburger tidak ada sampai ada isinya.
+3. ~~**Android Auto Backup.**~~ Diputuskan: dimatikan, termasuk pindah-HP Android 12+ (`data_extraction_rules.xml`); cadangan lewat ekspor JSON atau akun.
 4. ~~**Muat tidaknya label "Beranda"** pada navbar yang menyusut.~~ Selesai: navbar kini selebar penuh (≈ 86 dp per tab) karena tombol "+" pindah ke atas navbar.
 5. **Data contoh** Figma tidak konsisten (Sepatu Lari 90% vs 56%; Rp 340.000 disebut mingguan dan bulanan). Satu set data contoh yang konsisten dibuat untuk pratinjau dan tes.
 6. **Hex final warna aksen per tab** dan nilai animasi (spring, refraksi) ditetapkan di glass playground.
