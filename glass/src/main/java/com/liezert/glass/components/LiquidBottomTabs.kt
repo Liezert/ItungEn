@@ -85,9 +85,11 @@ fun LiquidBottomTabs(
     // DampedDragAnimation & LaunchedEffect di-remember sekali: selalu panggil callback terbaru.
     val onTabSelected by rememberUpdatedState(onTabSelected)
     val selectedTabIndex by rememberUpdatedState(selectedTabIndex)
+    // Mode hemat: tanpa blur, isi di belakang navbar tembus dan bertabrakan dengan label; permukaan dibuat pekat.
+    val surfaceAlpha = if (LocalGlassEconomy.current) 0.92f else 0.4f
     val containerColor =
-        if (isLightTheme) Color(0xFFFAFAFA).copy(0.4f)
-        else Color(0xFF121212).copy(0.4f)
+        if (isLightTheme) Color(0xFFFAFAFA).copy(surfaceAlpha)
+        else Color(0xFF121212).copy(surfaceAlpha)
     val indicatorHeight = height - 8f.dp
 
     val tabsBackdrop = rememberLayerBackdrop()

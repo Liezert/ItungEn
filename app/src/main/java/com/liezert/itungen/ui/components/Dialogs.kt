@@ -10,7 +10,13 @@ import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
+import android.content.res.Configuration
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import java.util.Locale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.BlendMode
@@ -23,6 +29,8 @@ import com.liezert.itungen.ui.theme.Ink
 import com.liezert.itungen.ui.theme.Medium
 import com.liezert.itungen.ui.theme.Regular
 import com.liezert.itungen.ui.theme.appText
+
+private val Indonesian = Locale.forLanguageTag("id-ID")
 
 /** Aksen dialog tema gelap dari repo Kyant0. */
 private val DialogAccent = Color(0xFF0091FF)
@@ -73,12 +81,19 @@ fun LiquidDatePickerDialog(
     onDismiss: () -> Unit,
 ) {
     LiquidDialog(visible, onDismiss, Modifier.padding(horizontal = 8.dp, vertical = 16.dp)) {
-        DatePicker(
-            state,
-            Modifier.padding(top = 8.dp),
-            colors = DatePickerDefaults.colors(containerColor = Color.Transparent),
-            showModeToggle = false,
-        )
+        // Bahasa Indonesia apa pun bahasa HP-nya (nama bulan/hari dan teks "Pilih tanggal"), sama seperti seluruh app.
+        val configuration = LocalConfiguration.current
+        val context = LocalContext.current
+        val indonesian = remember(configuration) { Configuration(configuration).apply { setLocale(Indonesian) } }
+        val indonesianContext = remember(context, indonesian) { context.createConfigurationContext(indonesian) }
+        CompositionLocalProvider(LocalConfiguration provides indonesian, LocalContext provides indonesianContext) {
+            DatePicker(
+                state,
+                Modifier.padding(top = 8.dp),
+                colors = DatePickerDefaults.colors(containerColor = Color.Transparent),
+                showModeToggle = false,
+            )
+        }
         DialogButtons {
             LiquidButton(onDismiss, modifier = Modifier.weight(1f), surfaceColor = CancelSurface) {
                 Text("Batal", style = appText(16f, 22f))

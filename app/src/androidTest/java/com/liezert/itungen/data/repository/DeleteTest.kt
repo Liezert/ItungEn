@@ -68,4 +68,14 @@ class DeleteTest {
         assertEquals(emptyList<String>(), db.syncDao().deletedUuids())
         assertEquals(-15_000L, money.observeMainBalance().first())
     }
+
+    /** Geser/ketuk ganda memanggil hapus dua kali: yang kedua tidak boleh crash (baris sudah tidak ada). */
+    @Test
+    fun deleteTwice_isHarmless() = runBlocking<Unit> {
+        val food = money.observeCategories(CategoryType.EXPENSE).first().first { it.name == "Makanan" }
+        val id = money.addToMainWallet(TransactionType.EXPENSE, 15_000, food.id, "Makan", today)
+        money.deleteTransaction(id)
+        money.deleteTransaction(id)() // urungkan yang kosong pun aman
+        assertEquals(emptyList<Any>(), money.allTransactions())
+    }
 }

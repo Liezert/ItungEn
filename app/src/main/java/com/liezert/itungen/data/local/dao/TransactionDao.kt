@@ -22,6 +22,9 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun get(id: Long): TransactionEntity
 
+    @Query("SELECT * FROM transactions WHERE id = :id")
+    suspend fun find(id: Long): TransactionEntity?
+
     @Transaction
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun getWithCategory(id: Long): TransactionWithCategory?

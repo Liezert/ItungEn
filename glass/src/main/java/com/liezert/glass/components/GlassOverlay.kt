@@ -86,10 +86,13 @@ private fun dimColor() =
     if (LocalLiquidLightTheme.current) Color(0xFF29293A).copy(0.23f)
     else Color(0xFF121212).copy(0.56f)
 
+/** Mode hemat: tanpa blur, permukaan sheet/dialog dibuat pekat agar isi di belakangnya tidak mengganggu teks. */
 @Composable
-private fun containerColor() =
-    if (LocalLiquidLightTheme.current) Color(0xFFFAFAFA).copy(0.6f)
-    else Color(0xFF121212).copy(0.4f)
+private fun containerColor(): Color {
+    val economy = LocalGlassEconomy.current
+    return if (LocalLiquidLightTheme.current) Color(0xFFFAFAFA).copy(if (economy) 0.94f else 0.6f)
+    else Color(0xFF121212).copy(if (economy) 0.92f else 0.4f)
+}
 
 /**
  * Kaca dialog dari repo Kyant0 (catalog/destinations/DialogContent.kt): colorControls + blur + lensa dengan efek

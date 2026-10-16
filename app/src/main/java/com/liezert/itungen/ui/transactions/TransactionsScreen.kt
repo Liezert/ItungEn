@@ -29,6 +29,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -163,6 +165,9 @@ fun TransactionsContent(
 
 @Composable
 private fun SearchPill(query: String, onChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    // Teks yang diketik dipegang di sini (sinkron dengan keyboard). Bila nilainya menunggu putaran ViewModel yang
+    // asinkron, huruf yang diketik cepat hilang ("ojek" jadi "e"); ViewModel cukup menerima salinannya untuk kueri.
+    var text by rememberSaveable { mutableStateOf(query) }
     GlassSurface(
         modifier.fillMaxWidth(),
         shape = Capsule(),
@@ -174,15 +179,18 @@ private fun SearchPill(query: String, onChange: (String) -> Unit, modifier: Modi
         ) {
             Ico(R.drawable.ic_search)
             BasicTextField(
-                value = query,
-                onValueChange = onChange,
+                value = text,
+                onValueChange = {
+                    text = it
+                    onChange(it)
+                },
                 singleLine = true,
                 textStyle = appText(14f, 20f, Regular, Ink.White),
                 cursorBrush = SolidColor(Ink.White),
                 modifier = Modifier.weight(1f).semantics { contentDescription = "Cari transaksi" },
                 decorationBox = { inner ->
                     Box(Modifier.height(20.dp), contentAlignment = Alignment.CenterStart) {
-                        if (query.isEmpty()) Text("Cari transaksi...", style = appText(14f, 20f, Regular, Ink.NavInactive))
+                        if (text.isEmpty()) Text("Cari transaksi...", style = appText(14f, 20f, Regular, Ink.NavInactive))
                         inner()
                     }
                 },
@@ -294,10 +302,20 @@ private fun SwipeToDelete(
         content()
         return
     }
-    val state = rememberSwipeToDismissBoxState()
-    LaunchedEffect(state.currentValue) {
-        if (state.currentValue == SwipeToDismissBoxValue.EndToStart) onDelete(item)
-    }
+    // Hapus saat geseran dikonfirmasi, tetapi kotak tidak pernah masuk keadaan "terhapus": status itu disimpan
+    // LazyColumn per key, jadi baris yang dipulihkan lewat Urungkan (key sama) akan langsung terhapus lagi.
+    // confirmValueChange bisa terpanggil lebih dari sekali dalam satu geseran: hapus hanya sekali per tampilan baris.
+    val onDeleteLatest by rememberUpdatedState(onDelete)
+    val deleted = remember { booleanArrayOf(false) }
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart && !deleted[0]) {
+                deleted[0] = true
+                onDeleteLatest(item)
+            }
+            false
+        },
+    )
     SwipeToDismissBox(
         state = state,
         enableDismissFromStartToEnd = false,

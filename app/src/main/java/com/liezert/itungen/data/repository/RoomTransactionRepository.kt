@@ -113,7 +113,8 @@ class RoomTransactionRepository(
 
     override suspend fun deleteTransaction(id: Long): suspend () -> Unit {
         val tx = db.withTransaction {
-            val tx = db.transactionDao().get(id)
+            // Sudah terhapus (mis. ketuk/geser ganda, atau dihapus di HP lain): tidak ada yang perlu diurungkan.
+            val tx = db.transactionDao().find(id) ?: return@withTransaction null
             require(tx.type.editable) { "Transfer goal tidak bisa dihapus" }
             db.transactionDao().delete(id)
             // Penanda selalu dikirim (bila masuk akun), termasuk untuk baris yang belum tersinkron: unggahannya bisa
@@ -122,6 +123,7 @@ class RoomTransactionRepository(
             db.syncDao().insertTombstone(DeletedTransactionEntity(tx.uuid))
             tx
         }
+        if (tx == null) return {}
         // Urungkan: baris yang sama kembali (id & uuid tetap) dan diunggah lagi, menimpa penanda hapus di server.
         return {
             db.withTransaction {
