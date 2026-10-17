@@ -60,8 +60,9 @@ interface TransactionDao {
     fun observeBetween(walletId: Long, from: LocalDate, to: LocalDate): Flow<List<TransactionWithCategory>>
 
     /**
-     * Semua Transaksi: cari di catatan/nama kategori (tanpa beda besar-kecil huruf untuk huruf Latin) dan filter nama
-     * kategori ([category] null = semua), terbaru dulu, paling banyak [limit] baris (dimuat bertahap saat discroll).
+     * Semua Transaksi: cari di catatan/nama kategori (tanpa beda besar-kecil huruf untuk huruf Latin) atau nominal
+     * ([digits] = angka saja, "" = bukan pencarian nominal) dan filter nama kategori ([category] null = semua),
+     * terbaru dulu, paling banyak [limit] baris (dimuat bertahap saat discroll).
      */
     @Transaction
     @Query(
@@ -69,12 +70,13 @@ interface TransactionDao {
         SELECT t.* FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
         WHERE t.wallet_id = :walletId
           AND (:category IS NULL OR c.name = :category)
-          AND (:query = '' OR t.note LIKE '%' || :query || '%' OR c.name LIKE '%' || :query || '%')
+          AND (:query = '' OR t.note LIKE '%' || :query || '%' OR c.name LIKE '%' || :query || '%'
+               OR (:digits <> '' AND CAST(t.amount AS TEXT) LIKE '%' || :digits || '%'))
         ORDER BY t.date DESC, t.created_at DESC, t.id DESC
         LIMIT :limit
         """
     )
-    fun observeSearch(walletId: Long, query: String, category: String?, limit: Int): Flow<List<TransactionWithCategory>>
+    fun observeSearch(walletId: Long, query: String, digits: String, category: String?, limit: Int): Flow<List<TransactionWithCategory>>
 
     /** Pemasukan & pengeluaran (bukan transfer) [from]..[to]. */
     @Query(

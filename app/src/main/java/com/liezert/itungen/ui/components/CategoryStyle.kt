@@ -28,7 +28,7 @@ private val ExpenseStyles = mapOf(
     "food" to CategoryStyle(Ink.Orange, R.drawable.ic_home_tx_food, R.drawable.ic_cat_food, R.drawable.ic_add_food),
     "transport" to CategoryStyle(Ink.Green, R.drawable.ic_home_tx_car, R.drawable.ic_cat_transport, R.drawable.ic_add_car),
     "entertainment" to CategoryStyle(Ink.Blue, R.drawable.ic_home_tx_music, R.drawable.ic_cat_entertainment, R.drawable.ic_add_film),
-    "shopping" to CategoryStyle(Ink.Purple, R.drawable.ic_tx_bag, R.drawable.ic_tx_bag, R.drawable.ic_add_other),
+    "shopping" to CategoryStyle(Ink.Purple, R.drawable.ic_tx_bag, R.drawable.ic_tx_bag, R.drawable.ic_tx_bag),
     "bill" to CategoryStyle(Ink.Yellow, R.drawable.ic_cat_bill, R.drawable.ic_cat_bill, R.drawable.ic_add_bill),
     "health" to CategoryStyle(Ink.Pink, R.drawable.ic_cat_health, R.drawable.ic_cat_health, R.drawable.ic_add_health),
     "education" to CategoryStyle(Ink.Cyan, R.drawable.ic_cat_education, R.drawable.ic_cat_education, R.drawable.ic_add_education),
@@ -42,13 +42,17 @@ private val IncomeStyles = mapOf(
 )
 private val IncomeOther = CategoryStyle(Ink.Gray, R.drawable.ic_inc_other, R.drawable.ic_inc_other, R.drawable.ic_inc_other)
 
-/** Transfer (ke/dari goal) tidak punya kategori. */
+/** Transfer (ke/dari goal) tidak punya kategori. Uang masuk kembali dari goal = panah masuk hijau. */
 private val TransferStyle = CategoryStyle(Ink.Gray, R.drawable.ic_home_tx_transfer, R.drawable.ic_home_tx_transfer, R.drawable.ic_home_tx_transfer)
+
+/** Setoran ke goal: uang keluar dari saldo utama, jadi ikon target (dulu panah masuk hijau untuk "-Rp 450.000"). */
+private val TransferOutStyle = CategoryStyle(Ink.Gray, R.drawable.ic_target, R.drawable.ic_target, R.drawable.ic_target)
 
 fun Category.style(): CategoryStyle =
     if (type == CategoryType.INCOME) IncomeStyles[icon] ?: IncomeOther else ExpenseStyles[icon] ?: ExpenseOther
 
-fun Transaction.style(): CategoryStyle = category?.style() ?: TransferStyle
+fun Transaction.style(): CategoryStyle =
+    category?.style() ?: if (type == TransactionType.TRANSFER_OUT) TransferOutStyle else TransferStyle
 
 /** Nama kategori; "Transfer" hanya untuk transfer goal, bukan untuk pemasukan/pengeluaran yang kategorinya hilang. */
 val Transaction.categoryLabel: String

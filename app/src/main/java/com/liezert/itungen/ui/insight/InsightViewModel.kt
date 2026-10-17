@@ -12,6 +12,13 @@ import com.liezert.itungen.domain.repository.TransactionRepository
 import com.liezert.itungen.data.settings.SyncedSettings
 import com.liezert.itungen.domain.usecase.CategorySpend
 import com.liezert.itungen.domain.usecase.recordStreak
+import com.liezert.itungen.domain.usecase.BudgetPlan
+import com.liezert.itungen.domain.usecase.averageDailyAllowance
+import com.liezert.itungen.domain.usecase.canMarkNoSpend
+import com.liezert.itungen.domain.model.Goal
+import com.liezert.itungen.domain.model.GoalStatus
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -47,6 +54,8 @@ data class InsightUiState(
     val streak: Int = 0,
     /** Hari yang diketuk di kalender. */
     val selectedDay: LocalDate? = null,
+    /** Jatah harian rata-rata dari rencana anggaran, ukuran warna kalender; null = belum ada anggaran. */
+    val dailyAllowance: Long? = null,
 ) {
     val total: Long get() = spending.sumOf { it.total }
     val previousTotal: Long get() = previous.values.sum()
@@ -67,7 +76,13 @@ class InsightViewModel(
     repository: TransactionRepository,
     private val settings: SyncedSettings,
     private val clock: Clock,
+    budgetPlan: Flow<BudgetPlan?> = flowOf(null),
+    goals: Flow<List<Goal>> = flowOf(emptyList()),
 ) : ViewModel() {
+    private val allowance = combine(budgetPlan, goals) { plan, list ->
+        val goalsMonthly = list.filter { it.status == GoalStatus.ACTIVE }.sumOf { it.plannedMonthly }
+        plan?.averageDailyAllowance(goalsMonthly, LocalDate.now(clock))
+    }
     private val month = MutableStateFlow(YearMonth.now(clock))
     private val type = MutableStateFlow(CategoryType.EXPENSE)
     private val selectedDay = MutableStateFlow<LocalDate?>(null)
@@ -91,7 +106,8 @@ class InsightViewModel(
             repository.observeCategoryTotals(txType, previousMonth.atDay(1), previousMonth.atEndOfMonth()),
             repository.observeFirstDate(),
             habits,
-        ) { spending, previous, firstDate, h ->
+            allowance,
+        ) { spending, previous, firstDate, h, dailyAllowance ->
             val first = firstDate?.let(YearMonth::from) ?: m
             InsightUiState(
                 month = m,
@@ -107,6 +123,7 @@ class InsightViewModel(
                 noSpendDays = h.noSpend,
                 streak = recordStreak(h.recorded, today),
                 selectedDay = h.selected?.takeIf { YearMonth.from(it) == m },
+                dailyAllowance = dailyAllowance,
             )
         }
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), InsightUiState(YearMonth.now(clock)))
@@ -115,9 +132,11 @@ class InsightViewModel(
         selectedDay.value = day
     }
 
-    /** Tandai/batalkan "hari ini tidak jajan" untuk hari tanpa pengeluaran (hari ini atau sebelumnya). */
+    /** Tandai "tidak jajan" (hari ini atau kemarin saja, lihat [canMarkNoSpend]) atau batalkan tanda hari mana pun. */
     fun toggleNoSpend(day: LocalDate) {
-        settings.setNoSpendDay(day, marked = day !in settings.noSpendDays.value)
+        val mark = day !in settings.noSpendDays.value
+        if (mark && !canMarkNoSpend(day, LocalDate.now(clock))) return
+        settings.setNoSpendDay(day, marked = mark)
     }
 
     /** [limit] null = hapus batas. */
@@ -135,7 +154,10 @@ class InsightViewModel(
         val Factory = viewModelFactory {
             initializer {
                 val container = (this[APPLICATION_KEY] as ItungEnApp).container
-                InsightViewModel(container.transactionRepository, container.settings, container.clock)
+                InsightViewModel(
+                    container.transactionRepository, container.settings, container.clock,
+                    container.budgetPlan, container.goalRepository.observeGoals(),
+                )
             }
         }
     }

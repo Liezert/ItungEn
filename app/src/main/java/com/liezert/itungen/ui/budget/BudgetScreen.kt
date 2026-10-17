@@ -14,9 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -46,13 +44,20 @@ import com.liezert.itungen.domain.model.formatRupiah
 import com.liezert.itungen.domain.usecase.BudgetPeriod
 import com.liezert.itungen.domain.usecase.BudgetPlan
 import com.liezert.itungen.domain.usecase.computeBudget
+import com.liezert.itungen.domain.usecase.convertPerPeriod
+import com.liezert.itungen.domain.usecase.periodDays
+import com.liezert.itungen.ui.home.unrealisticMessage
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import com.liezert.itungen.domain.usecase.cycleOf
 import com.liezert.itungen.ui.components.AmountField
 import com.liezert.itungen.ui.insight.CategoryLimitSheet
 import com.liezert.itungen.ui.components.ChoiceSheet
 import com.liezert.itungen.ui.components.GlassIconButton
 import com.liezert.itungen.ui.components.Ico
+import com.liezert.itungen.ui.components.LiquidAlertDialog
 import com.liezert.itungen.ui.components.LiquidDatePickerDialog
+import androidx.activity.compose.BackHandler
+import com.liezert.itungen.ui.components.rememberIndonesianDatePickerState
 import com.liezert.itungen.ui.components.TopBar
 import com.liezert.itungen.ui.components.bottomClearance
 import com.liezert.itungen.ui.components.screenPad
@@ -118,6 +123,8 @@ fun BudgetScreen(onBack: () -> Unit) {
         mutableLongStateOf((current?.nextIncomeOn?.takeIf { it > today } ?: today.plusDays(7)).toEpochDay())
     }
     var picking by rememberSaveable { mutableStateOf(false) }
+    /** Nominal baru saja dikonversi karena periode diganti: beri tahu agar diperiksa. */
+    var converted by rememberSaveable { mutableStateOf(false) }
 
     val incomeValue = income.text.toString().toLongOrNull() ?: 0
     val billsValue = bills.text.toString().toLongOrNull() ?: 0
@@ -130,8 +137,11 @@ fun BudgetScreen(onBack: () -> Unit) {
         savingsTarget = savingsValue,
         period = period,
         // Kiriman tak tentu: siklus mulai hari ini, kecuali tanggal kiriman yang sama sedang diubah nominalnya.
-        startedOn = if (period != BudgetPeriod.UNTIL_DATE) null
-        else current?.takeIf { it.period == BudgetPeriod.UNTIL_DATE && it.nextIncomeOn == nextDate }?.startedOn ?: today,
+        // Bulanan/mingguan: hari rencana mulai dipakai, agar siklus pertama yang dimulai di tengah jalan diprorata
+        // (computeBudget). Rencana lama tanpa tanggal mulai tetap dihitung penuh.
+        startedOn = if (period == BudgetPeriod.UNTIL_DATE) {
+            current?.takeIf { it.period == BudgetPeriod.UNTIL_DATE && it.nextIncomeOn == nextDate }?.startedOn ?: today
+        } else current?.takeIf { it.period == period }.let { same -> if (same == null) today else same.startedOn },
         nextIncomeOn = nextDate.takeIf { period == BudgetPeriod.UNTIL_DATE },
     )
     val goalsMonthly = goals.filter { it.status == GoalStatus.ACTIVE }.sumOf { it.plannedMonthly }
@@ -141,9 +151,27 @@ fun BudgetScreen(onBack: () -> Unit) {
         .collectAsStateWithLifecycle(emptyList())
     val preview = computeBudget(draft, transactions, goalsMonthly, today)
 
+    // Ganti periode: nominal ikut dikonversi (dulu 3.000.000/bulan langsung jadi 3.000.000/minggu).
+    fun switchPeriod(next: BudgetPeriod) {
+        if (next == period) return
+        val from = periodDays(period, today, nextDate)
+        val to = periodDays(next, today, nextDate)
+        listOf(income, bills, savings).forEach { field ->
+            field.text.toString().toLongOrNull()?.let { field.setTextAndPlaceCursorAtEnd(convertPerPeriod(it, from, to).toString()) }
+        }
+        converted = incomeValue > 0 || billsValue > 0 || savingsValue > 0
+        period = next
+    }
+
+    // Kembali tanpa menekan Simpan: tanya dulu bila rencana berubah (dulu perubahan dibuang diam-diam).
+    val dirty = if (current == null) incomeValue > 0 || billsValue > 0 || savingsValue > 0 else draft != current
+    var confirmBack by rememberSaveable { mutableStateOf(false) }
+    val back = { if (dirty) confirmBack = true else onBack() }
+    BackHandler(enabled = dirty) { confirmBack = true }
+
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding()) {
         TopBar(
-            leading = { GlassIconButton(R.drawable.ic_back, onBack, "Kembali") },
+            leading = { GlassIconButton(R.drawable.ic_back, back, "Kembali") },
             trailing = { Spacer(Modifier.size(48.dp)) },
         )
         Column(Modifier.screenPad(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -155,7 +183,7 @@ fun BudgetScreen(onBack: () -> Unit) {
             Text("Uang masuk kapan?", Modifier.padding(start = 4.dp, top = 4.dp), style = appText(13f, 18f, Medium, Ink.Gray))
             LiquidBottomTabs(
                 selectedTabIndex = { Periods.indexOfFirst { it.first == period } },
-                onTabSelected = { period = Periods[it].first },
+                onTabSelected = { switchPeriod(Periods[it].first) },
                 backdrop = LocalGlassBackdrop.current,
                 tabsCount = Periods.size,
                 modifier = Modifier.fillMaxWidth(),
@@ -163,10 +191,17 @@ fun BudgetScreen(onBack: () -> Unit) {
                 height = 52.dp,
             ) {
                 Periods.forEach { (value, label) ->
-                    LiquidBottomTab({ period = value }, selected = value == period) {
+                    LiquidBottomTab({ switchPeriod(value) }, selected = value == period) {
                         Text(label, style = appText(14f, 20f, SemiBold, if (value == period) Ink.White else Ink.Muted))
                     }
                 }
+            }
+            if (converted) {
+                Text(
+                    "Nominal disesuaikan ke ${period.per()}. Periksa lagi sebelum menyimpan.",
+                    Modifier.padding(horizontal = 4.dp),
+                    style = appText(12f, 16f, Medium, Ink.Orange),
+                )
             }
             DateRow(
                 title = when (period) {
@@ -209,10 +244,12 @@ fun BudgetScreen(onBack: () -> Unit) {
                 )
                 Text(
                     if (incomeValue > 0 && preview.unrealistic) {
-                        "Tagihan + tabungan + setoran target melebihi uang masuk. Kurangi target tabungan."
+                        unrealisticMessage(preview)
                     } else {
                         "Sama dengan Beranda: sudah memperhitungkan catatan siklus ini" +
-                            if (goalsMonthly > 0) " dan setoran target ${formatRupiah(goalsMonthly)}/bulan." else "."
+                            (if (goalsMonthly > 0) " dan setoran target ${formatRupiah(goalsMonthly)}/bulan." else ".") +
+                            // Rencana baru di tengah siklus: uangnya diprorata sampai uang masuk berikutnya.
+                            (if (preview.cycleStart > cycleStart) " Siklus pertama dihitung mulai hari ini." else "")
                     },
                     style = appText(13f, 18f, Regular, Ink.Gray),
                 )
@@ -247,6 +284,24 @@ fun BudgetScreen(onBack: () -> Unit) {
         Spacer(Modifier.height(bottomClearance()))
     }
 
+    LiquidAlertDialog(
+        visible = confirmBack,
+        title = "Simpan perubahan anggaran?",
+        text = "Perubahan rencana belum disimpan.",
+        confirmLabel = "Simpan",
+        onConfirm = {
+            confirmBack = false
+            if (incomeValue > 0) container.saveBudgetPlan(draft)
+            onBack()
+        },
+        onDismiss = {
+            confirmBack = false
+            onBack()
+        },
+        dismissLabel = "Buang",
+        confirmColor = Ink.Blue,
+    )
+
     CategoryLimitSheet(limitFor, limitFor?.let { limits[it.uuid] }, onSave = { limit ->
         limitFor?.let { container.settings.setCategoryLimit(it.uuid, limit) }
         limitFor = null
@@ -262,12 +317,7 @@ fun BudgetScreen(onBack: () -> Unit) {
             picking = false
         }) { picking = false }
         BudgetPeriod.UNTIL_DATE -> {
-            val pickerState = rememberDatePickerState(
-                initialSelectedDateMillis = nextIncome * DayMillis,
-                selectableDates = object : SelectableDates {
-                    override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis / DayMillis > today.toEpochDay()
-                },
-            )
+            val pickerState = rememberIndonesianDatePickerState(nextDate) { it > today }
             LiquidDatePickerDialog(
                 visible = picking,
                 state = pickerState,

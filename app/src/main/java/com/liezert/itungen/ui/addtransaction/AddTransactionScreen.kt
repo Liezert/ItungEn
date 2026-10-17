@@ -24,6 +24,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
@@ -37,15 +40,15 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.drop
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -70,6 +73,7 @@ import com.liezert.glass.components.LiquidBottomTabs
 import com.liezert.glass.components.LiquidButton
 import com.liezert.glass.components.LocalGlassBackdrop
 import com.liezert.itungen.R
+import com.liezert.itungen.domain.model.MAX_AMOUNT
 import com.liezert.itungen.domain.model.MAX_NOTE
 import com.liezert.itungen.domain.model.Category
 import com.liezert.itungen.domain.model.CategoryType
@@ -80,10 +84,14 @@ import com.liezert.itungen.domain.usecase.formatKeypad
 import com.liezert.itungen.domain.usecase.hasOperator
 import com.liezert.itungen.domain.usecase.keypadDigit
 import com.liezert.itungen.domain.usecase.keypadOperator
+import com.liezert.itungen.domain.usecase.keypadRounds
 import com.liezert.itungen.ui.components.GlassIconButton
 import com.liezert.itungen.ui.components.Ico
 import com.liezert.itungen.ui.components.IconCircle
+import com.liezert.itungen.ui.components.LiquidAlertDialog
 import com.liezert.itungen.ui.components.LiquidDatePickerDialog
+import androidx.activity.compose.BackHandler
+import com.liezert.itungen.ui.components.rememberIndonesianDatePickerState
 import com.liezert.itungen.ui.components.relativeDay
 import com.liezert.itungen.ui.components.screenPad
 import com.liezert.itungen.ui.components.style
@@ -112,6 +120,7 @@ fun AddTransactionScreen(
         onCategory = viewModel::selectCategory,
         onDate = viewModel::selectDate,
         onSave = viewModel::save,
+        onEdited = viewModel::clearError,
     )
 }
 
@@ -125,8 +134,14 @@ fun AddTransactionContent(
     onDate: (LocalDate) -> Unit,
     onSave: (amountDigits: String, note: String) -> Unit,
     modifier: Modifier = Modifier,
+    /** Nominal atau catatan berubah: pesan dari percobaan simpan sebelumnya dihapus. */
+    onEdited: () -> Unit = {},
 ) {
     var amount by rememberSaveable { mutableStateOf("") } // ekspresi keypad, mis. "15000+2000"
+    val edit = { next: String ->
+        amount = next
+        onEdited()
+    }
     val note = rememberTextFieldState()
     // Mengubah transaksi: isi nominal & catatan lama sekali setelah dimuat (tidak menimpa ketikan setelah rotasi).
     LaunchedEffect(state.initialAmount) {
@@ -137,19 +152,32 @@ fun AddTransactionContent(
         }
     }
     var showPicker by rememberSaveable { mutableStateOf(false) }
-    val pickerState = rememberDatePickerState(
-        initialSelectedDateMillis = state.date.toEpochDay() * DayMillis,
-        // Tanggal di masa depan tidak boleh dipilih (DESIGN_SPEC §7.1).
-        selectableDates = object : SelectableDates {
-            override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis / DayMillis <= state.today.toEpochDay()
-        },
-    )
+    // Tanggal di masa depan tidak boleh dipilih (DESIGN_SPEC §7.1).
+    val pickerState = rememberIndonesianDatePickerState(state.date) { it <= state.today }
     LaunchedEffect(state.date) { pickerState.selectedDateMillis = state.date.toEpochDay() * DayMillis }
     val focus = LocalFocusManager.current
 
     val income = state.type == CategoryType.INCOME
     val tint = if (income) Ink.Green else Ink.Red
     val result = evaluateKeypad(amount)
+    // Nominal divalidasi dari isian saat ini (bukan disimpan sebagai galat), jadi pesannya hilang begitu isian benar.
+    val amountMessage = when {
+        amount.isEmpty() -> null
+        hasOperator(amount) && result == null -> "Tidak bisa dibagi 0"
+        result != null && result > MAX_AMOUNT -> TransactionError.AMOUNT_TOO_LARGE.message()
+        result != null && result <= 0 -> "Hasilnya harus lebih dari 0"
+        else -> null
+    } ?: state.error?.message()
+    LaunchedEffect(note) { snapshotFlow { note.text.toString() }.drop(1).collect { onEdited() } }
+    // Tutup/Kembali dengan isian yang belum disimpan: tanya dulu (dulu langsung dibuang).
+    val dirty = if (state.editing) {
+        state.initialAmount != null && (amount != state.initialAmount.toString() || note.text.toString() != state.initialNote.orEmpty())
+    } else {
+        amount.isNotEmpty() || note.text.isNotEmpty()
+    }
+    var confirmClose by rememberSaveable { mutableStateOf(false) }
+    val close = { if (dirty) confirmClose = true else onClose() }
+    BackHandler(enabled = dirty) { confirmClose = true }
 
     Column(
         modifier
@@ -168,32 +196,34 @@ fun AddTransactionContent(
             Arrangement.SpaceBetween,
             Alignment.CenterVertically,
         ) {
-            GlassIconButton(R.drawable.ic_close, onClose, "Tutup")
+            GlassIconButton(R.drawable.ic_close, close, "Tutup")
             Text(if (state.editing) "Ubah Transaksi" else "Tambah Transaksi", style = appText(16f, 24f, Bold))
             Spacer(Modifier.size(48.dp))
         }
 
-        // Muat satu layar tanpa scroll; scroll hanya cadangan untuk layar yang sangat pendek / saat keyboard catatan terbuka.
+        // Jenis, tanggal, nominal. Scroll hanya cadangan untuk layar yang sangat pendek / saat keyboard catatan terbuka;
+        // galat nominal tampil di kartu ini sehingga keypad di bawah tidak bergeser di bawah jari.
         Column(
             Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(top = 8.dp, bottom = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             TypeToggle(state.type, tint, Modifier.screenPad(), onType)
             DateSelector(state.date, state.today, Modifier.screenPad()) { showPicker = true }
             // Tap area nominal menutup keyboard catatan sehingga keypad muncul lagi.
-            AmountCard(amount, result, note, Modifier.screenPad()) { focus.clearFocus() }
-            CategoryGrid(state.categories, state.categoryId, onCategory, Modifier.screenPad())
+            AmountCard(amount, result, amountMessage, note, Modifier.screenPad()) { focus.clearFocus() }
         }
 
-        // Keypad + CTA menempel di bawah. Saat keyboard sistem terbuka (isi catatan) keypad disembunyikan.
+        // Kategori selalu terlihat (dulu grid kategori ada di area scroll, tertutup keypad), lalu keypad + CTA.
+        CategoryRow(state.categories, state.categoryId, onCategory)
+        // Saat keyboard sistem terbuka (isi catatan) keypad disembunyikan.
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             AnimatedVisibility(
                 visible = !WindowInsets.isImeVisible,
@@ -201,29 +231,49 @@ fun AddTransactionContent(
                 exit = shrinkVertically() + fadeOut(),
             ) {
                 AmountKeypad(
-                    onDigit = { amount = keypadDigit(amount, it) },
-                    onOperator = { amount = keypadOperator(amount, it) },
-                    onBackspace = { amount = amount.dropLast(1) },
-                    onClear = { amount = "" },
+                    onDigit = { edit(keypadDigit(amount, it)) },
+                    onOperator = { edit(keypadOperator(amount, it)) },
+                    onBackspace = { edit(amount.dropLast(1)) },
+                    onClear = { edit("") },
                     // "=": ekspresi diganti hasilnya. Simpan juga memakai hasil, jadi "=" tidak wajib.
-                    onEquals = { result?.takeIf { it > 0 }?.let { amount = it.toString() } },
+                    onEquals = { result?.takeIf { it in 1..MAX_AMOUNT }?.let { edit(it.toString()) } },
                 )
             }
 
-            val message = state.error?.message() ?: if (state.saveFailed) "Gagal menyimpan. Coba lagi." else null
-            if (message != null) Text(message, style = appText(14f, 20f, Medium, Ink.Red))
-
-            val enabled = (result ?: 0) > 0 && !state.saving
+            // Tinggi tetap: alasan tombol belum aktif / gagal simpan tertulis di tombolnya, bukan di baris tambahan.
+            val enabled = result != null && result in 1..MAX_AMOUNT && state.categoryId != null && !state.saving
             LiquidButton(
                 onClick = { onSave(result.toString(), note.text.toString()) },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
                 tint = tint.copy(alpha = if (enabled) 1f else 0.5f),
                 enabled = enabled,
             ) {
-                Text(if (state.editing) "Simpan Perubahan" else "Simpan Transaksi", style = appText(16f, 24f, Bold, Color.White))
+                Text(
+                    when {
+                        state.categoryId == null -> "Pilih kategori dulu"
+                        state.saveFailed -> "Gagal menyimpan, coba lagi"
+                        state.editing -> "Simpan Perubahan"
+                        else -> "Simpan Transaksi"
+                    },
+                    style = appText(16f, 24f, Bold, Color.White),
+                )
             }
         }
     }
+
+    LiquidAlertDialog(
+        visible = confirmClose,
+        title = "Buang isian?",
+        text = "Nominal dan catatan yang belum disimpan akan hilang.",
+        confirmLabel = "Buang",
+        onConfirm = {
+            confirmClose = false
+            onClose()
+        },
+        onDismiss = { confirmClose = false },
+        dismissLabel = "Lanjut isi",
+        confirmColor = Ink.Red,
+    )
 
     LiquidDatePickerDialog(
         visible = showPicker,
@@ -274,6 +324,8 @@ private fun TypeToggle(type: CategoryType, tint: Color, modifier: Modifier = Mod
 private fun AmountCard(
     expr: String,
     result: Long?,
+    /** Galat nominal saat ini; menggantikan baris hasil. */
+    message: String?,
     note: TextFieldState,
     modifier: Modifier = Modifier,
     onAmountClick: () -> Unit,
@@ -284,7 +336,7 @@ private fun AmountCard(
                 Modifier
                     .fillMaxWidth()
                     .clickable(interactionSource = null, indication = null, onClick = onAmountClick)
-                    .padding(horizontal = 24.dp, vertical = 22.dp)
+                    .padding(horizontal = 24.dp, vertical = 18.dp)
                     .semantics(mergeDescendants = true) {
                         contentDescription = "Nominal " + (result?.let(::formatRupiah) ?: "kosong")
                     },
@@ -299,11 +351,12 @@ private fun AmountCard(
                         autoSize = TextAutoSize.StepBased(minFontSize = 18.sp, maxFontSize = 40.sp),
                     )
                 }
-                if (hasOperator(expr)) {
-                    Text(
-                        result?.let { "= " + formatRupiah(it) } ?: "Tidak bisa dibagi 0",
+                when {
+                    message != null -> Text(message, Modifier.padding(top = 2.dp), style = appText(15f, 20f, Medium, Ink.Red))
+                    hasOperator(expr) && result != null -> Text(
+                        "= " + formatRupiah(result) + if (keypadRounds(expr)) " (dibulatkan)" else "",
                         Modifier.padding(top = 2.dp),
-                        style = appText(15f, 20f, Medium, if (result != null && result > 0) Ink.Muted else Ink.Red),
+                        style = appText(15f, 20f, Medium, Ink.Muted),
                     )
                 }
             }
@@ -343,7 +396,7 @@ private val KeypadRows = listOf(
 )
 
 private val OperatorNames = mapOf("÷" to "bagi", "×" to "kali", "-" to "kurang", "+" to "tambah")
-private val KeyHeight = 48.dp
+private val KeyHeight = 44.dp
 
 /**
  * Keypad kalkulator (pengganti keyboard sistem untuk nominal): angka kaca, operator kaca lebih terang,
@@ -357,7 +410,7 @@ private fun AmountKeypad(
     onClear: () -> Unit,
     onEquals: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         KeypadRows.forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { key ->
@@ -411,32 +464,41 @@ private fun Key(
     ) { content() }
 }
 
-/** Semua kategori terlihat sekaligus: grid 4 kolom ikon + nama, bukan satu baris yang terpotong. */
+/**
+ * Satu baris chip kategori di atas keypad, selalu terlihat tanpa scroll layar. Nama utuh (tidak "Transport…");
+ * chip terakhir yang terpotong di tepi menandakan baris bisa digeser, dan kategori terpilih digulir ke dalam layar.
+ */
 @Composable
-private fun CategoryGrid(categories: List<Category>, selectedId: Long?, onSelect: (Long) -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        categories.chunked(4).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { category ->
-                    val selected = category.id == selectedId
-                    LiquidButton(
-                        onClick = { onSelect(category.id) },
-                        modifier = Modifier.weight(1f).height(56.dp).semantics { this.selected = selected },
-                        surfaceColor = if (selected) Ink.white(0.22f) else GlassDefaults.Surface,
-                        contentPadding = 4.dp,
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Ico(category.style().chipIcon)
-                            Text(
-                                category.name,
-                                style = appText(11f, 14f, if (selected) SemiBold else Medium, if (selected) Ink.Title else Ink.Muted),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                }
-                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+private fun CategoryRow(categories: List<Category>, selectedId: Long?, onSelect: (Long) -> Unit) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(selectedId, categories) {
+        val index = categories.indexOfFirst { it.id == selectedId }
+        val info = listState.layoutInfo
+        val fullyVisible = info.visibleItemsInfo.any { it.index == index && it.offset >= 0 && it.offset + it.size <= info.viewportEndOffset }
+        if (index >= 0 && !fullyVisible) listState.animateScrollToItem(index)
+    }
+    LazyRow(
+        state = listState,
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(categories, key = { it.id }) { category ->
+            val selected = category.id == selectedId
+            LiquidButton(
+                onClick = { onSelect(category.id) },
+                modifier = Modifier.height(40.dp).semantics { this.selected = selected },
+                surfaceColor = if (selected) Ink.white(0.22f) else GlassDefaults.Surface,
+                contentPadding = 12.dp,
+            ) {
+                Ico(category.style().chipIcon)
+                Text(
+                    category.name,
+                    Modifier.padding(start = 6.dp),
+                    style = appText(13f, 18f, if (selected) SemiBold else Medium, if (selected) Ink.Title else Ink.Muted),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
@@ -445,7 +507,7 @@ private fun CategoryGrid(categories: List<Category>, selectedId: Long?, onSelect
 /** Pemilih tanggal ala baris dompet ShopeePay di GoPay: ikon, tanggal relatif + lengkap, panah bawah. */
 @Composable
 private fun DateSelector(date: LocalDate, today: LocalDate, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    GlassSurface(modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp), onClick = onClick) {
+    GlassSurface(modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp), onClick = onClick) {
         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(12.dp), Alignment.CenterVertically) {
             IconCircle(R.drawable.ic_add_calendar, 36.dp, Ink.white(0.1f))
             Text(

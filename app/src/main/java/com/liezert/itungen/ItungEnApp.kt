@@ -73,6 +73,11 @@ class AppContainer(context: Context) {
         get() = prefs.getBoolean("reminder", false)
         set(value) = prefs.edit { putBoolean("reminder", value) }
 
+    /** Dialog izin notifikasi sudah pernah ditampilkan (untuk mengenali penolakan permanen). */
+    var notificationAsked: Boolean
+        get() = prefs.getBoolean("notification_asked", false)
+        set(value) = prefs.edit { putBoolean("notification_asked", value) }
+
     /** Jam pengingat (0–23), dipilih di Pengaturan. */
     var reminderHour: Int
         get() = prefs.getInt("reminder_hour", 20)

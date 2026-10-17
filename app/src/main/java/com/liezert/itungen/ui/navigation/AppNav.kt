@@ -84,6 +84,7 @@ import com.liezert.itungen.ui.theme.Ink
 import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
 import com.liezert.itungen.ui.transactions.TransactionsScreen
+import androidx.compose.ui.text.style.TextOverflow
 
 private object Routes {
     const val Home = "home"
@@ -180,7 +181,11 @@ fun AppNav(
     // Anggaran dibuka dari Beranda maupun Pengaturan: ikut tab layar yang membukanya.
     val tabIndex = tabOf(route).takeIf { it >= 0 } ?: tabOf(nav.previousBackStackEntry?.destination?.route).coerceAtLeast(0)
     val currentTab by rememberUpdatedState(tabIndex)
-    val selectTab = { index: Int -> if (index != currentTab) nav.switchTab(index) }
+    val selectTab = { index: Int ->
+        if (index != currentTab) nav.switchTab(index)
+        // Tab yang sedang aktif diketuk dari sub-layarnya (mis. Profil saat di Pengaturan): kembali ke akar tab.
+        else if (route != TabRoutes[index]) nav.popBackStack(TabRoutes[index], inclusive = false)
+    }
     val openHistory = { nav.navigate(Routes.Transactions) { launchSingleTop = true } }
     LaunchedEffect(addRequests) {
         // Hanya setelah layar Masuk dilewati; sebelum itu pengguna memilih masuk/tamu dulu.
@@ -234,7 +239,11 @@ fun AppNav(
                             )
                         }
                         composable(Routes.Transactions) {
-                            TransactionsScreen(onBack = { nav.popBackStack() }, onEdit = { nav.navigate(Routes.edit(it)) })
+                            TransactionsScreen(
+                                onBack = { nav.popBackStack() },
+                                onEdit = { nav.navigate(Routes.edit(it)) },
+                                onOpenGoals = { selectTab(2) },
+                            )
                         }
                         composable(
                             Routes.Add,
@@ -290,6 +299,7 @@ fun AppNav(
                         LiquidBottomTabs(
                             selectedTabIndex = { currentTab },
                             onTabSelected = selectTab,
+                            onTabReselected = selectTab,
                             backdrop = screen,
                             tabsCount = Tabs.size,
                             modifier = Modifier.fillMaxWidth(),
@@ -303,7 +313,7 @@ fun AppNav(
                                             .size(28.dp)
                                             .paint(painterResource(tab.icon), colorFilter = ColorFilter.tint(Ink.White))
                                     )
-                                    Text(tab.label, style = appText(11f, 13f, SemiBold, Ink.White), maxLines = 1)
+                                    Text(tab.label, style = appText(11f, 13f, SemiBold, Ink.White), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }

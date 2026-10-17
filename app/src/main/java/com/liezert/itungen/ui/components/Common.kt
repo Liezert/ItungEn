@@ -50,6 +50,7 @@ import com.liezert.itungen.R
 import com.liezert.itungen.ui.theme.Bold
 import com.liezert.itungen.ui.theme.Ink
 import com.liezert.itungen.ui.theme.appText
+import androidx.compose.ui.text.style.TextOverflow
 
 /** Gutter horizontal yang dipakai semua frame desain. */
 fun Modifier.screenPad(): Modifier = padding(horizontal = 20.dp)
@@ -75,7 +76,7 @@ private val PrimaryIcons = setOf(
 private val MutedIcons = setOf(
     R.drawable.ic_add_car, R.drawable.ic_add_film, R.drawable.ic_add_note, R.drawable.ic_add_other, R.drawable.ic_back,
     R.drawable.ic_inc_bonus, R.drawable.ic_inc_other, R.drawable.ic_inc_transfer, R.drawable.ic_search,
-    R.drawable.ic_eye, R.drawable.ic_eye_off,
+    R.drawable.ic_eye, R.drawable.ic_eye_off, R.drawable.ic_tx_bag,
 )
 
 /** Kanvas hitam; Beranda dan Semua Transaksi menambah vinyet lembut di atas (§6.1, hanya tema gelap). */
@@ -240,6 +241,6 @@ fun PillChip(
         contentPadding = horizontal,
     ) {
         if (icon != null) Ico(icon)
-        Text(label, style = if (selected) selectedText else unselectedText, maxLines = 1)
+        Text(label, style = if (selected) selectedText else unselectedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

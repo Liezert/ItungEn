@@ -27,6 +27,7 @@ import com.liezert.itungen.ui.theme.Bold
 import com.liezert.itungen.ui.theme.Ink
 import com.liezert.itungen.ui.theme.Medium
 import com.liezert.itungen.ui.theme.appText
+import androidx.compose.ui.text.style.TextOverflow
 
 /** Sheet kaca berisi pilihan bulat sekali ketuk (tanggal, hari, jam), bukan − / + berkali-kali. */
 @Composable
@@ -60,7 +61,7 @@ fun ChoiceSheet(
                                 label,
                                 style = appText(15f, 20f, if (on) Bold else Medium, if (on) Color.White else Ink.White),
                                 textAlign = TextAlign.Center,
-                                maxLines = 1,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }

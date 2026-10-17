@@ -47,6 +47,7 @@ import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.ui.text.style.TextOverflow
 
 private val JoinedFormat = DateTimeFormatter.ofPattern("MMM yyyy", Locale.forLanguageTag("id-ID"))
 
@@ -90,7 +91,8 @@ fun ProfileContent(
                     // Kolom berbobot, bukan lebar tetap 94,66 dp dari Figma: layar 360 dp lebih sempit dari acuan 390 dp.
                     Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
                         val hidden = (LocalContext.current.applicationContext as ItungEnApp).container.hideBalance
-                        Stat("TOTAL SALDO", if (hidden) HiddenAmount else formatRupiah(state.balance), bordered = false, Modifier.weight(1f))
+                        // Dompet utama saja (dana di target tampil di Goals), sama dengan Total Saldo di Beranda.
+                        Stat("SALDO UTAMA", if (hidden) HiddenAmount else formatRupiah(state.balance), bordered = false, Modifier.weight(1f))
                         Stat("TARGET AKTIF", state.activeGoals.toString(), bordered = true, Modifier.weight(1.15f))
                         Stat("BERGABUNG", state.joined?.format(JoinedFormat) ?: "-", bordered = true, Modifier.weight(1f))
                     }
@@ -125,7 +127,7 @@ private fun Stat(label: String, value: String, bordered: Boolean, modifier: Modi
         ),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(label, style = appText(10f, 16f, Medium, Ink.Gray, tracking = 0.1f), maxLines = 1)
+        Text(label, style = appText(10f, 16f, Medium, Ink.Gray, tracking = 0.1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         // Angka lengkap seperti di Beranda; mengecil sendiri bila kolomnya sempit.
         BasicText(
             value,

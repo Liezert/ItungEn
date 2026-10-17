@@ -40,6 +40,8 @@ data class AddTransactionUiState(
     val saveFailed: Boolean = false,
     val saving: Boolean = false,
     val saved: Boolean = false,
+    /** Kategori pertama dipilih otomatis hanya sebelum pengguna mengganti jenis (lihat [AddTransactionViewModel.selectType]). */
+    val autoPickCategory: Boolean = true,
 )
 
 class AddTransactionViewModel(
@@ -81,17 +83,22 @@ class AddTransactionViewModel(
     ) { form, expense, income ->
         val categories = if (form.type == CategoryType.EXPENSE) expense else income
         // Kategori pertama terpilih sejak awal, seperti di Figma.
-        form.copy(categories = categories, categoryId = form.categoryId ?: categories.firstOrNull()?.id)
+        val categoryId = form.categoryId ?: categories.firstOrNull()?.id.takeIf { form.autoPickCategory }
+        form.copy(categories = categories, categoryId = categoryId)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), form.value)
 
     fun selectType(type: CategoryType) = form.update {
-        // Kategori beda per tipe, jadi pilihan lama tidak berlaku lagi.
-        if (it.type == type) it else it.copy(type = type, categoryId = null, error = null)
+        // Kategori beda per tipe, jadi pilihan lama tidak berlaku lagi. Tidak dipilihkan otomatis: "Ojek" yang diubah
+        // jadi Pemasukan dulu diam-diam berkategori "Gaji". Pengguna memilih sendiri (tombol Simpan menunggu).
+        if (it.type == type) it else it.copy(type = type, categoryId = null, error = null, autoPickCategory = false)
     }
 
     fun selectCategory(id: Long) = form.update { it.copy(categoryId = id, error = null) }
 
     fun selectDate(date: LocalDate) = form.update { it.copy(date = date, error = null) }
+
+    /** Nominal/catatan diubah: pesan dari percobaan simpan sebelumnya tidak berlaku lagi. */
+    fun clearError() = form.update { if (it.error == null && !it.saveFailed) it else it.copy(error = null, saveFailed = false) }
 
 
     /** [amountDigits] berisi angka saja, tanpa pemisah ribuan. */

@@ -9,6 +9,10 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerState
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SelectableDates
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
+import java.time.LocalDate
 import androidx.compose.material3.Text
 import android.content.res.Configuration
 import androidx.compose.runtime.Composable
@@ -68,6 +72,28 @@ fun LiquidAlertDialog(
                 Text(confirmLabel, style = appText(16f, 22f, color = Color.White))
             }
         }
+    }
+}
+
+private const val DayMillis = 86_400_000L
+
+/**
+ * State pemilih tanggal berbahasa Indonesia. Nama bulan dan hari diambil dari locale state saat state dibuat, bukan
+ * saat dialog digambar, jadi locale harus diberikan di sini; konfigurasi di [LiquidDatePickerDialog] hanya
+ * menerjemahkan teks tombol dan judul. [selectable] = tanggal yang boleh dipilih.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun rememberIndonesianDatePickerState(initialSelectedDate: LocalDate, selectable: (LocalDate) -> Boolean): DatePickerState {
+    val isSelectable by rememberUpdatedState(selectable)
+    return remember {
+        DatePickerState(
+            locale = Indonesian,
+            initialSelectedDateMillis = initialSelectedDate.toEpochDay() * DayMillis,
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long) = isSelectable(LocalDate.ofEpochDay(utcTimeMillis / DayMillis))
+            },
+        )
     }
 }
 

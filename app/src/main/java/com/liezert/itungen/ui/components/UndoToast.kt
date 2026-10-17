@@ -34,6 +34,7 @@ import com.liezert.itungen.ui.theme.Ink
 import com.liezert.itungen.ui.theme.Medium
 import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
+import androidx.compose.ui.text.style.TextOverflow
 
 /** Jarak dari bawah layar ke atas navbar (17 + 64 dp navbar + napas 12 dp). */
 val AboveNavBar = 93.dp
@@ -61,7 +62,7 @@ fun UndoToast(message: String?, onUndo: () -> Unit, bottomOffset: Dp = AboveNavB
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                        Text(last, Modifier.weight(1f), style = appText(14f, 20f, Medium), maxLines = 1)
+                        Text(last, Modifier.weight(1f), style = appText(14f, 20f, Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         LiquidButton(onClick = onUndo, modifier = Modifier.height(44.dp), contentPadding = 16.dp) {
                             Text("Urungkan", style = appText(14f, 20f, SemiBold, Ink.Blue))
                         }

@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -82,6 +83,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.ui.text.style.TextOverflow
 
 private val ClockFormat = DateTimeFormatter.ofPattern("HH.mm")
 
@@ -108,6 +110,7 @@ fun SettingsScreen(
     var appLock by remember { mutableStateOf(container.appLock) }
     var dataMessage by remember { mutableStateOf<String?>(null) }
     var lockMessage by remember { mutableStateOf<String?>(null) }
+    var reminderMessage by remember { mutableStateOf<String?>(null) }
     val hasTransactions by remember { container.transactionRepository.observeHasTransactions() }.collectAsStateWithLifecycle(true)
     // Izin bisa dicabut dari pengaturan HP kapan saja: dibaca ulang setiap layar kembali tampil.
     var notificationsAllowed by remember { mutableStateOf(true) }
@@ -124,13 +127,25 @@ fun SettingsScreen(
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         setReminder(granted)
         notificationsAllowed = NotificationManagerCompat.from(context).areNotificationsEnabled()
-        // Ditolak permanen: dialog izin tidak muncul lagi, jadi buka pengaturan notifikasi app.
-        if (!granted) openNotificationSettings(context)
+        // Penolakan dihormati: tidak langsung melempar ke pengaturan sistem (lihat notificationAsk).
+        reminderMessage = if (granted) null else "Izin notifikasi ditolak, jadi pengingat tidak aktif."
     }
     fun toggleReminder(on: Boolean) {
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        reminderMessage = null
         when {
-            on && !granted -> notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            on && !granted -> {
+                val rationale = (context as? Activity)
+                    ?.let { ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.POST_NOTIFICATIONS) } == true
+                when (notificationAsk(container.notificationAsked, rationale)) {
+                    NotificationAsk.REQUEST -> {
+                        container.notificationAsked = true
+                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                    // Dialog tidak akan muncul lagi: satu-satunya jalan adalah pengaturan notifikasi app.
+                    NotificationAsk.OPEN_SETTINGS -> openNotificationSettings(context)
+                }
+            }
             on && !notificationsAllowed -> {
                 setReminder(true)
                 openNotificationSettings(context) // izin ada, tetapi notifikasi app dimatikan
@@ -209,7 +224,7 @@ fun SettingsScreen(
             val currentPlan = plan
             NavRow(
                 R.drawable.ic_wallet,
-                "Jatah harian",
+                "Rencana anggaran",
                 if (currentPlan == null) "Belum diatur: isi berapa uang masuk dan kapan" else currentPlan.summary(),
                 onOpenBudget,
             )
@@ -224,6 +239,7 @@ fun SettingsScreen(
                 onChange = ::toggleReminder,
                 subtitleColor = if (reminderBlocked) Ink.Orange else Ink.Gray,
             )
+            reminderMessage?.let { Text(it, Modifier.padding(horizontal = 4.dp), style = appText(12f, 16f, Regular, Ink.Orange)) }
             if (reminder && notificationsAllowed) {
                 NavRow(R.drawable.ic_history, "Jam pengingat", "%02d.00 setiap hari".format(reminderHour)) { pickingHour = true }
                 Text(
@@ -407,7 +423,7 @@ private fun AccountCard(account: AccountUiState, onSignIn: () -> Unit, onEmailSi
                 Text(
                     if (user == null) "Simpan ke akun" else user.email ?: user.name ?: "Akun ItungEn",
                     style = appText(16f, 22f, SemiBold),
-                    maxLines = 1,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Text(account.syncLabel(), style = appText(13f, 18f, Regular, if (failed) Ink.Orange else Ink.Gray))
             }

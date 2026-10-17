@@ -198,7 +198,8 @@ private fun ComparisonText(
     val up = if (income) Ink.Green else Ink.Red
     val down = if (income) Ink.Red else Ink.Green
     // Persen dari pembanding yang sangat kecil (mis. Rp 1) tidak bermakna; tampilkan nominalnya saja.
-    val pct = (kotlin.math.abs(diff) * 100 / maxOf(previous, 1)).takeIf { it <= 999 }?.let { " ($it%)" }.orEmpty()
+    // Selisih kecil dibulatkan ke 0% terbaca "turun (0%)"; tampilkan "<1%".
+    val pct = (kotlin.math.abs(diff) * 100 / maxOf(previous, 1)).takeIf { it <= 999 }?.let { if (it == 0L) " (<1%)" else " ($it%)" }.orEmpty()
     val (text, color) = when {
         previous == 0L -> (if (compact) "Baru bulan ini" else "Belum ada ${if (income) "pemasukan" else "pengeluaran"} di $monthName") to Ink.Gray
         diff == 0L -> "Sama dengan $monthName" to Ink.Gray
@@ -299,7 +300,7 @@ private fun BreakdownItem(
             ) {
                 IconCircle(style.bigIcon, 48.dp, style.color.copy(alpha = 0.15f))
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text(item.category.name, style = appText(16f, 24f, SemiBold), maxLines = 1)
+                    Text(item.category.name, style = appText(16f, 24f, SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("${item.count} transaksi", style = appText(13f, 19.5f, Regular, Ink.Gray))
                     ComparisonText(item.total, previous, lastMonth, 12f, income, compact = true)
                     if (limit != null) {
@@ -317,7 +318,7 @@ private fun BreakdownItem(
                 (if (income) "+" else "-") + formatRupiah(item.total),
                 Modifier.padding(start = 12.dp),
                 style = appText(16f, 24f, Bold, if (income) Ink.Green else Ink.Red),
-                maxLines = 1,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
         // Garis progres tipis di tepi bawah kartu: terhadap batas bila ada, selain itu porsi dari total bulan ini.

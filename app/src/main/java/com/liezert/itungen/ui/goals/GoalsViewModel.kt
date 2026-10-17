@@ -58,7 +58,7 @@ class GoalsViewModel(
     fun clearErrors() = form.update { it.copy(goalError = null, transferError = null, failed = false) }
 
     fun createGoal(title: String, target: Long?, targetDate: LocalDate?, plannedMonthly: Long?) {
-        val error = validateGoal(title, target, targetDate, LocalDate.now(clock))
+        val error = validateGoal(title, target, targetDate, LocalDate.now(clock), plannedMonthly)
         if (error != null) {
             form.update { it.copy(goalError = error) }
             return

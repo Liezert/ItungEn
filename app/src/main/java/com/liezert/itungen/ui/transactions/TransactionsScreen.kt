@@ -1,5 +1,7 @@
 package com.liezert.itungen.ui.transactions
 
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -64,6 +66,7 @@ import com.liezert.itungen.ui.components.PillChip
 import com.liezert.itungen.ui.components.TopBar
 import com.liezert.itungen.ui.components.UndoToast
 import com.liezert.itungen.ui.components.amountColor
+import com.liezert.itungen.ui.components.AboveNavBar
 import com.liezert.itungen.ui.components.bottomClearance
 import com.liezert.itungen.ui.components.clockLabel
 import com.liezert.itungen.ui.components.groupLabel
@@ -76,12 +79,15 @@ import com.liezert.itungen.ui.theme.Medium
 import com.liezert.itungen.ui.theme.Regular
 import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
+import androidx.compose.ui.text.style.TextOverflow
 
 @Composable
 fun TransactionsScreen(
     onBack: () -> Unit,
     /** Ketuk baris pemasukan/pengeluaran: buka layar ubah. */
     onEdit: (Long) -> Unit = {},
+    /** Ketuk baris transfer target: transfer dikelola di Goals. */
+    onOpenGoals: () -> Unit = {},
     viewModel: TransactionsViewModel = viewModel(factory = TransactionsViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -93,6 +99,7 @@ fun TransactionsScreen(
         onFilter = viewModel::filter,
         onLoadMore = viewModel::loadMore,
         onEdit = { onEdit(it.id) },
+        onOpenGoals = onOpenGoals,
     )
     UndoToast(undo.toastMessage(), viewModel.undo::undoLatest)
 }
@@ -109,6 +116,7 @@ fun TransactionsContent(
     onFilter: (String?) -> Unit = {},
     onLoadMore: () -> Unit = {},
     onEdit: (Transaction) -> Unit = {},
+    onOpenGoals: () -> Unit = {},
 ) {
     // Tekan lama = alternatif geser (geser dari tepi kanan bisa bentrok dengan gestur Kembali).
     var confirmDelete by remember { mutableStateOf<Transaction?>(null) }
@@ -122,8 +130,12 @@ fun TransactionsContent(
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(24.dp)) {
             Column(Modifier.screenPad(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Semua Transaksi", style = appText(20f, 28f, Bold, Ink.White, tracking = -0.5f))
+                // Saat mencari/memfilter, jumlah yang relevan adalah hasilnya (dulu tetap "N transaksi bulan ini").
+                val filtering = state.query.isNotBlank() || state.category != null
+                val count = if (filtering) "${state.transactions.size}${if (state.canLoadMore) "+" else ""} transaksi cocok"
+                else "${state.monthCount} transaksi bulan ini"
                 Text(
-                    "${state.monthCount} transaksi bulan ini · ketuk untuk mengubah, geser ke kiri atau tekan lama untuk menghapus",
+                    "$count · ketuk untuk mengubah, geser ke kiri atau tekan lama untuk menghapus",
                     style = appText(14f, 20f, Medium, Ink.Muted),
                 )
             }
@@ -143,9 +155,10 @@ fun TransactionsContent(
                     )
                 }
             }
-            TransactionListCard(state, onDelete, onLongPress = { confirmDelete = it }, onEdit, onLoadMore, Modifier.screenPad().weight(1f))
+            TransactionListCard(state, onDelete, onLongPress = { confirmDelete = it }, onEdit, onOpenGoals, onLoadMore, Modifier.screenPad().weight(1f))
         }
-        Spacer(Modifier.height(bottomClearance()))
+        // Layar ini tanpa FAB: cukup lolos dari navbar (dulu menyisakan ruang FAB kosong di bawah kartu).
+        Spacer(Modifier.height(bottomClearance(AboveNavBar)))
     }
 
     val pending = confirmDelete
@@ -205,10 +218,22 @@ private fun TransactionListCard(
     onDelete: (Transaction) -> Unit,
     onLongPress: (Transaction) -> Unit,
     onEdit: (Transaction) -> Unit,
+    onOpenGoals: () -> Unit,
     onLoadMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
+    // Cari/filter berubah: mulai dari atas lagi. LazyColumn menjaga posisi per key, jadi setelah pencarian dikosongkan
+    // daftar dulu tetap di hasil terakhir (mis. September), seolah transaksi hari ini hilang. Kembali dari layar Ubah
+    // (cari/filter sama) posisi tetap.
+    val searchKey = state.query + "\u0000" + state.category
+    var shownFor by rememberSaveable { mutableStateOf(searchKey) }
+    LaunchedEffect(searchKey) {
+        if (searchKey != shownFor) {
+            listState.scrollToItem(0)
+            shownFor = searchKey
+        }
+    }
     // Muat lebih banyak saat tinggal 10 item lagi sebelum akhir yang sudah dimuat.
     LaunchedEffect(listState) {
         snapshotFlow { listState.layoutInfo.run { (visibleItemsInfo.lastOrNull()?.index ?: 0) >= totalItemsCount - 10 } }
@@ -244,7 +269,7 @@ private fun TransactionListCard(
                     )
                 }
                 items(rows, key = { it.id }, contentType = { "row" }) {
-                    Box(Modifier.padding(bottom = 4.dp)) { SwipeToDelete(it, onDelete, onLongPress, onEdit) { TxRow(it, state) } }
+                    Box(Modifier.padding(bottom = 4.dp)) { SwipeToDelete(it, onDelete, onLongPress, onEdit, onOpenGoals) { TxRow(it, state) } }
                 }
             }
         }
@@ -268,11 +293,11 @@ private fun TxRow(item: Transaction, state: TransactionsUiState) {
         ) {
             IconCircle(style.rowIcon, 40.dp, if (item.type == TransactionType.INCOME) Ink.Green.copy(alpha = 0.2f) else Ink.white(0.1f))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(item.note ?: categoryName, style = appText(14f, 20f, SemiBold), maxLines = 1)
+                Text(item.note ?: categoryName, style = appText(14f, 20f, SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
                     if (clock != null) "$clock • $categoryName" else categoryName,
                     style = appText(12f, 16f, Regular, Ink.Muted),
-                    maxLines = 1,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -280,7 +305,7 @@ private fun TxRow(item: Transaction, state: TransactionsUiState) {
             formatSigned(item.amount, item.incoming),
             Modifier.padding(start = 12.dp),
             style = appText(14f, 20f, Bold, item.amountColor),
-            maxLines = 1,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -296,10 +321,14 @@ private fun SwipeToDelete(
     onDelete: (Transaction) -> Unit,
     onLongPress: (Transaction) -> Unit,
     onEdit: (Transaction) -> Unit,
+    onOpenGoals: () -> Unit,
     content: @Composable () -> Unit,
 ) {
+    // Transfer target tidak bisa diubah/dihapus di sini; ketukan membuka Goals (dulu tidak bereaksi sama sekali).
     if (item.type != TransactionType.INCOME && item.type != TransactionType.EXPENSE) {
-        content()
+        Box(Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClickLabel = "Buka Goals", role = Role.Button, onClick = onOpenGoals)) {
+            content()
+        }
         return
     }
     // Hapus saat geseran dikonfirmasi, tetapi kotak tidak pernah masuk keadaan "terhapus": status itu disimpan

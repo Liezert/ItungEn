@@ -41,7 +41,7 @@ class RoomTransactionRepository(
         main { dao.observeBetween(it, from, to) }.map { rows -> rows.map { it.toDomain() } }
 
     override fun observeSearch(query: String, categoryName: String?, limit: Int) =
-        main { dao.observeSearch(it, query.trim(), categoryName, limit) }.map { rows -> rows.map { it.toDomain() } }
+        main { dao.observeSearch(it, query.trim(), amountDigits(query), categoryName, limit) }.map { rows -> rows.map { it.toDomain() } }
 
     override fun observeTotals(from: LocalDate, to: LocalDate) =
         main { dao.observeTotals(it, from, to) }.map { Totals(it.income, it.expense, it.count) }
@@ -152,3 +152,9 @@ private fun TransactionWithCategory.toDomain() = Transaction(
     date = transaction.date,
     createdAt = transaction.createdAt,
 )
+
+/** "Rp 15.000" / "15.000" / "15000" → "15000"; teks lain → "" (bukan pencarian nominal). */
+internal fun amountDigits(query: String): String {
+    val digits = query.trim().removePrefix("Rp").removePrefix("rp").filterNot { it == '.' || it.isWhitespace() || it == '\u00A0' }
+    return digits.takeIf { it.isNotEmpty() && it.all(Char::isDigit) }.orEmpty()
+}

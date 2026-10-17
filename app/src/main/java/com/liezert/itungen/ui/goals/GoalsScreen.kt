@@ -48,6 +48,7 @@ import com.liezert.glass.components.LiquidButton
 import com.liezert.glass.components.LiquidSheet
 import com.liezert.itungen.R
 import com.liezert.itungen.domain.model.Goal
+import com.liezert.itungen.domain.model.RupiahPrefix
 import com.liezert.itungen.domain.model.formatRupiah
 import com.liezert.itungen.ui.components.Ico
 import com.liezert.itungen.ui.components.IconCircle
@@ -99,13 +100,14 @@ fun GoalsScreen(
     LiquidSheet(sheetOpen, onDismiss = { sheetOpen = false }) {
         key(opened) {
             when (val s = sheet) {
-                Sheet.Create -> CreateGoalSheet(state, onCreate = viewModel::createGoal)
+                Sheet.Create -> CreateGoalSheet(state, onCreate = viewModel::createGoal, onEdited = viewModel::clearErrors)
                 is Sheet.Funds -> state.goals.firstOrNull { it.id == s.goalId }?.let { goal ->
                     AddFundsSheet(
                         goal = goal,
                         state = state,
                         onAddFunds = { viewModel.addFunds(goal.id, it) },
                         onCancelGoal = { viewModel.cancelGoal(goal.id) },
+                        onEdited = viewModel::clearErrors,
                     )
                 }
             }
@@ -273,7 +275,7 @@ private fun ImageGoalCard(goal: Goal, image: Painter? = null, onAddFunds: (() ->
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                         val small = appText(10f, 15f, Medium, Ink.Subtle, tracking = 0.5f)
                         Text("MULAI", style = small)
-                        Text("SISA RP ${formatRupiah(goal.remaining).removePrefix("Rp ")}", style = small)
+                        Text("SISA RP ${formatRupiah(goal.remaining).removePrefix(RupiahPrefix)}", style = small)
                     }
                 }
                 if (onAddFunds != null) {

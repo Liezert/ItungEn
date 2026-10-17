@@ -46,6 +46,10 @@ import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.YearMonth
+import com.liezert.itungen.domain.usecase.DayTone
+import com.liezert.itungen.domain.usecase.canMarkNoSpend
+import com.liezert.itungen.domain.usecase.dayTone
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -54,13 +58,14 @@ private val Id = Locale.forLanguageTag("id-ID")
 private val DayFormat = DateTimeFormatter.ofPattern("EEEE, d MMMM", Id)
 private val Weekdays = DayOfWeek.entries.map { it.getDisplayName(TextStyle.SHORT, Id) }
 
-/** Pekat warna heatmap per tingkat 1–4. */
+/** Pekat warna netral per tingkat 1–4 (tanpa anggaran). */
 private val HeatAlpha = listOf(0f, 0.18f, 0.32f, 0.5f, 0.72f)
 
 /**
- * Kalender pengeluaran sebulan (heatmap tanpa library): makin pekat = makin besar pengeluaran hari itu, dibanding hari
- * terbesar bulan itu; hijau = ditandai tidak jajan. Di atasnya streak hari tercatat berturut-turut. Ketuk satu hari
- * untuk melihat totalnya; hari tanpa pengeluaran bisa ditandai "tidak jajan".
+ * Kalender pengeluaran sebulan (heatmap tanpa library). Dengan anggaran, warna dibanding jatah harian: abu-abu ≤ separuh,
+ * oranye ≤ jatah, merah lewat jatah (dulu dibanding hari terbesar bulan itu, jadi satu belanja kecil pun merah penuh).
+ * Tanpa anggaran: abu-abu makin pekat = makin besar. Hijau = ditandai tidak jajan. Di atasnya streak hari tercatat
+ * berturut-turut (hanya di bulan ini). Ketuk satu hari untuk melihat totalnya.
  */
 @Composable
 fun SpendingCalendar(
@@ -75,13 +80,18 @@ fun SpendingCalendar(
     GlassCard(modifier.fillMaxWidth(), padding = 17.dp, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Text("Kalender", style = appText(15f, 22.5f, SemiBold, Ink.white(0.9f)))
-            Text(
-                if (state.streak > 0) "Tercatat ${state.streak} hari berturut-turut" else "Belum ada streak",
-                style = appText(13f, 18f, SemiBold, if (state.streak > 0) Ink.Green else Ink.Gray),
-            )
+            // Streak adalah keadaan sekarang: di bulan lalu terkesan milik bulan itu.
+            if (month == YearMonth.from(state.today)) {
+                Text(
+                    if (state.streak > 0) "Tercatat ${state.streak} hari berturut-turut" else "Belum ada streak",
+                    style = appText(13f, 18f, SemiBold, if (state.streak > 0) Ink.Green else Ink.Gray),
+                )
+            }
         }
         Text(
-            "$noSpendThisMonth hari tanpa jajan bulan ini. Ketuk hari untuk detail.",
+            "$noSpendThisMonth hari tanpa jajan bulan ini. " +
+                (state.dailyAllowance?.let { "Merah = lewat jatah harian ${formatRupiah(it)}. " } ?: "") +
+                "Ketuk hari untuk detail.",
             style = appText(12f, 16f, Regular, Ink.Gray),
         )
         Row(Modifier.fillMaxWidth()) {
@@ -111,13 +121,16 @@ private fun DayCell(day: LocalDate, state: InsightUiState, max: Long, modifier: 
     val amount = state.daily[day] ?: 0
     val future = day > state.today
     val noSpend = amount == 0L && day in state.noSpendDays
-    val fill = when {
-        noSpend -> Ink.Green.copy(alpha = 0.35f)
-        amount > 0 -> Ink.Red.copy(alpha = HeatAlpha[heatLevel(amount, max)])
-        else -> Ink.white(0.05f)
+    val fill = if (noSpend) Ink.Green.copy(alpha = 0.35f) else when (dayTone(amount, state.dailyAllowance)) {
+        DayTone.NONE -> Ink.white(0.05f)
+        DayTone.LOW -> Ink.white(0.18f)
+        DayTone.NEAR -> Ink.Orange.copy(alpha = 0.45f)
+        DayTone.OVER -> Ink.Red.copy(alpha = 0.72f)
+        DayTone.NEUTRAL -> Ink.white(HeatAlpha[heatLevel(amount, max)])
     }
     val selected = day == state.selectedDay
     val description = day.format(DayFormat) + ", " + when {
+        future -> "belum terjadi"
         amount > 0 -> formatRupiah(amount)
         noSpend -> "tidak jajan"
         else -> "tidak ada pengeluaran"
@@ -165,8 +178,9 @@ private fun DayDetail(day: LocalDate, state: InsightUiState, onToggleNoSpend: (L
                 style = appText(13f, 18f, Regular, if (amount > 0) Ink.Red else if (marked) Ink.Green else Ink.Gray),
             )
         }
-        // Hanya hari tanpa pengeluaran yang bisa ditandai; hari dengan pengeluaran jelas bukan "tidak jajan".
-        if (amount == 0L && day <= state.today) {
+        // Hanya hari tanpa pengeluaran yang bisa ditandai, dan hanya hari ini/kemarin (streak tidak bisa digelembungkan
+        // dengan menandai hari lama). Tanda yang sudah ada tetap bisa dibatalkan.
+        if (amount == 0L && (marked || canMarkNoSpend(day, state.today))) {
             LiquidButton(onClick = { onToggleNoSpend(day) }, modifier = Modifier.height(40.dp), contentPadding = 14.dp) {
                 Text(if (marked) "Batalkan tanda" else "Tandai tidak jajan", style = appText(13f, 18f, SemiBold, Ink.Green))
             }

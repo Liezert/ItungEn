@@ -41,6 +41,7 @@ import com.liezert.itungen.R
 import com.liezert.itungen.domain.model.Goal
 import com.liezert.itungen.domain.model.Transaction
 import com.liezert.itungen.domain.model.TransactionType
+import com.liezert.itungen.domain.model.RupiahPrefix
 import com.liezert.itungen.domain.model.formatRupiah
 import com.liezert.itungen.domain.model.formatRupiahShort
 import com.liezert.itungen.domain.model.formatSigned
@@ -50,6 +51,7 @@ import com.liezert.itungen.domain.usecase.BudgetStatus
 import com.liezert.itungen.domain.usecase.LimitLevel
 import com.liezert.itungen.domain.usecase.LimitWarning
 import com.liezert.itungen.domain.usecase.QuickTemplate
+import com.liezert.itungen.domain.usecase.Shortfall
 import com.liezert.itungen.ui.components.AboveNavBar
 import com.liezert.itungen.ui.components.GlassIconButton
 import com.liezert.itungen.ui.components.Ico
@@ -72,14 +74,35 @@ import com.liezert.itungen.ui.theme.Medium
 import com.liezert.itungen.ui.theme.Regular
 import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+import androidx.compose.ui.text.style.TextOverflow
 
 
 /** Pengganti nominal saat saldo disembunyikan. */
-const val HiddenAmount = "Rp ••••••"
+const val HiddenAmount = RupiahPrefix + "••••••"
+
+/** Nominal, atau [HiddenAmount] saat "Sembunyikan saldo" aktif: berlaku untuk semua nominal di Beranda. */
+private fun money(amount: Long, hidden: Boolean) = if (hidden) HiddenAmount else formatRupiah(amount)
+
+private fun BudgetPeriod.perLabel() = when (this) {
+    BudgetPeriod.MONTHLY -> "/bulan"
+    BudgetPeriod.WEEKLY -> "/minggu"
+    BudgetPeriod.UNTIL_DATE -> ""
+}
+
+/**
+ * Kenapa anggaran tidak realistis, menunjuk ke bagian yang membuatnya minus (dulu selalu menyalahkan tabungan,
+ * padahal sering kali setoran target). Dipakai Beranda dan pratinjau di layar Anggaran.
+ */
+fun unrealisticMessage(budget: Budget, hidden: Boolean = false): String = when (budget.shortfall) {
+    Shortfall.GOALS -> "Setoran target ${money(budget.goals, hidden)}${budget.period.perLabel()} tidak cukup dari sisa uang " +
+        "setelah tagihan dan tabungan. Kurangi rencana setoran di Goals."
+    Shortfall.SAVINGS -> "Tagihan dan target tabungan melebihi uang masuk. Tabungan maksimal yang masih mungkin: " +
+        "${money(budget.maxSavings, hidden)}${budget.period.perLabel()}."
+    Shortfall.BILLS -> "Tagihan tetap melebihi uang masuk. Periksa nominal uang masuk dan tagihan."
+}
 
 @Composable
 fun HomeScreen(
@@ -136,13 +159,17 @@ fun HomeContent(
             if (!state.loading) {
                 val budget = state.budget
                 if (budget == null) BudgetSetupCard(onOpenBudget, Modifier.screenPad())
-                else BudgetCard(budget, state.today, onOpenBudget, Modifier.screenPad())
+                else {
+                    // Setoran target yang membuat anggaran minus diubah di Goals, bukan di layar Anggaran.
+                    val goalsAtFault = budget.unrealistic && budget.shortfall == Shortfall.GOALS
+                    BudgetCard(budget, balanceHidden, if (goalsAtFault) onOpenGoals else onOpenBudget, Modifier.screenPad())
+                }
             }
-            if (state.limitWarnings.isNotEmpty()) LimitWarningCard(state.limitWarnings, onOpenInsight, Modifier.screenPad())
+            if (state.limitWarnings.isNotEmpty()) LimitWarningCard(state.limitWarnings, balanceHidden, onOpenInsight, Modifier.screenPad())
             BalanceCard(state, balanceHidden, onToggleBalance, Modifier.screenPad())
-            if (state.templates.isNotEmpty()) QuickAddRow(state.templates, onQuickAdd)
-            state.goal?.let { GoalPreviewCard(it, onOpenGoals, Modifier.screenPad()) }
-            RecentCard(state.recent, state, onSeeAll, onEdit, Modifier.screenPad())
+            if (state.templates.isNotEmpty()) QuickAddRow(state.templates, balanceHidden, onQuickAdd)
+            state.goal?.let { GoalPreviewCard(it, balanceHidden, onOpenGoals, Modifier.screenPad()) }
+            RecentCard(state.recent, state, balanceHidden, onSeeAll, onEdit, onOpenGoals, Modifier.screenPad())
         }
         Spacer(Modifier.height(bottomClearance()))
     }
@@ -165,7 +192,7 @@ private fun BudgetStatus.color() = when (this) {
 
 /** Jawaban "boleh belanja berapa hari ini?": sisa jatah, jatah minggu ini, dan sampai kapan uang cukup (§5). */
 @Composable
-private fun BudgetCard(budget: Budget, today: LocalDate, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun BudgetCard(budget: Budget, hidden: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val statusColor = budget.status.color()
     GlassCard(
         modifier.fillMaxWidth(),
@@ -185,11 +212,9 @@ private fun BudgetCard(budget: Budget, today: LocalDate, onClick: () -> Unit, mo
         }
         if (budget.unrealistic) {
             Text("Anggaran belum realistis", style = appText(20f, 28f, Bold, Ink.Red))
-            Text(
-                "Pemasukan tidak cukup untuk tagihan, tabungan, dan setoran target. " +
-                    "Tabungan maksimal yang masih mungkin: ${formatRupiah(budget.maxSavings)}/bulan. Ketuk untuk mengubah.",
-                style = appText(14f, 20f, Regular, Ink.Gray),
-            )
+            Text(unrealisticMessage(budget, hidden) + " Ketuk untuk mengubah.", style = appText(14f, 20f, Regular, Ink.Gray))
+            // Jatah harian tidak bisa dihitung, tetapi belanja hari ini tetap terlihat.
+            Text("Keluar hari ini ${money(-budget.todayRemaining, hidden)}", style = appText(14f, 20f, Medium, Ink.White))
             return@GlassCard
         }
 
@@ -201,12 +226,12 @@ private fun BudgetCard(budget: Budget, today: LocalDate, onClick: () -> Unit, mo
         }
         val over = budget.todayRemaining < 0
         Text(
-            if (over) "Lewat ${formatRupiah(-budget.todayRemaining)}" else formatRupiah(budget.todayRemaining),
+            if (over) "Lewat ${money(-budget.todayRemaining, hidden)}" else money(budget.todayRemaining, hidden),
             style = appText(32f, 40f, Bold, if (over) Ink.Red else Ink.White, tracking = -0.5f),
         )
         Text(
-            if (over) "dari jatah ${formatRupiah(budget.todayAllowance)} hari ini"
-            else "tersisa dari jatah ${formatRupiah(budget.todayAllowance)} hari ini",
+            if (over) "dari jatah ${money(budget.todayAllowance, hidden)} hari ini"
+            else "tersisa dari jatah ${money(budget.todayAllowance, hidden)} hari ini",
             style = appText(14f, 20f, Regular, Ink.Gray),
         )
         val fraction = if (budget.todayAllowance > 0) budget.todayRemaining.toFloat() / budget.todayAllowance else 0f
@@ -219,7 +244,7 @@ private fun BudgetCard(budget: Budget, today: LocalDate, onClick: () -> Unit, mo
                 else "Sisa minggu ini" to budget.weekRemaining
             BudgetStat(
                 label,
-                if (remaining < 0) "Lewat ${formatRupiah(-remaining)}" else formatRupiah(remaining),
+                if (remaining < 0) "Lewat ${money(-remaining, hidden)}" else money(remaining, hidden),
                 Modifier.weight(1f),
                 if (remaining < 0) Ink.Red else Ink.White,
             )
@@ -232,13 +257,15 @@ private fun BudgetCard(budget: Budget, today: LocalDate, onClick: () -> Unit, mo
         val runsOut = budget.runsOutOn
         Text(
             when {
+                // Sudah habis: "habis sekitar <hari ini>" terdengar seperti perkiraan, padahal sudah terjadi.
+                budget.cycleRemaining <= 0 -> "Uang untuk belanja siklus ini sudah habis, ${budget.daysLeft} hari sebelum uang masuk lagi."
                 runsOut != null -> "Dengan pola belanja sekarang, uang habis sekitar ${runsOut.format(ShortDate)} — " +
                     "${ChronoUnit.DAYS.between(runsOut, budget.cycleEnd) + 1} hari sebelum uang masuk lagi."
                 budget.cycleEnd.toEpochDay() - budget.cycleStart.toEpochDay() + 1 - budget.daysLeft < 3 ->
                     "Perkiraan sampai kapan uangmu cukup muncul setelah 3 hari pencatatan."
                 else -> "Dengan pola belanja sekarang, uangmu cukup sampai uang masuk lagi."
             },
-            style = appText(13f, 18f, Regular, if (runsOut == null) Ink.Gray else Ink.Orange),
+            style = appText(13f, 18f, Regular, if (runsOut == null && budget.cycleRemaining > 0) Ink.Gray else Ink.Orange),
         )
     }
 }
@@ -246,14 +273,14 @@ private fun BudgetCard(budget: Budget, today: LocalDate, onClick: () -> Unit, mo
 @Composable
 private fun BudgetStat(label: String, value: String, modifier: Modifier = Modifier, color: Color = Ink.White) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(label, style = appText(12f, 16f, Medium, Ink.Gray), maxLines = 1)
-        Text(value, style = appText(15f, 20f, SemiBold, color), maxLines = 1)
+        Text(label, style = appText(12f, 16f, Medium, Ink.Gray), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(value, style = appText(15f, 20f, SemiBold, color), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 /** Kategori yang mendekati (≥ 80%) atau melewati batas bulanannya; ketuk untuk melihat di Insight. */
 @Composable
-private fun LimitWarningCard(warnings: List<LimitWarning>, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun LimitWarningCard(warnings: List<LimitWarning>, hidden: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val over = warnings.any { it.level == LimitLevel.OVER }
     val color = if (over) Ink.Red else Ink.Orange
     GlassCard(
@@ -267,8 +294,8 @@ private fun LimitWarningCard(warnings: List<LimitWarning>, onClick: () -> Unit, 
         warnings.take(3).forEach { w ->
             val name = w.spend.category.name
             Text(
-                if (w.level == LimitLevel.OVER) "$name lewat batas: ${formatRupiah(w.spend.total)} dari ${formatRupiah(w.limit)}"
-                else "$name sudah ${w.spend.total * 100 / w.limit}% dari ${formatRupiah(w.limit)}",
+                if (w.level == LimitLevel.OVER) "$name lewat batas: ${money(w.spend.total, hidden)} dari ${money(w.limit, hidden)}"
+                else "$name sudah ${w.spend.total * 100 / w.limit}% dari ${money(w.limit, hidden)}",
                 style = appText(13f, 18f, Regular, Ink.White),
             )
         }
@@ -324,16 +351,16 @@ private fun BalanceCard(state: HomeUiState, hidden: Boolean, onToggle: () -> Uni
 
 /** Transaksi yang sering diulang, dicatat hari ini dengan sekali ketuk (bisa diurungkan). */
 @Composable
-private fun QuickAddRow(templates: List<QuickTemplate>, onQuickAdd: (QuickTemplate) -> Unit) {
+private fun QuickAddRow(templates: List<QuickTemplate>, hidden: Boolean, onQuickAdd: (QuickTemplate) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Catat cepat", Modifier.screenPad(), style = appText(14f, 20f, SemiBold, Ink.Muted))
         LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(templates) { template ->
                 val income = template.type == TransactionType.INCOME
                 LiquidButton(onClick = { onQuickAdd(template) }, modifier = Modifier.height(44.dp)) {
-                    Text(template.label, style = appText(14f, 20f, Medium), maxLines = 1)
+                    Text(template.label, style = appText(14f, 20f, Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        (if (income) "+" else "-") + formatRupiahShort(template.amount).removePrefix("Rp "),
+                        (if (income) "+" else "-") + if (hidden) "•••" else formatRupiahShort(template.amount).removePrefix(RupiahPrefix),
                         style = appText(14f, 20f, SemiBold, if (income) Ink.Green else Ink.Red),
                     )
                 }
@@ -343,7 +370,7 @@ private fun QuickAddRow(templates: List<QuickTemplate>, onQuickAdd: (QuickTempla
 }
 
 @Composable
-private fun GoalPreviewCard(goal: Goal, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun GoalPreviewCard(goal: Goal, hidden: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     GlassCard(
         modifier.fillMaxWidth(),
         tint = Brush.verticalGradient(listOf(Ink.Accent.copy(alpha = 0.16f), Color.Transparent)),
@@ -365,7 +392,7 @@ private fun GoalPreviewCard(goal: Goal, onClick: () -> Unit, modifier: Modifier 
                     ProgressBar(goal.progress, Brush.horizontalGradient(listOf(Ink.Blue, Ink.Cyan)), 8.dp, Ink.white(0.1f))
                 }
                 Text(
-                    "${formatRupiah(goal.saved)} dari ${formatRupiah(goal.target)}",
+                    "${money(goal.saved, hidden)} dari ${money(goal.target, hidden)}",
                     Modifier.padding(top = 4.dp),
                     style = appText(16f, 24f, Regular, Ink.Gray),
                 )
@@ -378,8 +405,10 @@ private fun GoalPreviewCard(goal: Goal, onClick: () -> Unit, modifier: Modifier 
 private fun RecentCard(
     items: List<Transaction>,
     state: HomeUiState,
+    hidden: Boolean,
     onSeeAll: () -> Unit,
     onEdit: (Transaction) -> Unit,
+    onOpenGoals: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     GlassCard(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -394,21 +423,22 @@ private fun RecentCard(
         if (items.isEmpty() && !state.loading) {
             Text("Belum ada transaksi. Tekan + untuk mencatat.", style = appText(16f, 24f, Regular, Ink.Gray))
         }
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) { items.forEach { RecentRow(it, state, onEdit) } }
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) { items.forEach { RecentRow(it, state, hidden, onEdit, onOpenGoals) } }
     }
 }
 
 @Composable
-private fun RecentRow(item: Transaction, state: HomeUiState, onEdit: (Transaction) -> Unit) {
+private fun RecentRow(item: Transaction, state: HomeUiState, hidden: Boolean, onEdit: (Transaction) -> Unit, onOpenGoals: () -> Unit) {
     val style = item.style()
     val day = relativeDay(item.date, state.today)
     // Jam hanya untuk hari ini / kemarin, seperti Figma.
     val clock = if (item.date >= state.today.minusDays(1)) item.clockLabel(state.zone) else null
-    // Transfer goal tidak bisa diubah dari sini (mengikuti goal-nya).
+    // Transfer goal tidak bisa diubah dari sini (mengikuti goal-nya): ketukan membuka Goals.
     val editable = item.type == TransactionType.INCOME || item.type == TransactionType.EXPENSE
     Row(
         Modifier.fillMaxWidth().then(
-            if (editable) Modifier.clickable(onClickLabel = "Ubah", role = Role.Button) { onEdit(item) } else Modifier
+            if (editable) Modifier.clickable(onClickLabel = "Ubah", role = Role.Button) { onEdit(item) }
+            else Modifier.clickable(onClickLabel = "Buka Goals", role = Role.Button, onClick = onOpenGoals)
         ),
         Arrangement.SpaceBetween,
         Alignment.CenterVertically,
@@ -420,19 +450,19 @@ private fun RecentRow(item: Transaction, state: HomeUiState, onEdit: (Transactio
         ) {
             IconCircle(style.rowIcon, 40.dp, Ink.white(0.05f), border = Ink.white(0.14f))
             Column(Modifier.weight(1f)) {
-                Text(item.note ?: item.categoryLabel, style = appText(16f, 24f), maxLines = 1)
+                Text(item.note ?: item.categoryLabel, style = appText(16f, 24f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
                     if (clock != null) "$day, $clock" else day,
                     style = appText(16f, 24f, Regular, Ink.Gray),
-                    maxLines = 1,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
         }
         Text(
-            formatSigned(item.amount, item.incoming),
+            if (hidden) (if (item.incoming) "+" else "-") + HiddenAmount else formatSigned(item.amount, item.incoming),
             Modifier.padding(start = 12.dp),
             style = appText(16f, 24f, Regular, item.amountColor),
-            maxLines = 1,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }
 }

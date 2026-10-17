@@ -14,11 +14,13 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.drop
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -43,6 +45,7 @@ import com.liezert.itungen.ui.components.Ico
 import com.liezert.itungen.ui.components.IconCircle
 import com.liezert.itungen.ui.components.LiquidAlertDialog
 import com.liezert.itungen.ui.components.LiquidDatePickerDialog
+import com.liezert.itungen.ui.components.rememberIndonesianDatePickerState
 import com.liezert.itungen.ui.theme.Bold
 import com.liezert.itungen.ui.theme.Ink
 import com.liezert.itungen.ui.theme.Medium
@@ -51,6 +54,7 @@ import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
 import com.liezert.itungen.ui.theme.formatId
 import java.time.LocalDate
+import androidx.compose.ui.text.style.TextOverflow
 
 private const val DayMillis = 86_400_000L
 
@@ -59,6 +63,7 @@ private fun GoalError.message() = when (this) {
     GoalError.TARGET_REQUIRED -> "Isi nominal target lebih dari 0."
     GoalError.TARGET_TOO_LARGE -> "Nominal target terlalu besar."
     GoalError.DATE_IN_PAST -> "Tanggal target tidak boleh di masa lalu."
+    GoalError.PLAN_ABOVE_TARGET -> "Setoran bulanan tidak boleh melebihi target dana."
 }
 
 private fun TransferError.message() = when (this) {
@@ -75,11 +80,14 @@ private fun TransferError.message() = when (this) {
 fun CreateGoalSheet(
     state: GoalsUiState,
     onCreate: (title: String, target: Long?, targetDate: LocalDate?, plannedMonthly: Long?) -> Unit,
+    /** Isian berubah: pesan dari percobaan sebelumnya dihapus (dulu bertahan sampai disimpan). */
+    onEdited: () -> Unit = {},
 ) {
     val title = rememberTextFieldState()
     val target = rememberTextFieldState()
     val planned = rememberTextFieldState()
     var targetDay by rememberSaveable { mutableStateOf<Long?>(null) }
+    ClearOnEdit(onEdited) { "${title.text}|${target.text}|${planned.text}|$targetDay" }
     var picking by rememberSaveable { mutableStateOf(false) }
     val targetDate = targetDay?.let(LocalDate::ofEpochDay)
     val suggestion = suggestedMonthly(target.text.toString().toLongOrNull() ?: 0, 0, targetDate, state.today)
@@ -112,12 +120,7 @@ fun CreateGoalSheet(
         }
     }
 
-    val picker = rememberDatePickerState(
-        initialSelectedDateMillis = (targetDay ?: state.today.plusMonths(3).toEpochDay()) * DayMillis,
-        selectableDates = object : SelectableDates {
-            override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis / DayMillis >= state.today.toEpochDay()
-        },
-    )
+    val picker = rememberIndonesianDatePickerState(targetDate ?: state.today.plusMonths(3)) { it >= state.today }
     LiquidDatePickerDialog(
         visible = picking,
         state = picker,
@@ -136,8 +139,10 @@ fun AddFundsSheet(
     state: GoalsUiState,
     onAddFunds: (amount: Long?) -> Unit,
     onCancelGoal: () -> Unit,
+    onEdited: () -> Unit = {},
 ) {
     val amount = rememberTextFieldState()
+    ClearOnEdit(onEdited) { amount.text.toString() }
     var confirmCancel by rememberSaveable { mutableStateOf(false) }
 
     SheetBody {
@@ -153,16 +158,14 @@ fun AddFundsSheet(
             style = appText(14f, 20f, Medium, if (state.mainBalance > 0) Ink.Muted else Ink.Red),
         )
         AmountField(amount, "Nominal dari saldo utama")
+        // Saran hanya nominal yang bisa langsung dipakai: tidak melebihi sisa target maupun saldo utama.
+        val plan = minOf(goal.plannedMonthly, goal.remaining)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (goal.plannedMonthly > 0) {
-                SuggestionChip("Rencana ${formatRupiah(goal.plannedMonthly)}") {
-                    amount.setTextAndPlaceCursorAtEnd(goal.plannedMonthly.toString())
-                }
+            if (plan in 1..state.mainBalance && plan != goal.remaining) {
+                SuggestionChip("Rencana ${formatRupiah(plan)}") { amount.setTextAndPlaceCursorAtEnd(plan.toString()) }
             }
-            if (goal.remaining > 0) {
-                SuggestionChip("Sisa ${formatRupiah(goal.remaining)}") {
-                    amount.setTextAndPlaceCursorAtEnd(goal.remaining.toString())
-                }
+            if (goal.remaining in 1..state.mainBalance) {
+                SuggestionChip("Sisa ${formatRupiah(goal.remaining)}") { amount.setTextAndPlaceCursorAtEnd(goal.remaining.toString()) }
             }
         }
         FormMessage(state.form.transferError?.message() ?: if (state.form.failed) "Gagal menyimpan. Coba lagi." else null)
@@ -187,6 +190,13 @@ fun AddFundsSheet(
         dismissLabel = "Kembali",
         confirmColor = Ink.Red,
     )
+}
+
+/** Panggil [onEdited] setiap [value] (gabungan isian form) berubah setelah sheet terbuka. */
+@Composable
+private fun ClearOnEdit(onEdited: () -> Unit, value: () -> String) {
+    val latest by rememberUpdatedState(onEdited)
+    LaunchedEffect(Unit) { snapshotFlow(value).drop(1).collect { latest() } }
 }
 
 @Composable
@@ -229,7 +239,7 @@ private fun SuggestionChip(label: String, onClick: () -> Unit) {
         modifier = Modifier.height(36.dp),
         surfaceColor = Ink.Accent.copy(alpha = 0.2f),
         contentPadding = 14.dp,
-    ) { Text(label, style = appText(13f, 18f, SemiBold, Ink.AccentLight), maxLines = 1) }
+    ) { Text(label, style = appText(13f, 18f, SemiBold, Ink.AccentLight), maxLines = 1, overflow = TextOverflow.Ellipsis) }
 }
 
 @Composable
