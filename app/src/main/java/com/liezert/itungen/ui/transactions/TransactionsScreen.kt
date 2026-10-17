@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.transactions
 
+import androidx.compose.foundation.layout.heightIn
 import com.liezert.itungen.ui.components.displayNote
 import com.liezert.itungen.ui.components.displayName
 import com.liezert.itungen.ui.components.categoryNameLabel
@@ -127,7 +128,9 @@ fun TransactionsContent(
     onOpenGoals: () -> Unit = {},
 ) {
     // Tekan lama = alternatif geser (geser dari tepi kanan bisa bentrok dengan gestur Kembali).
-    var confirmDelete by remember { mutableStateOf<Transaction?>(null) }
+    // Id (bukan Transaction) agar dialog konfirmasi hapus tetap terbuka setelah rotasi.
+    var confirmDeleteId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val confirmDelete = confirmDeleteId?.let { id -> state.transactions.firstOrNull { it.id == id } }
     val labels = listOf<String?>(null) + state.filters
 
     Column(modifier.fillMaxSize()) {
@@ -166,7 +169,7 @@ fun TransactionsContent(
                     )
                 }
             }
-            TransactionListCard(state, onDelete, onLongPress = { confirmDelete = it }, onEdit, onOpenGoals, onLoadMore, Modifier.screenPad().weight(1f))
+            TransactionListCard(state, onDelete, onLongPress = { confirmDeleteId = it.id }, onEdit, onOpenGoals, onLoadMore, Modifier.screenPad().weight(1f))
         }
         // Layar ini tanpa FAB: cukup lolos dari navbar (dulu menyisakan ruang FAB kosong di bawah kartu).
         Spacer(Modifier.height(bottomClearance(AboveNavBar)))
@@ -182,9 +185,9 @@ fun TransactionsContent(
         confirmLabel = stringResource(R.string.action_delete),
         onConfirm = {
             pending?.let(onDelete)
-            confirmDelete = null
+            confirmDeleteId = null
         },
-        onDismiss = { confirmDelete = null },
+        onDismiss = { confirmDeleteId = null },
         confirmColor = Ink.Red,
     )
 }
@@ -217,7 +220,7 @@ private fun SearchPill(query: String, onChange: (String) -> Unit, modifier: Modi
                 cursorBrush = SolidColor(Ink.White),
                 modifier = Modifier.weight(1f).semantics { contentDescription = searchLabel },
                 decorationBox = { inner ->
-                    Box(Modifier.height(20.dp), contentAlignment = Alignment.CenterStart) {
+                    Box(Modifier.heightIn(min = 20.dp), contentAlignment = Alignment.CenterStart) {
                         if (text.isEmpty()) Text(stringResource(R.string.search_hint), style = appText(14f, 20f, Regular, Ink.NavInactive))
                         inner()
                     }
@@ -299,7 +302,7 @@ private fun TxRow(item: Transaction, state: TransactionsUiState) {
     val clock = item.clockLabel(state.zone)
     ItungTransactionRow(
         icon = { IconCircle(style.rowIcon, 40.dp, if (item.type == TransactionType.INCOME) Ink.Income.copy(alpha = 0.2f) else Ink.white(0.1f)) },
-        title = { Text(item.displayNote() ?: categoryName, style = appText(14f, 20f, SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        title = { Text(item.displayNote() ?: categoryName, style = appText(14f, 20f, SemiBold), maxLines = 2, overflow = TextOverflow.Ellipsis) },
         subtitle = {
             Text(
                 if (clock != null) stringResource(R.string.time_and_category, clock, categoryName) else categoryName,

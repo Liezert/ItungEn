@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.goals
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.res.stringResource
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -172,7 +173,7 @@ fun AddFundsSheet(
             GoalImage(goal.imagePath, null, Modifier.size(64.dp, 48.dp).itungImageFrame()) { Ico(R.drawable.ic_goal_shoe) }
             Column {
                 Text(stringResource(R.string.add_funds), style = appText(20f, 28f, Bold))
-                Text(stringResource(R.string.goal_name_percent, goal.name, goal.percent), style = appText(13f, 18f, Regular, Ink.Gray), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.goal_name_percent, goal.name, goal.percent), style = appText(13f, 18f, Regular, Ink.Gray), maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         }
         Text(
@@ -260,7 +261,7 @@ private fun OptionRow(
 private fun SuggestionChip(label: String, onClick: () -> Unit) {
     ItungButton(
         onClick = onClick,
-        modifier = Modifier.height(36.dp),
+        modifier = Modifier.heightIn(min = 36.dp),
         surfaceColor = Ink.Accent.copy(alpha = 0.2f),
         contentPadding = 14.dp,
     ) { Text(label, style = appText(13f, 18f, SemiBold, Ink.AccentLight), maxLines = 1, overflow = TextOverflow.Ellipsis) }
@@ -291,7 +292,7 @@ private fun ProductImagePicker(imagePath: String?, name: String, onPick: (Uri) -
         }
         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
             SuggestionChip(stringResource(R.string.change_image), launch)
-            ItungButton(onClick = onRemove, modifier = Modifier.height(36.dp), contentPadding = 14.dp) {
+            ItungButton(onClick = onRemove, modifier = Modifier.heightIn(min = 36.dp), contentPadding = 14.dp) {
                 Text(stringResource(R.string.remove_image), style = appText(13f, 18f, SemiBold, Ink.Red), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }

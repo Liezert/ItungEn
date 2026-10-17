@@ -1,10 +1,13 @@
 package com.liezert.itungen.ui.components
 
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.BoxWithConstraints
 import com.liezert.itungen.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DatePicker
@@ -63,14 +66,7 @@ fun ItungAlertDialog(
                 .padding(24.dp, 12.dp, 24.dp, 12.dp),
             style = appText(15f, 21f, Regular, Ink.White.copy(0.68f)),
         )
-        DialogButtons {
-            ItungButton(onDismiss, modifier = Modifier.weight(1f), surfaceColor = CancelSurface) {
-                Text(dismissLabel, style = appText(16f, 22f))
-            }
-            ItungButton(onConfirm, modifier = Modifier.weight(1f), tint = confirmColor) {
-                Text(confirmLabel, style = appText(16f, 22f, color = Color.White))
-            }
-        }
+        DialogButtons(dismissLabel, onDismiss, confirmLabel, onConfirm, confirmColor)
     }
 }
 
@@ -121,25 +117,49 @@ fun ItungDatePickerDialog(
                 showModeToggle = false,
             )
         }
-        DialogButtons {
-            ItungButton(onDismiss, modifier = Modifier.weight(1f), surfaceColor = CancelSurface) {
-                Text(stringResource(R.string.action_cancel), style = appText(16f, 22f))
+        DialogButtons(stringResource(R.string.action_cancel), onDismiss, stringResource(R.string.action_ok), onConfirm)
+    }
+}
+
+/**
+ * Batal + konfirmasi, sama lebar. Bila label terpanjang tidak muat di setengah lebar (huruf besar, "Delete" di bahasa
+ * Inggris), keduanya bertumpuk selebar dialog; dulu labelnya dipecah di tengah kata ("Kemba / li", "Delet / e").
+ */
+@Composable
+private fun DialogButtons(
+    dismissLabel: String,
+    onDismiss: () -> Unit,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    confirmColor: Color = DialogAccent,
+) {
+    val style = appText(16f, 22f)
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    BoxWithConstraints(Modifier.padding(24.dp, 12.dp, 24.dp, 24.dp).fillMaxWidth()) {
+        val widest = with(density) { listOf(dismissLabel, confirmLabel).maxOf { measurer.measure(it, style).size.width }.toDp() }
+        val stacked = widest > (maxWidth - ButtonGap) / 2 - LabelInset
+        val dismiss: @Composable (Modifier) -> Unit = {
+            ItungButton(onDismiss, it, surfaceColor = CancelSurface) { Text(dismissLabel, style = style) }
+        }
+        val confirm: @Composable (Modifier) -> Unit = {
+            ItungButton(onConfirm, it, tint = confirmColor) { Text(confirmLabel, style = style.copy(color = Color.White)) }
+        }
+        if (stacked) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                dismiss(Modifier.fillMaxWidth())
+                confirm(Modifier.fillMaxWidth())
             }
-            ItungButton(onConfirm, modifier = Modifier.weight(1f), tint = DialogAccent) {
-                Text(stringResource(R.string.action_ok), style = appText(16f, 22f, color = Color.White))
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(ButtonGap)) {
+                dismiss(Modifier.weight(1f))
+                confirm(Modifier.weight(1f))
             }
         }
     }
 }
 
-@Composable
-private fun DialogButtons(content: @Composable RowScope.() -> Unit) {
-    Row(
-        Modifier
-            .padding(24.dp, 12.dp, 24.dp, 24.dp)
-            .fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        content = content,
-    )
-}
+private val ButtonGap = 16.dp
+
+/** Padding kiri-kanan tombol tema (16 dp per sisi) + sedikit kelonggaran untuk bingkai tema. */
+private val LabelInset = 36.dp

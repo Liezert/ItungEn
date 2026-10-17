@@ -1,5 +1,7 @@
 package com.liezert.itungen.ui.components
 
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.TextAutoSize
 import android.content.Context
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.Image
@@ -76,7 +78,14 @@ fun AmountText(
                 colorFilter = ColorFilter.tint(color),
             )
         }
-        Text(text, style = style.copy(color = color), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // Tidak pernah dipotong ("Rp3.000.…"): bila kolomnya sempit (HP kecil, huruf besar), hurufnya mengecil.
+        Text(
+            text,
+            style = style.copy(color = color),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            autoSize = if (style.fontSize.isSp) TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = style.fontSize) else null,
+        )
     }
 }
 

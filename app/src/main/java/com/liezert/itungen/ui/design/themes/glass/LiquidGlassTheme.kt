@@ -1,5 +1,7 @@
 package com.liezert.itungen.ui.design.themes.glass
 
+import androidx.compose.ui.graphics.isSpecified
+import androidx.compose.ui.graphics.lerp
 import com.liezert.itungen.R
 import android.content.Context
 import androidx.compose.foundation.background
@@ -149,7 +151,12 @@ object LiquidGlassTheme : ThemeSpec {
             enabled: Boolean,
             contentPadding: Dp,
             content: @Composable RowScope.() -> Unit,
-        ) = LiquidButton(onClick = onClick, modifier = modifier, tint = tint, surfaceColor = surfaceColor, enabled = enabled, contentPadding = contentPadding, content = content)
+        ) {
+            // Kaca mencampur tint 75% dengan latarnya; di tema terang latar itu putih, jadi teks putih di atas tint hanya
+            // ± 3:1. Tint digelapkan di tema terang agar teks putih ≥ 4,5:1 (tema gelap tidak berubah).
+            val readable = if (!Ink.dark && tint.isSpecified) lerp(tint, Color.Black, 0.45f).copy(alpha = tint.alpha) else tint
+            LiquidButton(onClick = onClick, modifier = modifier, tint = readable, surfaceColor = surfaceColor, enabled = enabled, contentPadding = contentPadding, content = content)
+        }
 
         @Composable
         override fun Surface(

@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.account
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.res.stringResource
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
@@ -177,7 +178,7 @@ private fun LinkText(text: String, onClick: () -> Unit) {
 fun GoogleSignInButton(busy: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     ItungButton(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(56.dp),
+        modifier = modifier.fillMaxWidth().heightIn(min = 56.dp),
         surfaceColor = Color.White,
         enabled = !busy,
     ) {

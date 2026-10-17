@@ -1,5 +1,7 @@
 package com.liezert.itungen.ui.profile
 
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.BoxWithConstraints
 import com.liezert.itungen.ui.components.formatIn
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
@@ -90,12 +92,25 @@ fun ProfileContent(
                         }
                     }
                     // Kolom berbobot, bukan lebar tetap 94,66 dp dari Figma: layar 360 dp lebih sempit dari acuan 390 dp.
-                    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
-                        val hidden = (LocalContext.current.applicationContext as ItungEnApp).container.hideBalance
-                        // Dompet utama saja (dana di target tampil di Goals), sama dengan Total Saldo di Beranda.
-                        Stat(stringResource(R.string.stat_main_balance), if (hidden) HiddenAmount else formatRupiah(state.balance), bordered = false, Modifier.weight(1f))
-                        Stat(stringResource(R.string.stat_active_goals), state.activeGoals.toString(), bordered = true, Modifier.weight(1.15f))
-                        Stat(stringResource(R.string.stat_joined), state.joined?.formatIn("MMM yyyy") ?: "-", bordered = true, Modifier.weight(1f))
+                    val hidden = (LocalContext.current.applicationContext as ItungEnApp).container.hideBalance
+                    // Dompet utama saja (dana di target tampil di Goals), sama dengan Total Saldo di Beranda.
+                    val balance = if (hidden) HiddenAmount else formatRupiah(state.balance)
+                    val joined = state.joined?.formatIn("MMM yyyy") ?: "-"
+                    // Tiga kolom; di HP kecil / huruf besar ditumpuk agar nominal tidak terpotong.
+                    BoxWithConstraints(Modifier.fillMaxWidth()) {
+                        if (maxWidth < 240.dp * LocalDensity.current.fontScale.coerceAtLeast(1f)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Stat(stringResource(R.string.stat_main_balance), balance, bordered = false)
+                                Stat(stringResource(R.string.stat_active_goals), state.activeGoals.toString(), bordered = false)
+                                Stat(stringResource(R.string.stat_joined), joined, bordered = false)
+                            }
+                        } else {
+                            Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
+                                Stat(stringResource(R.string.stat_main_balance), balance, bordered = false, Modifier.weight(1f))
+                                Stat(stringResource(R.string.stat_active_goals), state.activeGoals.toString(), bordered = true, Modifier.weight(1.15f))
+                                Stat(stringResource(R.string.stat_joined), joined, bordered = true, Modifier.weight(1f))
+                            }
+                        }
                     }
                 }
             }
@@ -128,7 +143,7 @@ private fun Stat(label: String, value: String, bordered: Boolean, modifier: Modi
         ),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(label, style = appText(10f, 16f, Medium, Ink.Gray, tracking = 0.1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, style = appText(10f, 16f, Medium, Ink.Gray, tracking = 0.1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
         // Angka lengkap seperti di Beranda; mengecil sendiri bila kolomnya sempit.
         BasicText(
             value,

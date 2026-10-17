@@ -1,5 +1,12 @@
 package com.liezert.itungen.ui.insight
 
+import com.liezert.itungen.ui.components.SegmentLabel
+import androidx.compose.ui.text.style.LineBreak
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.minimumInteractiveComponentSize
 import com.liezert.itungen.R
 import com.liezert.itungen.ui.components.formatIn
 import androidx.annotation.StringRes
@@ -107,7 +114,9 @@ fun InsightContent(
     onSetLimit: (String, Long?) -> Unit = { _, _ -> },
 ) {
     val total = state.total
-    var limitFor by remember { mutableStateOf<Category?>(null) }
+    // Yang disimpan uuid-nya (Category tidak bisa masuk saved state), agar sheet batas tetap terbuka setelah rotasi.
+    var limitForUuid by rememberSaveable { mutableStateOf<String?>(null) }
+    val limitFor = limitForUuid?.let { uuid -> state.spending.firstOrNull { it.category.uuid == uuid }?.category }
     val lastMonth = state.month.minusMonths(1).atDay(1).formatIn("MMMM")
     val accent = if (state.income) Ink.Income else Ink.Expense
 
@@ -141,7 +150,7 @@ fun InsightContent(
         ) {
             Kinds.forEach { (type, label) ->
                 ItungTab({ onType(type) }, selected = type == state.type) {
-                    Text(stringResource(label), style = appText(14f, 20f, SemiBold, if (type == state.type) Ink.White else Ink.Muted))
+                    SegmentLabel(stringResource(label), selected = type == state.type)
                 }
             }
         }
@@ -165,7 +174,7 @@ fun InsightContent(
                 val limit = if (state.income) null else state.limits[it.category.uuid]
                 BreakdownItem(
                     it, it.total.toFloat() / total, state.previous[it.category.id] ?: 0, lastMonth, state.income, limit,
-                    onClick = if (state.income) null else ({ limitFor = it.category }),
+                    onClick = if (state.income) null else ({ limitForUuid = it.category.uuid }),
                 )
             }
         }
@@ -174,15 +183,15 @@ fun InsightContent(
 
     CategoryLimitSheet(limitFor, limitFor?.let { state.limits[it.uuid] }, onSave = { limit ->
         limitFor?.let { onSetLimit(it.uuid, limit) }
-        limitFor = null
-    }) { limitFor = null }
+        limitForUuid = null
+    }) { limitForUuid = null }
 }
 
 @Composable
 private fun MonthButton(symbol: String, description: String, enabled: Boolean, onClick: () -> Unit) {
     ItungButton(
         onClick = onClick,
-        modifier = Modifier.size(40.dp).semantics { contentDescription = description },
+        modifier = Modifier.size(48.dp).semantics { contentDescription = description }, // 40 dp dulu di bawah area sentuh minimum
         enabled = enabled,
         contentPadding = 0.dp,
     ) { Text(symbol, style = appText(22f, 26f, SemiBold, if (enabled) Ink.White else Ink.Gray.copy(alpha = 0.5f))) }
@@ -242,34 +251,49 @@ private fun SummaryCard(state: InsightUiState, modifier: Modifier = Modifier) {
             AmountText(total, if (total > 0) kind else AmountKind.NEUTRAL, appText(28f, 42f, Bold, Ink.White, tracking = -0.7f))
             ComparisonText(total, state.previousTotal, state.month.minusMonths(1).atDay(1).formatIn("MMMM"), 13f, state.income)
         }
-        // Diagram lingkaran per kategori: jumlah kategori di tengah, legenda (warna, nama, persen) di sampingnya.
-        Row(
-            Modifier.fillMaxWidth().padding(top = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            DonutChart(
-                slices = spending.map { DonutSlice(it.category.style().color, it.total.toFloat()) },
-                track = Ink.white(0.1f),
-                modifier = Modifier.size(132.dp),
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(spending.size.toString(), style = appText(22f, 26f, Bold))
-                    Text(pluralStringResource(R.plurals.categories_word, spending.size), style = appText(11f, 14f, Medium, Ink.Gray))
+        // Diagram lingkaran per kategori: jumlah kategori di tengah, legenda (warna, nama, persen) di sampingnya; bila
+        // ruangnya sempit (HP kecil atau huruf besar) legenda di bawah diagram agar nama kategori tidak terpotong.
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            if (maxWidth < 280.dp * LocalDensity.current.fontScale.coerceAtLeast(1f)) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    CategoryDonut(spending)
+                    CategoryLegend(state, Modifier.fillMaxWidth())
                 }
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (spending.isEmpty()) {
-                    Text(state.text(R.string.insight_empty_expense, R.string.insight_empty_income), style = appText(13f, 18f, Regular, Ink.Gray))
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CategoryDonut(spending)
+                    CategoryLegend(state, Modifier.weight(1f))
                 }
-                // ponytail: 5 teratas + "Lainnya" agar legenda tetap muat di samping diagram.
-                val top = spending.take(5)
-                val rest = spending.drop(5).sumOf { it.total }
-                val percents = roundedPercents(top.map { it.total } + listOfNotNull(rest.takeIf { it > 0 }))
-                top.forEachIndexed { i, it -> LegendRow(it.category.style().color, it.category.displayName(), percents[i]) }
-                if (rest > 0) LegendRow(Ink.Gray, stringResource(R.string.cat_other), percents.last())
             }
         }
+    }
+}
+
+@Composable
+private fun CategoryDonut(spending: List<CategorySpend>) = DonutChart(
+    slices = spending.map { DonutSlice(it.category.style().color, it.total.toFloat()) },
+    track = Ink.white(0.1f),
+    modifier = Modifier.size(132.dp),
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(spending.size.toString(), style = appText(22f, 26f, Bold))
+        Text(pluralStringResource(R.plurals.categories_word, spending.size), style = appText(11f, 14f, Medium, Ink.Gray))
+    }
+}
+
+@Composable
+private fun CategoryLegend(state: InsightUiState, modifier: Modifier) {
+    val spending = state.spending
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (spending.isEmpty()) {
+            Text(state.text(R.string.insight_empty_expense, R.string.insight_empty_income), style = appText(13f, 18f, Regular, Ink.Gray))
+        }
+        // ponytail: 5 teratas + "Lainnya" agar legenda tetap muat di samping diagram.
+        val top = spending.take(5)
+        val rest = spending.drop(5).sumOf { it.total }
+        val percents = roundedPercents(top.map { it.total } + listOfNotNull(rest.takeIf { it > 0 }))
+        top.forEachIndexed { i, it -> LegendRow(it.category.style().color, it.category.displayName(), percents[i]) }
+        if (rest > 0) LegendRow(Ink.Gray, stringResource(R.string.cat_other), percents.last())
     }
 }
 
@@ -277,7 +301,14 @@ private fun SummaryCard(state: InsightUiState, modifier: Modifier = Modifier) {
 private fun LegendRow(color: Color, label: String, percent: Int) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(10.dp).clip(CircleShape).background(color))
-        Text(label, Modifier.weight(1f), style = appText(13f, 18f, Medium, Ink.Muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // Dua baris + pemenggalan kata: nama kategori panjang ("Entertainment") dipenggal dengan tanda hubung, tidak terpotong.
+        Text(
+            label,
+            Modifier.weight(1f),
+            style = appText(13f, 18f, Medium, Ink.Muted).copy(hyphens = Hyphens.Auto, lineBreak = LineBreak.Paragraph),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
         Text(stringResource(R.string.percent_value, percent), style = appText(13f, 18f, SemiBold))
     }
 }
@@ -301,38 +332,45 @@ private fun BreakdownItem(
         else -> style.color
     }
     ItungSurface(Modifier.fillMaxWidth(), onClick = onClick) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 17.dp, end = 17.dp, top = 17.dp, bottom = 29.dp),
-            Arrangement.SpaceBetween,
-            Alignment.CenterVertically,
-        ) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val stacked = maxWidth < 300.dp * LocalDensity.current.fontScale.coerceAtLeast(1f)
             Row(
-                Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                Modifier.fillMaxWidth().padding(start = 17.dp, end = 17.dp, top = 17.dp, bottom = 29.dp),
+                Arrangement.SpaceBetween,
+                Alignment.CenterVertically,
             ) {
-                IconCircle(style.bigIcon, 48.dp, style.color.copy(alpha = 0.15f))
-                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text(item.category.displayName(), style = appText(16f, 24f, SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(pluralStringResource(R.plurals.transactions_count, item.count, item.count), style = appText(13f, 19.5f, Regular, Ink.Gray))
-                    ComparisonText(item.total, previous, lastMonth, 12f, income, compact = true)
-                    if (limit != null) {
-                        Text(
-                            when (level) {
-                                LimitLevel.OVER -> stringResource(R.string.limit_over_short, formatRupiah(limit))
-                                else -> stringResource(R.string.limit_percent_of, (item.total * 100 / limit).toInt(), formatRupiah(limit))
-                            },
-                            style = appText(12f, 16f, SemiBold, if (level == LimitLevel.OK) Ink.Gray else limitColor),
-                        )
+                Row(
+                    Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconCircle(style.bigIcon, 48.dp, style.color.copy(alpha = 0.15f))
+                    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                        Text(item.category.displayName(), style = appText(16f, 24f, SemiBold), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(pluralStringResource(R.plurals.transactions_count, item.count, item.count), style = appText(13f, 19.5f, Regular, Ink.Gray))
+                        ComparisonText(item.total, previous, lastMonth, 12f, income, compact = true)
+                        if (limit != null) {
+                            Text(
+                                when (level) {
+                                    LimitLevel.OVER -> stringResource(R.string.limit_over_short, formatRupiah(limit))
+                                    else -> stringResource(R.string.limit_percent_of, (item.total * 100 / limit).toInt(), formatRupiah(limit))
+                                },
+                                style = appText(12f, 16f, SemiBold, if (level == LimitLevel.OK) Ink.Gray else limitColor),
+                            )
+                        }
+                        // Sempit: nominal di bawah nama kategori (dulu nama terpotong "Tran…" dan kata pecah "Septem ber").
+                        if (stacked) AmountText(item.total, if (income) AmountKind.INCOME else AmountKind.EXPENSE, appText(16f, 24f, Bold))
                     }
                 }
+                if (!stacked) {
+                    AmountText(
+                        item.total,
+                        if (income) AmountKind.INCOME else AmountKind.EXPENSE,
+                        appText(16f, 24f, Bold),
+                        Modifier.padding(start = 12.dp),
+                    )
+                }
             }
-            AmountText(
-                item.total,
-                if (income) AmountKind.INCOME else AmountKind.EXPENSE,
-                appText(16f, 24f, Bold),
-                Modifier.padding(start = 12.dp),
-            )
         }
         // Garis progres tipis di tepi bawah kartu: terhadap batas bila ada, selain itu porsi dari total bulan ini.
         val progress = if (limit != null) (item.total.toFloat() / limit).coerceIn(0f, 1f) else share

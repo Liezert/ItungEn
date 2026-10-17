@@ -24,6 +24,10 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.swipeDown
+import com.liezert.itungen.R
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
@@ -129,48 +133,116 @@ class AppScreenshots {
 
     private fun ThemeSpec.tag(dark: Boolean) = "${id}_${if (dark) "dark" else "light"}"
 
-    /** Font besar dan layar sempit, di Liquid Glass gelap: [name]_<skala>[_sempit]. */
-    private fun stress(name: String, open: () -> Unit) {
-        use(LiquidGlassTheme, true)
-        for ((scale, width) in listOf(1.3f to 0, 1.5f to 0, 1.3f to 320)) {
-            compose.runOnUiThread {
-                fontScale = scale
-                widthDp = width
-            }
-            compose.waitForIdle()
-            open()
-            shoot("${name}_${(scale * 100).toInt()}${if (width > 0) "_sempit" else ""}")
-        }
+    private fun text(id: Int) = app.getString(id)
+
+    /** Ketuk teks; digulir dulu bila ada di dalam daftar yang bisa digulir (navbar tidak). */
+    private fun tap(label: String) {
+        val node = compose.onNodeWithText(label)
+        runCatching { node.performScrollTo() }
+        node.performClick()
+        compose.waitForIdle()
+    }
+
+    private fun tap(id: Int) = tap(text(id))
+
+    /** Ikon di bilah atas/FAB: tidak digulir (performScrollTo bisa menaruhnya di bawah status bar). */
+    private fun tapIcon(id: Int) {
+        compose.onNodeWithContentDescription(text(id)).performClick()
+        compose.waitForIdle()
+    }
+
+    /** Keluar dari sub-layar lewat tombolnya sendiri: bila navigasi gagal, tes berhenti jelas (bukan menutup activity). */
+    private fun up(id: Int = R.string.action_back) {
+        scroll(down = false, times = 6)
+        tapIcon(id)
+    }
+
+    private fun scroll(down: Boolean, times: Int = 1) = repeat(times) {
+        compose.onRoot().performTouchInput { if (down) swipeUp() else swipeDown() }
+        compose.waitForIdle()
+    }
+
+    /**
+     * Audit visual: semua layar utama, sheet, dan dialog untuk tema/mode yang diminta. Argumen instrumentasi:
+     * themes=liquid_glass,receipt  modes=dark,light  scale=1.5  width=320  tag=a. Nama berkas: tag_layar_tema_mode.png.
+     */
+    /**
+     * Berkas cadangan uji (data contoh + target bergambar + riwayat uang masuk), dibuat oleh kode ekspor app sendiri,
+     * untuk menguji Pulihkan di APK rilis tanpa memilih foto dari galeri pengguna.
+     */
+    @Test
+    fun backupFixture() = runBlocking {
+        File(out, "itungen-uji.zip").outputStream().use { app.container.backup.export(it) }
+    }
+
+    @Test
+    fun audit() {
+        val args = InstrumentationRegistry.getArguments()
+        val themes = args.getString("themes")?.split(",")?.map { Themes.byId(it) } ?: Themes.all
+        val modes = args.getString("modes")?.split(",")?.map { it == "dark" } ?: listOf(true, false)
+        val tag = args.getString("tag") ?: "a"
         compose.runOnUiThread {
-            fontScale = 1f
-            widthDp = 0
+            fontScale = args.getString("scale")?.toFloat() ?: 1f
+            widthDp = args.getString("width")?.toInt() ?: 0
+        }
+        for (theme in themes) for (dark in modes) {
+            use(theme, dark)
+            walk { screen -> "${tag}_${screen}_${theme.tag(dark)}" }
         }
     }
 
-    @Test
-    fun home() {
-        for ((theme, dark) in variants) {
-            use(theme, dark)
-            shoot("home_${theme.tag(dark)}")
-        }
-        stress("home") {}
-    }
+    private fun walk(name: (String) -> String) {
+        tap(R.string.tab_home)
+        scroll(down = false, times = 3)
+        shoot(name("home"))
+        scroll(down = true, times = 3)
+        shoot(name("homebottom"))
+        scroll(down = false, times = 3)
+        tapIcon(R.string.all_transactions)
+        shoot(name("tx"))
+        up()
+        tapIcon(R.string.add_transaction)
+        shoot(name("add"))
+        tapIcon(R.string.action_close)
 
-    @Test
-    fun goals() {
-        for ((theme, dark) in variants) {
-            use(theme, dark)
-            compose.onNodeWithText("Goals").performClick()
-            shoot("goals_list_${theme.tag(dark)}")
-            compose.onNodeWithText("Helm baru").performClick()
-            shoot("goals_detail_${theme.tag(dark)}")
-            compose.onRoot().performTouchInput { swipeUp() }
-            shoot("goals_detail_bottom_${theme.tag(dark)}")
-            back()
-            compose.onNodeWithText("Sepatu lari").performClick()
-            shoot("goals_detail_partial_${theme.tag(dark)}")
-            back()
-            compose.onNodeWithText("Beranda").performClick()
-        }
+        tap(R.string.tab_insight)
+        scroll(down = false, times = 3)
+        shoot(name("insight"))
+        scroll(down = true, times = 3)
+        shoot(name("insightbottom"))
+
+        tap(R.string.tab_goals)
+        shoot(name("goals"))
+        tap("Helm baru")
+        shoot(name("detail"))
+        scroll(down = true, times = 2)
+        shoot(name("detailbottom"))
+        tap(R.string.delete_goal)
+        shoot(name("deletedialog"))
+        back() // dialog
+        tap(R.string.add_funds)
+        shoot(name("addfunds"))
+        back() // sheet
+        up()
+        tap(R.string.add_goal)
+        shoot(name("creategoal"))
+        back() // sheet
+
+        tap(R.string.tab_profile)
+        shoot(name("profile"))
+        tap(R.string.settings)
+        shoot(name("settings"))
+        scroll(down = true, times = 1)
+        shoot(name("settingsmid"))
+        scroll(down = true, times = 4)
+        shoot(name("settingsbottom"))
+        scroll(down = false, times = 6)
+        tap(R.string.budget_plan)
+        shoot(name("budget"))
+        scroll(down = true, times = 3)
+        shoot(name("budgetbottom"))
+        up()
+        up()
+        tap(R.string.tab_home)
     }
 }

@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.budget
 
+import com.liezert.itungen.ui.components.SegmentLabel
 import com.liezert.itungen.ui.components.formatIn
 import androidx.annotation.StringRes
 import androidx.compose.ui.res.stringResource
@@ -114,7 +115,8 @@ fun BudgetScreen(onBack: () -> Unit) {
     val expenseCategories by remember { container.transactionRepository.observeCategories(CategoryType.EXPENSE) }
         .collectAsStateWithLifecycle(emptyList())
     val limits by container.settings.categoryLimits.collectAsStateWithLifecycle()
-    var limitFor by remember { mutableStateOf<Category?>(null) }
+    // Uuid (bukan Category) agar sheet batas tetap terbuka setelah rotasi.
+    var limitForUuid by rememberSaveable { mutableStateOf<String?>(null) }
     val today = LocalDate.now(container.clock)
 
     val income = rememberTextFieldState(current?.income?.takeIf { it > 0 }?.toString().orEmpty())
@@ -199,7 +201,7 @@ fun BudgetScreen(onBack: () -> Unit) {
             ) {
                 Periods.forEach { (value, label) ->
                     ItungTab({ switchPeriod(value) }, selected = value == period) {
-                        Text(stringResource(label), style = appText(14f, 20f, SemiBold, if (value == period) Ink.White else Ink.Muted))
+                        SegmentLabel(stringResource(label), selected = value == period)
                     }
                 }
             }
@@ -278,7 +280,7 @@ fun BudgetScreen(onBack: () -> Unit) {
                 DateRow(
                     title = category.displayName(),
                     value = if (limit != null) stringResource(R.string.per_month, formatRupiah(limit)) else stringResource(R.string.no_limit),
-                    onClick = { limitFor = category },
+                    onClick = { limitForUuid = category.uuid },
                 )
             }
         }
@@ -303,10 +305,11 @@ fun BudgetScreen(onBack: () -> Unit) {
         confirmColor = Ink.Blue,
     )
 
+    val limitFor = limitForUuid?.let { uuid -> expenseCategories.firstOrNull { it.uuid == uuid } }
     CategoryLimitSheet(limitFor, limitFor?.let { limits[it.uuid] }, onSave = { limit ->
         limitFor?.let { container.settings.setCategoryLimit(it.uuid, limit) }
-        limitFor = null
-    }) { limitFor = null }
+        limitForUuid = null
+    }) { limitForUuid = null }
 
     when (period) {
         BudgetPeriod.MONTHLY -> ChoiceSheet(stringResource(R.string.payday_title), (1..28).map { it to it.toString() }, 7, monthDay, picking, {

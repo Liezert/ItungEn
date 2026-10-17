@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.design.themes.receipt
 
+import androidx.compose.foundation.layout.defaultMinSize
 import com.liezert.itungen.R
 import android.content.Context
 import androidx.compose.foundation.Canvas
@@ -174,8 +175,8 @@ object ReceiptTheme : ThemeSpec {
                 .background(if (tint.isSpecified) tint else fill(surfaceColor))
                 .then(if (tint.isSpecified) Modifier else Modifier.border(1.dp, Ink.Border, Corner))
                 .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-                .height(48.dp)
-                .padding(horizontal = contentPadding),
+                .defaultMinSize(minHeight = 48.dp)
+                .padding(horizontal = contentPadding, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
             content = content,

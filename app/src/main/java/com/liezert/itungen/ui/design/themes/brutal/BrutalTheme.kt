@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.design.themes.brutal
 
+import androidx.compose.foundation.layout.defaultMinSize
 import com.liezert.itungen.R
 import android.content.Context
 import androidx.compose.foundation.background
@@ -182,8 +183,8 @@ object BrutalTheme : ThemeSpec {
                     .background(if (tint.isSpecified) tint else fill(surfaceColor))
                     .border(Border, Ink.Border, Corner)
                     .clickable(interaction, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
-                    .height(48.dp)
-                    .padding(horizontal = contentPadding),
+                    .defaultMinSize(minHeight = 48.dp)
+                    .padding(horizontal = contentPadding, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
                 content = content,

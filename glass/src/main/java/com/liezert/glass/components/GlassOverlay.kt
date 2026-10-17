@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.currentCompositeKeyHashCode
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.rememberUpdatedState
@@ -50,11 +51,15 @@ import com.kyant.shapes.RoundedRectangle
  * karena tampil di window terpisah yang tidak bisa membaca backdrop.
  */
 class GlassOverlayHost {
-    internal val entries = mutableStateListOf<State<@Composable () -> Unit>>()
+    internal class Entry(val key: Long, val content: State<@Composable () -> Unit>)
+
+    internal val entries = mutableStateListOf<Entry>()
 
     @Composable
     fun Content() {
-        entries.forEach { key(it) { it.value() } }
+        // Kunci = posisi pemanggil di komposisi, yang sama setelah rotasi / proses dibuat ulang, sehingga
+        // rememberSaveable di dalam sheet dan dialog dipulihkan (dulu kuncinya objek State baru → isian hilang).
+        entries.forEach { key(it.key) { it.content.value() } }
     }
 }
 
@@ -65,9 +70,11 @@ val LocalGlassOverlayHost = staticCompositionLocalOf<GlassOverlayHost> { error("
 fun GlassOverlay(content: @Composable () -> Unit) {
     val host = LocalGlassOverlayHost.current
     val latest = rememberUpdatedState(content)
+    val position = currentCompositeKeyHashCode
     DisposableEffect(host, latest) {
-        host.entries += latest
-        onDispose { host.entries -= latest }
+        val entry = GlassOverlayHost.Entry(position, latest)
+        host.entries += entry
+        onDispose { host.entries -= entry }
     }
 }
 

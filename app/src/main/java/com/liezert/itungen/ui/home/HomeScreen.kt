@@ -1,5 +1,9 @@
 package com.liezert.itungen.ui.home
 
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.minimumInteractiveComponentSize
 import com.liezert.itungen.ui.components.displayNote
 import com.liezert.itungen.ui.design.itungImageFrame
 import com.liezert.itungen.ui.components.formatIn
@@ -208,12 +212,15 @@ private fun BudgetCard(budget: Budget, hidden: Boolean, onClick: () -> Unit, mod
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Text(stringResource(R.string.today_allowance), style = appText(16f, 24f, Regular, Ink.Muted))
+            Text(stringResource(R.string.today_allowance), Modifier.weight(1f).padding(end = 8.dp), style = appText(16f, 24f, Regular, Ink.Muted))
             if (!budget.unrealistic) {
                 Text(
                     budget.status.label(),
                     Modifier.clip(CircleShape).background(statusColor.copy(alpha = 0.18f)).padding(horizontal = 10.dp, vertical = 3.dp),
                     style = appText(12f, 16f, SemiBold, statusColor),
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -284,7 +291,16 @@ private fun BudgetStat(label: String, value: String, modifier: Modifier = Modifi
     // Dua baris: dua kolom sempit + huruf besar (130–150%) dulu memotong "25 Okt · 8 hari" menjadi "25 Okt · 8 …".
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(label, style = appText(12f, 16f, Medium, Ink.Gray), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Text(value, style = appText(15f, 20f, SemiBold, color), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        // Satu kata (nominal) tidak boleh pecah di tengah: satu baris yang mengecil; selain itu membungkus di spasi.
+        val oneWord = ' ' !in value
+        val style = appText(15f, 20f, SemiBold, color)
+        Text(
+            value,
+            style = style,
+            maxLines = if (oneWord) 1 else 2,
+            overflow = TextOverflow.Ellipsis,
+            autoSize = if (oneWord) TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = style.fontSize) else null,
+        )
     }
 }
 
@@ -351,7 +367,7 @@ private fun BalanceCard(state: HomeUiState, hidden: Boolean, onToggle: () -> Uni
             // Ikon mata: saldo disamarkan saat HP dilihat orang lain.
             Ico(
                 if (hidden) R.drawable.ic_eye_off else R.drawable.ic_eye,
-                Modifier.clip(CircleShape).clickable(role = Role.Button, onClick = onToggle).padding(4.dp),
+                Modifier.clip(CircleShape).clickable(role = Role.Button, onClick = onToggle).minimumInteractiveComponentSize().padding(4.dp),
                 stringResource(if (hidden) R.string.balance_show else R.string.balance_hide),
             )
         }
@@ -376,7 +392,7 @@ private fun QuickAddRow(templates: List<QuickTemplate>, hidden: Boolean, onQuick
         LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(templates) { template ->
                 val income = template.type == TransactionType.INCOME
-                ItungButton(onClick = { onQuickAdd(template) }, modifier = Modifier.height(44.dp)) {
+                ItungButton(onClick = { onQuickAdd(template) }, modifier = Modifier.heightIn(min = 44.dp)) {
                     Text(template.note ?: template.category.displayName(), style = appText(14f, 20f, Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     AmountText(
                         template.amount,
@@ -437,11 +453,14 @@ private fun RecentCard(
 ) {
     ItungCard(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Text(stringResource(R.string.recent_history), style = appText(16f, 24f))
+            Text(stringResource(R.string.recent_history), Modifier.weight(1f), style = appText(16f, 24f))
             Text(
                 stringResource(R.string.see_all),
-                Modifier.clickable(role = Role.Button, onClick = onSeeAll),
+                Modifier.clip(CircleShape).clickable(role = Role.Button, onClick = onSeeAll).minimumInteractiveComponentSize().padding(horizontal = 8.dp),
                 style = appText(16f, 24f, Regular, Ink.Blue),
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         if (items.isEmpty() && !state.loading) {
@@ -461,7 +480,7 @@ private fun RecentRow(item: Transaction, state: HomeUiState, hidden: Boolean, on
     val editable = item.type == TransactionType.INCOME || item.type == TransactionType.EXPENSE
     ItungTransactionRow(
         icon = { IconCircle(style.rowIcon, 40.dp, Ink.white(0.05f), border = Ink.white(0.14f)) },
-        title = { Text(item.displayNote() ?: item.categoryLabel(), style = appText(16f, 24f), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        title = { Text(item.displayNote() ?: item.categoryLabel(), style = appText(16f, 24f), maxLines = 2, overflow = TextOverflow.Ellipsis) },
         subtitle = {
             Text(
                 if (clock != null) stringResource(R.string.day_and_time, day, clock) else day,

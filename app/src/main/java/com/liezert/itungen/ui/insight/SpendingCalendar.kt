@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.insight
 
+import androidx.compose.foundation.layout.heightIn
 import com.liezert.itungen.R
 import com.liezert.itungen.ui.components.displayName
 import com.liezert.itungen.ui.components.dateLocale
@@ -82,12 +83,14 @@ fun SpendingCalendar(
     val noSpendThisMonth = state.noSpendDays.count { it.year == month.year && it.month == month.month && (state.daily[it] ?: 0) == 0L }
     ItungCard(modifier.fillMaxWidth(), padding = 17.dp, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Text(stringResource(R.string.calendar), style = appText(15f, 22.5f, SemiBold, Ink.white(0.9f)))
+            Text(stringResource(R.string.calendar), Modifier.weight(1f).padding(end = 8.dp), style = appText(15f, 22.5f, SemiBold, Ink.white(0.9f)))
             // Streak adalah keadaan sekarang: di bulan lalu terkesan milik bulan itu.
             if (month == YearMonth.from(state.today)) {
                 Text(
                     if (state.streak > 0) pluralStringResource(R.plurals.streak, state.streak, state.streak) else stringResource(R.string.streak_none),
+                    Modifier.weight(1f, fill = false),
                     style = appText(13f, 18f, SemiBold, if (state.streak > 0) Ink.Green else Ink.Gray),
+                    textAlign = TextAlign.End,
                 )
             }
         }
@@ -191,7 +194,7 @@ private fun DayDetail(day: LocalDate, state: InsightUiState, onToggleNoSpend: (L
         // Hanya hari tanpa pengeluaran yang bisa ditandai, dan hanya hari ini/kemarin (streak tidak bisa digelembungkan
         // dengan menandai hari lama). Tanda yang sudah ada tetap bisa dibatalkan.
         if (amount == 0L && (marked || canMarkNoSpend(day, state.today))) {
-            ItungButton(onClick = { onToggleNoSpend(day) }, modifier = Modifier.height(40.dp), contentPadding = 14.dp) {
+            ItungButton(onClick = { onToggleNoSpend(day) }, modifier = Modifier.heightIn(min = 40.dp), contentPadding = 14.dp) {
                 Text(stringResource(if (marked) R.string.unmark_no_spend else R.string.mark_no_spend), style = appText(13f, 18f, SemiBold, Ink.Green))
             }
         }

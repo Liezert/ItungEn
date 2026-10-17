@@ -1,5 +1,8 @@
 package com.liezert.itungen.ui.addtransaction
 
+import androidx.compose.foundation.layout.heightIn
+import com.liezert.itungen.ui.components.SegmentLabel
+import java.time.temporal.ChronoUnit
 import com.liezert.itungen.domain.model.RupiahPrefix
 import androidx.compose.ui.res.stringResource
 import com.liezert.itungen.ui.components.displayName
@@ -248,7 +251,7 @@ fun AddTransactionContent(
             ItungButton(
                 onClick = { onSave(result.toString(), note.text.toString()) },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                tint = tint.copy(alpha = if (enabled) 1f else 0.5f),
+                tint = if (enabled) tint else Color.Unspecified,
                 enabled = enabled,
             ) {
                 Text(
@@ -260,7 +263,7 @@ fun AddTransactionContent(
                             else -> R.string.save_transaction
                         }
                     ),
-                    style = appText(16f, 24f, Bold, Color.White),
+                    style = appText(16f, 24f, Bold, if (enabled) Color.White else Ink.Muted),
                 )
             }
         }
@@ -317,7 +320,7 @@ private fun TypeToggle(type: CategoryType, tint: Color, modifier: Modifier = Mod
     ) {
         Types.forEach { (t, label) ->
             ItungTab({ onChange(t) }, selected = t == type) {
-                Text(stringResource(label), style = appText(14f, 20f, SemiBold, if (t == type) Ink.White else Ink.Muted))
+                SegmentLabel(stringResource(label), selected = t == type)
             }
         }
     }
@@ -496,7 +499,7 @@ private fun CategoryRow(categories: List<Category>, selectedId: Long?, onSelect:
             val selected = category.id == selectedId
             ItungButton(
                 onClick = { onSelect(category.id) },
-                modifier = Modifier.height(40.dp).semantics { this.selected = selected },
+                modifier = Modifier.heightIn(min = 40.dp).semantics { this.selected = selected },
                 surfaceColor = if (selected) Ink.white(0.22f) else ItungDefaults.surface,
                 contentPadding = 12.dp,
             ) {
@@ -519,14 +522,19 @@ private fun DateSelector(date: LocalDate, today: LocalDate, modifier: Modifier =
     ItungSurface(modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp), onClick = onClick) {
         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(12.dp), Alignment.CenterVertically) {
             IconCircle(R.drawable.ic_add_calendar, 36.dp, Ink.white(0.1f))
+            // Label relatif ("Hari ini") + tanggal lengkap; lebih dari 6 hari label relatifnya sudah tanggal, jadi tidak
+            // diulang. Dua baris: huruf monospace (Struk) atau font besar dulu memotongnya menjadi "Sabtu, 17 Okt 2…".
+            val recent = ChronoUnit.DAYS.between(date, today) in 0..6
+            val relative = relativeDay(date, today)
+            val full = date.formatDay()
             Text(
                 buildAnnotatedString {
-                    withStyle(SpanStyle(fontWeight = SemiBold, color = Ink.White)) { append(relativeDay(date, today)) }
-                    withStyle(SpanStyle(fontWeight = Regular, color = Ink.Gray)) { append("  ·  " + date.formatDay()) }
+                    withStyle(SpanStyle(fontWeight = SemiBold, color = Ink.White)) { append(if (recent) relative else full) }
+                    if (recent) withStyle(SpanStyle(fontWeight = Regular, color = Ink.Gray)) { append("  ·  $full") }
                 },
                 Modifier.weight(1f),
                 style = appText(15f, 20f),
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             Ico(R.drawable.ic_add_chevron, Modifier.rotate(90f))

@@ -1,5 +1,11 @@
 package com.liezert.itungen.ui.goals
 
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.Image
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -64,11 +70,18 @@ fun GoalsScreen(
     viewModel: GoalsViewModel = viewModel(factory = GoalsViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var sheetOpen by remember { mutableStateOf(false) }
+    // Saveable: sheet (dan isiannya) tetap terbuka setelah rotasi atau proses dibuat ulang.
+    var sheetOpen by rememberSaveable { mutableStateOf(false) }
     // [opened] membuat form baru (kosong) tiap dibuka.
-    var opened by remember { mutableIntStateOf(0) }
+    var opened by rememberSaveable { mutableIntStateOf(0) }
     // Target berhasil dibuat → tutup sheet.
-    LaunchedEffect(state.form.doneCount) { sheetOpen = false }
+    // Hanya saat jumlahnya naik: efek ini juga berjalan ulang setelah rotasi / proses dibuat ulang, dan dulu ikut
+    // menutup sheet yang sedang diisi.
+    var seenDone by rememberSaveable { mutableIntStateOf(state.form.doneCount) }
+    LaunchedEffect(state.form.doneCount) {
+        if (state.form.doneCount > seenDone) sheetOpen = false
+        seenDone = state.form.doneCount
+    }
 
     GoalsContent(
         goals = state.goals,
@@ -112,16 +125,24 @@ fun GoalsContent(
             trailing = { Spacer(Modifier.size(48.dp)) },
         )
         Column(Modifier.screenPad(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Text(stringResource(R.string.savings_goals), style = appText(20f, 25f, Bold))
+            // Judul berbobot: FlowRow memutuskan pindah baris dari kata terpanjangnya, jadi biasanya judul dan tombol
+            // sebaris (judul membungkus di spasi); bila satu kata pun tidak muat (huruf besar), tombol turun ke baris
+            // berikutnya. Dulu judulnya yang dipecah di tengah kata ("Tabung / an").
+            FlowRow(
+                Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.savings_goals), Modifier.weight(1f).padding(end = 8.dp), style = appText(20f, 25f, Bold))
                 if (onAddGoal != null) {
                     ItungButton(
                         onClick = onAddGoal,
-                        modifier = Modifier.height(36.dp),
+                        modifier = Modifier.heightIn(min = 36.dp),
                         surfaceColor = Ink.Accent.copy(alpha = 0.2f),
                         contentPadding = 13.dp,
                     ) {
-                        Ico(R.drawable.ic_plus_small)
+                        Image(painterResource(R.drawable.ic_plus_small), null, Modifier.size(16.dp), colorFilter = ColorFilter.tint(Ink.AccentLight))
                         Text(stringResource(R.string.add_goal), style = appText(14f, 20f, SemiBold, Ink.AccentLight))
                     }
                 }
@@ -143,13 +164,13 @@ private fun GoalCard(goal: Goal, onClick: (() -> Unit)?) {
                 Ico(R.drawable.ic_goal_shoe)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(goal.name, style = appText(16f, 22f, Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(goal.name, style = appText(16f, 22f, Bold), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 GoalStatusChip(goal)
                 GoalProgressBar(goal, 8.dp)
                 Text(
                     stringResource(R.string.amount_of_amount, formatRupiah(goal.saved), formatRupiah(goal.target)),
                     style = appText(12f, 16f, Medium, Ink.Muted),
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }

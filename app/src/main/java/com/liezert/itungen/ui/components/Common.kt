@@ -1,5 +1,9 @@
 package com.liezert.itungen.ui.components
 
+import androidx.compose.foundation.layout.heightIn
+import com.liezert.itungen.ui.theme.SemiBold
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.ui.res.stringResource
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
@@ -238,11 +242,18 @@ fun PillChip(
 ) {
     ItungButton(
         onClick = onClick,
-        modifier = modifier.height(height).semantics { this.selected = selected },
+        modifier = modifier.heightIn(min = height).semantics { this.selected = selected },
         surfaceColor = if (selected) selectedFill else ItungDefaults.surface,
         contentPadding = horizontal,
     ) {
         if (icon != null) Ico(icon)
         Text(label, style = if (selected) selectedText else unselectedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
+}
+
+/** Label kontrol segmen (Pengeluaran/Pemasukan, Bulanan/Mingguan/…): satu baris, mengecil sendiri bila huruf besar. */
+@Composable
+fun SegmentLabel(text: String, selected: Boolean) {
+    val style = appText(14f, 20f, SemiBold, if (selected) Ink.White else Ink.Muted)
+    Text(text, style = style, maxLines = 1, autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = style.fontSize))
 }

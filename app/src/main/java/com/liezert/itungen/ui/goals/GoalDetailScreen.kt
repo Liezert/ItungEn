@@ -1,5 +1,8 @@
 package com.liezert.itungen.ui.goals
 
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.FlowRow
 import com.liezert.itungen.ui.components.formatIn
 import androidx.compose.ui.res.stringResource
 import android.net.Uri
@@ -84,10 +87,16 @@ fun GoalDetailScreen(
     }
     if (goal == null) return
 
-    var fundsOpen by remember { mutableStateOf(false) }
-    var opened by remember { mutableIntStateOf(0) }
+    var fundsOpen by rememberSaveable { mutableStateOf(false) }
+    var opened by rememberSaveable { mutableIntStateOf(0) }
     // Aksi berhasil (Tambah Dana) → tutup sheet.
-    LaunchedEffect(state.form.doneCount) { fundsOpen = false }
+    // Hanya saat jumlahnya naik: efek ini juga berjalan ulang setelah rotasi / proses dibuat ulang, dan dulu ikut
+    // menutup sheet yang sedang diisi.
+    var seenDone by rememberSaveable { mutableIntStateOf(state.form.doneCount) }
+    LaunchedEffect(state.form.doneCount) {
+        if (state.form.doneCount > seenDone) fundsOpen = false
+        seenDone = state.form.doneCount
+    }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
 
     GoalDetailContent(
@@ -150,12 +159,22 @@ fun GoalDetailContent(
                 ) {
                     GoalStatusChip(goal)
                     GoalProgressBar(goal, 10.dp)
-                    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(12.dp)) {
-                        Stat(stringResource(R.string.goal_saved), goal.saved, Modifier.weight(1f))
-                        Stat(stringResource(R.string.goal_target), goal.target, Modifier.weight(1f))
+                    // Dua kolom; di layar kecil / huruf besar ditumpuk agar nominal tidak terpotong.
+                    BoxWithConstraints(Modifier.fillMaxWidth()) {
+                        if (maxWidth < 260.dp * LocalDensity.current.fontScale.coerceAtLeast(1f)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Stat(stringResource(R.string.goal_saved), goal.saved)
+                                Stat(stringResource(R.string.goal_target), goal.target)
+                            }
+                        } else {
+                            Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(12.dp)) {
+                                Stat(stringResource(R.string.goal_saved), goal.saved, Modifier.weight(1f))
+                                Stat(stringResource(R.string.goal_target), goal.target, Modifier.weight(1f))
+                            }
+                        }
                     }
                     detailLine(goal)?.let { Text(it, style = appText(13f, 18f, Regular, Ink.Muted)) }
-                    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
+                    FlowRow(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp), Arrangement.spacedBy(8.dp)) {
                         SmallButton(stringResource(if (goal.imagePath == null) R.string.add_image else R.string.change_image), Ink.AccentLight, pick)
                         if (goal.imagePath != null) SmallButton(stringResource(R.string.remove_image), Ink.Red, onRemoveImage)
                     }
@@ -196,7 +215,7 @@ private fun Stat(label: String, amount: Long, modifier: Modifier = Modifier) {
 
 @Composable
 private fun SmallButton(label: String, color: Color, onClick: () -> Unit) {
-    ItungButton(onClick = onClick, modifier = Modifier.height(40.dp), contentPadding = 14.dp) {
+    ItungButton(onClick = onClick, modifier = Modifier.heightIn(min = 40.dp), contentPadding = 14.dp) {
         Text(label, style = appText(13f, 18f, SemiBold, color), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
@@ -222,7 +241,7 @@ private fun DepositHistory(deposits: List<GoalDeposit>) {
                     deposit.date.formatDay(),
                     Modifier.weight(1f),
                     style = appText(14f, 20f, Regular, Ink.Muted),
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 AmountText(deposit.amount, AmountKind.NEUTRAL, appText(15f, 20f, SemiBold))

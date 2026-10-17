@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.design.themes.material
 
+import androidx.compose.foundation.layout.defaultMinSize
 import com.liezert.itungen.R
 import android.content.Context
 import androidx.compose.foundation.BorderStroke
@@ -139,7 +140,7 @@ object MaterialYouTheme : ThemeSpec {
             content: @Composable RowScope.() -> Unit,
         ) = M3Surface(onClick = onClick, modifier = modifier, enabled = enabled, shape = Pill, color = container(tint, surfaceColor)) {
             Row(
-                Modifier.height(48.dp).padding(horizontal = contentPadding),
+                Modifier.defaultMinSize(minHeight = 48.dp).padding(horizontal = contentPadding, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
                 content = content,

@@ -1,5 +1,7 @@
 package com.liezert.itungen.ui.design
 
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -136,6 +138,10 @@ fun ItungDialog(
 @Composable
 fun ItungDivider(modifier: Modifier = Modifier, color: Color = Ink.white(0.05f)) = theme.Divider(modifier, color)
 
+/**
+ * Baris transaksi. Bila ruangnya sempit untuk tiga kolom (HP kecil atau huruf sistem besar), nominal pindah ke bawah
+ * judul agar judul dan nominal sama-sama terbaca utuh; berlaku untuk semua tema tanpa tema perlu tahu.
+ */
 @Composable
 fun ItungTransactionRow(
     icon: @Composable () -> Unit,
@@ -145,7 +151,17 @@ fun ItungTransactionRow(
     modifier: Modifier = Modifier,
     /** Baris rapat (Semua Transaksi) vs longgar (Beranda). */
     dense: Boolean = false,
-) = theme.TransactionRow(icon, title, subtitle, amount, dense, modifier)
+) = BoxWithConstraints(modifier) {
+    val stacked = maxWidth < NarrowRowWidth * LocalDensity.current.fontScale.coerceAtLeast(1f)
+    if (stacked) {
+        theme.TransactionRow(icon, title, { Column { subtitle(); amount() } }, {}, dense, Modifier)
+    } else {
+        theme.TransactionRow(icon, title, subtitle, amount, dense, Modifier)
+    }
+}
+
+/** Lebar baris (pada huruf 100%) di bawahnya nominal ditumpuk di bawah judul. */
+private val NarrowRowWidth = 240.dp
 
 /** Kartu goal bergambar: gambar setinggi [imageHeight] di atas, isi di bawah. */
 @Composable
