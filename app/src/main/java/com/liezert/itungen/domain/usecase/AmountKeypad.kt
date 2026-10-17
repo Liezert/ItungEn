@@ -12,10 +12,14 @@ const val OPERATORS = "+-×÷"
 
 private val MaxDigits = MAX_AMOUNT.toString().length
 
-/** Tambah "0".."9" atau "000". Tanpa nol di depan angka dan maksimal 12 digit per angka (§7.1). */
+/**
+ * Tambah "0".."9" atau "000". Tanpa nol di depan angka dan maksimal 12 digit per angka (§7.1). Setelah operator,
+ * nol tunggal boleh: "5 ÷ 0" harus terlihat (lalu ditolak), bukan diam-diam menjadi 5.
+ */
 fun keypadDigit(expr: String, digits: String): String {
     val current = expr.takeLastWhile(Char::isDigit)
-    if (current.isEmpty() && digits.startsWith('0')) return expr
+    if (current.isEmpty() && digits.startsWith('0')) return if (expr.isEmpty()) expr else expr + "0"
+    if (current == "0") return if (digits.startsWith('0')) expr else expr.dropLast(1) + digits
     if (current.length + digits.length > MaxDigits) return expr
     return expr + digits
 }
@@ -33,7 +37,16 @@ fun hasOperator(expr: String) = expr.any { it in OPERATORS }
  * Hasil ekspresi dibulatkan ke rupiah (× ÷ sebelum + −). Operator di akhir diabaikan.
  * null bila kosong atau dibagi nol; hasil di luar rentang Long dijepit (validasi menolak sebagai terlalu besar / ≤ 0).
  */
-fun evaluateKeypad(expr: String): Long? {
+fun evaluateKeypad(expr: String): Long? = exactKeypad(expr)
+    ?.setScale(0, RoundingMode.HALF_UP)
+    ?.max(BigDecimal.valueOf(Long.MIN_VALUE))
+    ?.min(BigDecimal.valueOf(Long.MAX_VALUE))
+    ?.toLong()
+
+/** Hasil [expr] punya pecahan rupiah, jadi [evaluateKeypad] membulatkannya (mis. 7 ÷ 2). */
+fun keypadRounds(expr: String): Boolean = exactKeypad(expr)?.stripTrailingZeros()?.let { it.scale() > 0 } == true
+
+private fun exactKeypad(expr: String): BigDecimal? {
     val body = expr.trimEnd { it in OPERATORS }
     if (body.isEmpty()) return null
     val numbers = body.split(*OPERATORS.toCharArray()).map(::BigDecimal)
@@ -59,10 +72,7 @@ fun evaluateKeypad(expr: String): Long? {
     // Lintasan 2: + dan −.
     var result = terms[0]
     addOps.forEachIndexed { i, op -> result = if (op == '+') result + terms[i + 1] else result - terms[i + 1] }
-    return result.setScale(0, RoundingMode.HALF_UP)
-        .max(BigDecimal.valueOf(Long.MIN_VALUE))
-        .min(BigDecimal.valueOf(Long.MAX_VALUE))
-        .toLong()
+    return result
 }
 
 /** "15000+2000" → "15.000 + 2.000". */

@@ -4,14 +4,15 @@ import com.liezert.itungen.domain.model.MAX_AMOUNT
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
-enum class GoalError { TITLE_REQUIRED, TARGET_REQUIRED, TARGET_TOO_LARGE, DATE_IN_PAST }
+enum class GoalError { TITLE_REQUIRED, TARGET_REQUIRED, TARGET_TOO_LARGE, DATE_IN_PAST, PLAN_ABOVE_TARGET }
 
-/** Buat Target (§7.1): nama wajib, target > 0, tanggal target (opsional) tidak di masa lalu. */
-fun validateGoal(title: String, target: Long?, targetDate: LocalDate?, today: LocalDate): GoalError? = when {
+/** Buat Target (§7.1): nama wajib, target > 0, tanggal target (opsional) tidak di masa lalu, setoran ≤ target. */
+fun validateGoal(title: String, target: Long?, targetDate: LocalDate?, today: LocalDate, plannedMonthly: Long? = null): GoalError? = when {
     title.isBlank() -> GoalError.TITLE_REQUIRED
     target == null || target <= 0 -> GoalError.TARGET_REQUIRED
     target > MAX_AMOUNT -> GoalError.TARGET_TOO_LARGE
     targetDate != null && targetDate.isBefore(today) -> GoalError.DATE_IN_PAST
+    plannedMonthly != null && plannedMonthly > target -> GoalError.PLAN_ABOVE_TARGET
     else -> null
 }
 

@@ -23,14 +23,14 @@ class SummariesTest {
 
     @Test
     fun formatters() {
-        assertEquals("Rp 1.25M", formatRupiahShort(1_250_000))
-        assertEquals("Rp 3M", formatRupiahShort(3_000_000))
-        assertEquals("Rp 12.5M", formatRupiahShort(12_500_000))
-        assertEquals("Rp 2.1B", formatRupiahShort(2_100_000_000))
-        assertEquals("Rp 250.000", formatRupiahShort(250_000))
-        assertEquals("-Rp 1.5M", formatRupiahShort(-1_500_000))
-        assertEquals("+Rp 500.000", formatSigned(500_000, incoming = true))
-        assertEquals("-Rp 18.000", formatSigned(18_000, incoming = false))
+        assertEquals("Rp\u00A01.25M", formatRupiahShort(1_250_000))
+        assertEquals("Rp\u00A03M", formatRupiahShort(3_000_000))
+        assertEquals("Rp\u00A012.5M", formatRupiahShort(12_500_000))
+        assertEquals("Rp\u00A02.1B", formatRupiahShort(2_100_000_000))
+        assertEquals("Rp\u00A0250.000", formatRupiahShort(250_000))
+        assertEquals("-Rp\u00A01.5M", formatRupiahShort(-1_500_000))
+        assertEquals("+Rp\u00A0500.000", formatSigned(500_000, incoming = true))
+        assertEquals("-Rp\u00A018.000", formatSigned(18_000, incoming = false))
     }
 
     @Test

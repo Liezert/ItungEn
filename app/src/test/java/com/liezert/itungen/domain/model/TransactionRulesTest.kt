@@ -9,12 +9,13 @@ class TransactionRulesTest {
     private val today = LocalDate.of(2026, 9, 24)
 
     @Test
+    /** Bug C3: spasi biasa membuat baris patah jadi "Rp⏎30.000"; pemisahnya spasi tak-putus. */
     fun formatRupiah_usesDotThousandsSeparator() {
-        assertEquals("Rp 0", formatRupiah(0))
-        assertEquals("Rp 500", formatRupiah(500))
-        assertEquals("Rp 1.500.000", formatRupiah(1_500_000))
-        assertEquals("Rp 999.999.999.999", formatRupiah(MAX_AMOUNT))
-        assertEquals("-Rp 50.000", formatRupiah(-50_000))
+        assertEquals("Rp\u00A00", formatRupiah(0))
+        assertEquals("Rp\u00A0500", formatRupiah(500))
+        assertEquals("Rp\u00A01.500.000", formatRupiah(1_500_000))
+        assertEquals("Rp\u00A0999.999.999.999", formatRupiah(MAX_AMOUNT))
+        assertEquals("-Rp\u00A050.000", formatRupiah(-50_000))
     }
 
     @Test

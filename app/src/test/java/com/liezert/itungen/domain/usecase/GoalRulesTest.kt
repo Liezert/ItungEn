@@ -19,6 +19,13 @@ class GoalRulesTest {
         assertEquals(GoalError.DATE_IN_PAST, validateGoal("Sepatu", 800_000, today.minusDays(1), today))
     }
 
+    /** Bug B4: setoran Rp 2.500.000/bulan untuk target Rp 2.000.000 dulu diterima tanpa peringatan. */
+    @Test
+    fun validateGoal_planAboveTarget() {
+        assertNull(validateGoal("Laptop", 2_000_000, null, today, plannedMonthly = 2_000_000))
+        assertEquals(GoalError.PLAN_ABOVE_TARGET, validateGoal("Laptop", 2_000_000, null, today, plannedMonthly = 2_500_000))
+    }
+
     @Test
     fun validateTransfer_blocksMoreThanMainBalance() {
         assertNull(validateTransfer(50_000, 50_000))

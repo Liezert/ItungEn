@@ -55,7 +55,36 @@ data class Budget(
     /** UNTIL_DATE: tanggal kiriman sudah lewat, pengguna perlu mengisi tanggal berikutnya. */
     val overdue: Boolean = false,
     val period: BudgetPeriod = BudgetPeriod.MONTHLY,
+    /** Setoran target yang dicadangkan siklus ini (sudah disesuaikan panjang siklus). */
+    val goals: Long = 0,
+    /** [unrealistic]: bagian rencana yang membuat pool minus. */
+    val shortfall: Shortfall = Shortfall.SAVINGS,
 )
+
+/** Penyebab anggaran tidak realistis, agar pesannya menunjuk ke tempat yang benar. */
+enum class Shortfall { BILLS, SAVINGS, GOALS }
+
+/** Nominal per periode [fromDays] hari → per [toDays] hari, dibulatkan ke Rp 1.000 (mis. 3.000.000/bulan → 700.000/minggu). */
+fun convertPerPeriod(amount: Long, fromDays: Long, toDays: Long): Long = (amount * toDays / fromDays + 500) / 1_000 * 1_000
+
+/** Panjang satu periode dalam hari, untuk konversi nominal saat periode diganti. */
+fun periodDays(period: BudgetPeriod, today: LocalDate, nextIncomeOn: LocalDate?): Long = when (period) {
+    BudgetPeriod.MONTHLY -> 30
+    BudgetPeriod.WEEKLY -> 7
+    BudgetPeriod.UNTIL_DATE -> ChronoUnit.DAYS.between(today, nextIncomeOn ?: today.plusDays(1)).coerceAtLeast(1)
+}
+
+/** Jatah harian rata-rata satu siklus penuh yang memuat [day], dari rencana saja; null = rencana tidak menyisakan uang. */
+fun BudgetPlan.averageDailyAllowance(goalsMonthly: Long, day: LocalDate): Long? {
+    val cycle = cycleOf(day)
+    val days = ChronoUnit.DAYS.between(cycle.start, cycle.endInclusive) + 1
+    val pool = income - fixedBills - savingsTarget - cycleGoals(goalsMonthly, days)
+    return (pool / days).takeIf { pool > 0 }
+}
+
+/** Setoran target untuk satu siklus [days] hari; [goalsMonthly] per bulan. */
+private fun BudgetPlan.cycleGoals(goalsMonthly: Long, days: Long) =
+    if (period == BudgetPeriod.MONTHLY) goalsMonthly else goalsMonthly * days / 30
 
 /** Kategori yang dianggap tagihan tetap: pengeluarannya mengurangi cadangan tagihan, bukan jatah harian. */
 const val BILL_ICON = "bill"
@@ -91,15 +120,21 @@ fun BudgetPlan.cycleOf(today: LocalDate): ClosedRange<LocalDate> = when (period)
  */
 fun computeBudget(plan: BudgetPlan, transactions: List<Transaction>, goalsMonthly: Long, today: LocalDate): Budget {
     val cycle = plan.cycleOf(today)
-    val start = cycle.start
+    val cycleDays = ChronoUnit.DAYS.between(cycle.start, cycle.endInclusive) + 1
+    // Rencana yang dibuat di tengah siklus: siklus pertama mulai dari hari itu dengan uang prorata. Tanpa ini seluruh
+    // uang sebulan dibagi ke hari yang tersisa, dan hari sebelum ItungEn dipakai terhitung "hemat".
+    // Tak tentu tidak perlu: siklusnya memang mulai dari [BudgetPlan.startedOn] dan nominalnya uang yang ada sekarang.
+    val start = plan.startedOn?.takeIf { plan.period != BudgetPeriod.UNTIL_DATE && it > cycle.start && it <= today }
+        ?: cycle.start
     val end = cycle.endInclusive
     val inCycle = transactions.filter { it.date in start..today }
     val totalDays = (ChronoUnit.DAYS.between(start, end) + 1).toInt()
-    val goals = if (plan.period == BudgetPeriod.MONTHLY) goalsMonthly else goalsMonthly * totalDays / 30
+    val goals = plan.cycleGoals(goalsMonthly, cycleDays)
 
     val recordedIncome = inCycle.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
     val income = maxOf(recordedIncome, plan.income)
-    val pool = income - plan.fixedBills - plan.savingsTarget - goals
+    val cyclePool = income - plan.fixedBills - plan.savingsTarget - goals
+    val pool = if (cyclePool > 0) cyclePool * totalDays / cycleDays else cyclePool
     val overdue = plan.period == BudgetPeriod.UNTIL_DATE && (plan.nextIncomeOn == null || plan.nextIncomeOn <= today)
 
     // Pengeluaran fleksibel s.d. [day] (inklusif): bukan tagihan, ditambah tagihan yang melebihi cadangannya.
@@ -119,6 +154,12 @@ fun computeBudget(plan: BudgetPlan, transactions: List<Transaction>, goalsMonthl
         return Budget(
             start, end, pool, 0, -spentToday, 0, 0, pool - spentTotal, daysLeft, BudgetStatus.MELEBIHI, null,
             unrealistic = true, maxSavings = maxOf(0, income - plan.fixedBills - goals), overdue = overdue, period = plan.period,
+            goals = goals,
+            shortfall = when {
+                plan.fixedBills >= income -> Shortfall.BILLS
+                goals > plan.savingsTarget -> Shortfall.GOALS
+                else -> Shortfall.SAVINGS
+            },
         )
     }
 
@@ -162,6 +203,7 @@ fun computeBudget(plan: BudgetPlan, transactions: List<Transaction>, goalsMonthl
         maxSavings = 0,
         overdue = overdue,
         period = plan.period,
+        goals = goals,
     )
 }
 

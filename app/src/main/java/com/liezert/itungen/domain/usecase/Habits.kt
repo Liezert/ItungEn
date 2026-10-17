@@ -47,3 +47,24 @@ fun heatLevel(amount: Long, max: Long): Int = when {
     amount <= 0 || max <= 0 -> 0
     else -> ((amount * 4 + max - 1) / max).toInt().coerceIn(1, 4)
 }
+
+/** Warna sel kalender. */
+enum class DayTone { NONE, LOW, NEAR, OVER, NEUTRAL }
+
+/**
+ * Warna sel kalender dibanding jatah harian [allowance]: ≤ separuh = rendah, ≤ jatah = mendekati, lebih = boros.
+ * Tanpa anggaran tidak ada ukuran "boros", jadi warnanya netral (pekatnya relatif, lihat [heatLevel]).
+ */
+fun dayTone(amount: Long, allowance: Long?): DayTone = when {
+    amount <= 0 -> DayTone.NONE
+    allowance == null || allowance <= 0 -> DayTone.NEUTRAL
+    amount <= allowance / 2 -> DayTone.LOW
+    amount <= allowance -> DayTone.NEAR
+    else -> DayTone.OVER
+}
+
+/**
+ * "Tidak jajan" hanya untuk hari ini dan kemarin: hari yang lebih lama tidak bisa diingat dengan jujur, dan streak
+ * tidak boleh bisa digelembungkan dengan menandai hari-hari lama sekaligus.
+ */
+fun canMarkNoSpend(day: LocalDate, today: LocalDate): Boolean = day == today || day == today.minusDays(1)

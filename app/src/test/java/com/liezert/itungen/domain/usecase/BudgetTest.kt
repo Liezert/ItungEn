@@ -118,4 +118,54 @@ class BudgetTest {
         assertEquals(LocalDate.of(2026, 9, 25), cycle.start)
         assertEquals(LocalDate.of(2026, 10, 24), cycle.endInclusive)
     }
+
+    /**
+     * Bug A3: rencana dibuat tanggal 17 di siklus 25–24. Dulu seluruh uang sebulan dibagi ke 8 hari tersisa
+     * (Rp 275.000/hari), "Sisa minggu ini" lebih besar dari 2 hari jatah, dan status langsung "Hemat".
+     */
+    @Test
+    fun planStartedMidCycle_isProrated() {
+        val oct = { day: Int -> LocalDate.of(2026, 10, day) }
+        val mid = BudgetPlan(income = 3_000_000, cycleStartDay = 25, fixedBills = 500_000, savingsTarget = 300_000, startedOn = oct(17))
+        val budget = computeBudget(mid, emptyList(), 0, oct(17)) // Sabtu
+        assertEquals(oct(17), budget.cycleStart)
+        assertEquals(8, budget.daysLeft)
+        assertEquals(73_000L, budget.todayAllowance) // 2.200.000 × 8/30 hari ÷ 8 hari
+        assertTrue(budget.weekAllowance <= budget.todayAllowance * 2) // minggu ini tinggal Sabtu–Minggu
+        assertTrue(budget.status != BudgetStatus.HEMAT)
+
+        // Siklus berikutnya penuh lagi seperti biasa.
+        assertEquals(70_000L, computeBudget(mid, emptyList(), 0, oct(25)).todayAllowance) // 2.200.000 ÷ 31 hari (25 Okt–24 Nov)
+        assertEquals(oct(25), computeBudget(mid, emptyList(), 0, oct(25)).cycleStart)
+    }
+
+    /** Bug B3: setoran target yang membuat anggaran minus, bukan tabungan; pesannya harus menunjuk ke sana. */
+    @Test
+    fun unrealisticPlan_namesTheCause() {
+        val goalHeavy = computeBudget(plan.copy(savingsTarget = 300_000), emptyList(), 2_500_000, sep(10))
+        assertTrue(goalHeavy.unrealistic)
+        assertEquals(Shortfall.GOALS, goalHeavy.shortfall)
+        assertEquals(2_500_000L, goalHeavy.goals)
+        assertEquals(Shortfall.SAVINGS, computeBudget(plan.copy(savingsTarget = 2_500_000), emptyList(), 300_000, sep(10)).shortfall)
+        assertEquals(Shortfall.BILLS, computeBudget(plan.copy(fixedBills = 3_000_000), emptyList(), 0, sep(10)).shortfall)
+    }
+
+    /** Bug A4: ganti Bulanan ↔ Mingguan dulu membawa angka apa adanya (3 juta/bulan jadi 3 juta/minggu). */
+    @Test
+    fun periodSwitch_convertsAmounts() {
+        assertEquals(700_000L, convertPerPeriod(3_000_000, fromDays = 30, toDays = 7))
+        assertEquals(117_000L, convertPerPeriod(500_000, fromDays = 30, toDays = 7)) // dibulatkan ke ribuan
+        assertEquals(3_000_000L, convertPerPeriod(700_000, fromDays = 7, toDays = 30))
+        assertEquals(0L, convertPerPeriod(0, fromDays = 30, toDays = 7))
+        assertEquals(30L, periodDays(BudgetPeriod.MONTHLY, sep(1), null))
+        assertEquals(7L, periodDays(BudgetPeriod.WEEKLY, sep(1), null))
+        assertEquals(10L, periodDays(BudgetPeriod.UNTIL_DATE, sep(1), sep(11)))
+    }
+
+    /** Untuk warna kalender (B8): jatah harian rata-rata satu siklus penuh dari rencana. */
+    @Test
+    fun averageDailyAllowance_fromPlan() {
+        assertEquals(56_666L, plan.averageDailyAllowance(goalsMonthly = 300_000, day = sep(5))) // 1.700.000 ÷ 30
+        assertEquals(null, plan.copy(savingsTarget = 2_500_000).averageDailyAllowance(300_000, sep(5)))
+    }
 }

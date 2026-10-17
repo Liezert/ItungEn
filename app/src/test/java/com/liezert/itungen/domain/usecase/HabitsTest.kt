@@ -43,4 +43,24 @@ class HabitsTest {
         assertEquals(2, heatLevel(50_000, 100_000))
         assertEquals(4, heatLevel(100_000, 100_000))
     }
+
+    /** Bug B8: satu pengeluaran kecil di bawah jatah dulu merah penuh karena dibanding hari terbesar bulan itu. */
+    @Test
+    fun dayTone_comparesToAllowance() {
+        assertEquals(DayTone.NONE, dayTone(0, 50_000))
+        assertEquals(DayTone.LOW, dayTone(25_000, 50_000))
+        assertEquals(DayTone.NEAR, dayTone(50_000, 50_000))
+        assertEquals(DayTone.OVER, dayTone(50_001, 50_000))
+        assertEquals(DayTone.NEUTRAL, dayTone(25_000, null)) // tanpa anggaran: tidak ada "boros", warnanya netral
+    }
+
+    /** Bug B9: hari tidak jajan dulu bisa ditandai mundur sebulan penuh untuk menggelembungkan streak. */
+    @Test
+    fun noSpend_canOnlyBeMarkedTodayOrYesterday() {
+        val today = LocalDate.of(2026, 10, 17)
+        assertEquals(true, canMarkNoSpend(today, today))
+        assertEquals(true, canMarkNoSpend(today.minusDays(1), today))
+        assertEquals(false, canMarkNoSpend(today.minusDays(2), today))
+        assertEquals(false, canMarkNoSpend(today.plusDays(1), today))
+    }
 }

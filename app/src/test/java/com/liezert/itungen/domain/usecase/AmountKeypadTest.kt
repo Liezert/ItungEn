@@ -20,7 +20,9 @@ class AmountKeypadTest {
         assertEquals("15000", type("15", "000"))
         assertEquals("", type("+"))                        // operator di awal diabaikan
         assertEquals("5×", type("5", "+", "×"))             // operator menggantikan operator
-        assertEquals("5+", type("5", "+", "0"))             // angka baru tidak boleh mulai dari nol
+        assertEquals("5+0", type("5", "+", "0"))            // nol tunggal boleh (C1: "5 ÷ 0" harus terlihat)
+        assertEquals("5+0", type("5", "+", "0", "000"))     // tanpa nol di depan
+        assertEquals("5+3", type("5", "+", "0", "3"))       // nol tunggal diganti angka berikutnya
         assertEquals("1", type("12", "<"))
         assertEquals("999999999999", type("999999999999", "9")) // maks 12 digit
         assertEquals(21_000L, evaluateKeypad(type("1", "5", "000", "+", "2", "000", "×", "3")))
@@ -44,5 +46,14 @@ class AmountKeypadTest {
         assertEquals("15.000 + 2.000", formatKeypad("15000+2000"))
         assertEquals("1.000.000 ÷ ", formatKeypad("1000000÷"))
         assertEquals("", formatKeypad(""))
+    }
+
+    /** Bug C1/C2: "5 ÷ 0" dulu diam-diam jadi 5; "7 ÷ 2" dibulatkan tanpa tanda. */
+    @Test
+    fun divideByZero_andRounding_areVisible() {
+        assertNull(evaluateKeypad(type("5", "÷", "0")))
+        assertEquals(true, keypadRounds("7÷2"))
+        assertEquals(false, keypadRounds("8÷2"))
+        assertEquals(false, keypadRounds("15000+2000"))
     }
 }
