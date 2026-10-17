@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -8,6 +10,13 @@ plugins {
 // Konfigurasi Firebase dari Firebase Console. Tanpa file ini app tetap ter-build dan berjalan sebagai tamu
 // (tombol "Masuk dengan Google" menampilkan pesan belum dikonfigurasi).
 if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
+
+// Kunci rilis: dari keystore.properties di akar proyek (tidak di-commit) atau variabel lingkungan ITUNGEN_*.
+// Tanpa keduanya assembleRelease tetap jalan, tetapi APK-nya tidak ditandatangani.
+val keystore = Properties().apply {
+    rootProject.file("keystore.properties").takeIf { it.exists() }?.inputStream()?.use(::load)
+}
+fun signingValue(key: String, env: String): String? = keystore.getProperty(key) ?: System.getenv(env)
 
 android {
     namespace = "com.liezert.itungen"
@@ -22,12 +31,21 @@ android {
         minSdk = 33
         targetSdk = 36
         versionCode = 1
-        versionName = "0.1"
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+    signingConfigs {
+        create("release") {
+            signingValue("storeFile", "ITUNGEN_KEYSTORE")?.let { storeFile = file(it) }
+            storePassword = signingValue("storePassword", "ITUNGEN_KEYSTORE_PASSWORD")
+            keyAlias = signingValue("keyAlias", "ITUNGEN_KEY_ALIAS")
+            keyPassword = signingValue("keyPassword", "ITUNGEN_KEY_PASSWORD")
+        }
+    }
     buildTypes {
         release {
+            signingConfigs.getByName("release").takeIf { it.storeFile != null }?.let { signingConfig = it }
             // R8: buang kode/resource yang tidak dipakai dan optimalkan. Room, Firebase, Credential Manager, dan
             // coroutines membawa aturan keep sendiri; kode ItungEn tidak memakai refleksi (lihat proguard-rules.pro).
             isMinifyEnabled = true
