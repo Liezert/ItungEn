@@ -43,14 +43,15 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.liezert.glass.components.GlassDefaults
-import com.liezert.glass.components.LiquidButton
 import com.liezert.glass.components.PlainBackdrop
 import com.liezert.itungen.R
 import com.liezert.itungen.ui.theme.Bold
 import com.liezert.itungen.ui.theme.Ink
 import com.liezert.itungen.ui.theme.appText
 import androidx.compose.ui.text.style.TextOverflow
+import com.liezert.itungen.ui.design.ItungDefaults
+import com.liezert.itungen.ui.design.ItungButton
+import com.liezert.itungen.ui.design.ItungTopBarTitle
 
 /** Gutter horizontal yang dipakai semua frame desain. */
 fun Modifier.screenPad(): Modifier = padding(horizontal = 20.dp)
@@ -142,7 +143,7 @@ private fun DrawScope.drawVignette(width: Float) {
 
 /** Tombol bulat Liquid Glass 44 dp (ukuran iOS); area sentuhnya 48 dp (PRD §6). */
 @Composable
-fun GlassIconButton(
+fun ItungIconButton(
     @DrawableRes icon: Int,
     onClick: () -> Unit,
     contentDescription: String,
@@ -150,7 +151,7 @@ fun GlassIconButton(
     size: Dp = 44.dp,
 ) {
     Box(modifier.minimumInteractiveComponentSize(), contentAlignment = Alignment.Center) {
-        LiquidButton(
+        ItungButton(
             onClick = onClick,
             modifier = Modifier.size(size).semantics { this.contentDescription = contentDescription },
             contentPadding = 0.dp,
@@ -178,7 +179,7 @@ fun TopBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         leading()
-        Text("ItungEn", style = appText(20f, 28f, Bold, Ink.Title))
+        ItungTopBarTitle("ItungEn")
         trailing()
     }
 }
@@ -234,10 +235,10 @@ fun PillChip(
     selectedFill: Color = Ink.White,
     @DrawableRes icon: Int? = null,
 ) {
-    LiquidButton(
+    ItungButton(
         onClick = onClick,
         modifier = modifier.height(height).semantics { this.selected = selected },
-        surfaceColor = if (selected) selectedFill else GlassDefaults.Surface,
+        surfaceColor = if (selected) selectedFill else ItungDefaults.surface,
         contentPadding = horizontal,
     ) {
         if (icon != null) Ico(icon)

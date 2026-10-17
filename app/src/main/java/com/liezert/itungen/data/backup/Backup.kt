@@ -1,6 +1,7 @@
 package com.liezert.itungen.data.backup
 
 import androidx.room.withTransaction
+import com.liezert.itungen.data.images.GoalImageStore
 import com.liezert.itungen.data.local.AppDatabase
 import com.liezert.itungen.data.local.defaultCategoryUuid
 import com.liezert.itungen.data.local.entity.DeletedTransactionEntity
@@ -14,6 +15,7 @@ import com.liezert.itungen.domain.model.CategoryType
 import com.liezert.itungen.domain.model.Transaction
 import com.liezert.itungen.domain.model.TransactionType
 import com.liezert.itungen.domain.model.WalletType
+import kotlinx.coroutines.CancellationException
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.InputStream
@@ -23,33 +25,41 @@ import java.time.Instant
 /** File cadangan bukan buatan ItungEn atau rusak. */
 class InvalidBackupException : Exception()
 
-/** [added] = baris baru; [planRestored] = rencana anggaran ikut dipulihkan (HP ini belum punya). */
-data class ImportResult(val added: Int, val planRestored: Boolean)
+/**
+ * [added] = baris baru; [planRestored] = rencana anggaran ikut dipulihkan (HP ini belum punya);
+ * [images] = gambar goal yang ikut dipulihkan.
+ */
+data class ImportResult(val added: Int, val planRestored: Boolean, val images: Int = 0)
 
 /**
- * Cadangan manual (PRD P0): JSON yang bisa dipulihkan + CSV untuk dibuka di spreadsheet.
- * Isi JSON memakai bentuk dokumen sinkron (uuid sebagai kunci), jadi memulihkan ke HP yang sudah punya sebagian
- * data tidak menggandakan baris. Baris yang dipulihkan ditandai belum tersinkron agar ikut terunggah bila masuk akun.
- * Rencana anggaran ikut tersimpan, dan transaksi yang sudah dihapus tidak dipulihkan lagi.
+ * Cadangan manual (PRD P0): ZIP yang bisa dipulihkan (data + gambar goal, lihat BackupArchive.kt) + CSV untuk dibuka
+ * di spreadsheet. Isi JSON memakai bentuk dokumen sinkron (uuid sebagai kunci), jadi memulihkan ke HP yang sudah punya
+ * sebagian data tidak menggandakan baris. Baris yang dipulihkan ditandai belum tersinkron agar ikut terunggah bila
+ * masuk akun. Rencana anggaran ikut tersimpan, dan transaksi yang sudah dihapus tidak dipulihkan lagi.
+ * Cadangan JSON lama (sebelum ada gambar goal) tetap bisa dipulihkan.
  */
 class Backup(
     private val db: AppDatabase,
     private val settings: SyncedSettings,
+    private val images: GoalImageStore,
 ) {
     private val dao = db.syncDao()
 
-    suspend fun exportJson(out: OutputStream) {
-        val goals = JSONArray(dao.allGoals().map { JSONObject(it.toDoc() + ("uuid" to it.goal.uuid)) })
+    suspend fun export(out: OutputStream) {
+        val goals = dao.allGoals()
+        // Hanya gambar yang file-nya masih ada yang dirujuk, agar JSON tidak menunjuk ke entri yang tidak ikut.
+        val files = goals.mapNotNull { it.goal.imagePath }.associateWith(images::file).filterValues { it.isFile }
+        val goalDocs = goals.map { JSONObject(it.toDoc() + ("uuid" to it.goal.uuid) + ("image" to it.goal.imagePath?.takeIf(files::containsKey))) }
         val transactions = JSONArray(dao.allTransactions().map { JSONObject(it.toDoc() + ("uuid" to it.tx.uuid)) })
         val root = JSONObject()
             .put("app", APP)
             .put("version", 1)
             .put("exportedAt", Instant.now().toString())
-            .put("goals", goals)
+            .put("goals", JSONArray(goalDocs))
             .put("transactions", transactions)
             .put("deleted", JSONArray(dao.deletedUuids()))
             .put("settings", JSONObject(settings.toDoc()))
-        out.writer().use { it.write(root.toString(2)) }
+        writeArchive(out, root.toString(2), files)
     }
 
     /**
@@ -68,15 +78,55 @@ class Backup(
         }
     }
 
-    /** Yang sudah ada dilewati. */
-    suspend fun importJson(input: InputStream): ImportResult {
+    /**
+     * Pulihkan dari cadangan ZIP atau JSON lama; yang sudah ada dilewati. Gambar yang rusak atau tidak ada di berkas
+     * dilewati: goal-nya tetap dipulihkan, tanpa gambar. Gambar disimpan lewat [GoalImageStore] dengan nama baru.
+     */
+    suspend fun import(input: InputStream): ImportResult {
+        val stream = input.buffered()
+        stream.mark(4)
+        val header = ByteArray(4)
+        var read = 0
+        while (read < header.size) read += stream.read(header, read, header.size - read).takeIf { it > 0 } ?: break
+        stream.reset()
+        if (!isZip(header)) return restore(parse(stream.bufferedReader().readText()), emptyMap(), mutableSetOf())
+
+        val saved = mutableMapOf<String, String>() // nama di cadangan → nama baru di goal_images
+        val json = try {
+            readArchive(stream) { name, bytes ->
+                try {
+                    saved[name] = images.save(bytes)
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                }
+            } ?: throw InvalidBackupException()
+        } catch (e: Exception) {
+            saved.values.forEach { images.delete(it) }
+            throw e
+        }
+        val used = mutableSetOf<String>()
+        try {
+            return restore(parse(json), saved, used)
+        } finally {
+            // Gambar milik goal yang sudah ada di HP ini (dilewati) atau impor yang gagal: jangan jadi file yatim.
+            (saved.values - used).forEach { images.delete(it) }
+        }
+    }
+
+    private fun parse(text: String): JSONObject {
         val root = try {
-            JSONObject(input.bufferedReader().readText())
+            JSONObject(text)
         } catch (_: Exception) {
             throw InvalidBackupException()
         }
         if (root.optString("app") != APP) throw InvalidBackupException()
+        return root
+    }
+
+    /** [images] = nama gambar di cadangan → nama baru; nama yang dipakai goal baru masuk ke [used] setelah tersimpan. */
+    private suspend fun restore(root: JSONObject, images: Map<String, String>, used: MutableSet<String>): ImportResult {
         var added = 0
+        val restoredImages = mutableListOf<String>()
         db.withTransaction {
             // Dihapus di HP ini atau di HP asal cadangan: jangan dimunculkan lagi.
             val deleted = dao.deletedUuids().toMutableSet()
@@ -99,7 +149,9 @@ class Backup(
                         uuid = walletUuid,
                     )
                 )
-                dao.insertGoal(goalFromDoc(uuid, doc, walletId).copy(synced = false))
+                val image = (doc["image"] as String?)?.let(images::get)
+                dao.insertGoal(goalFromDoc(uuid, doc, walletId).copy(synced = false, imagePath = image))
+                if (image != null) restoredImages += image
                 added++
             }
             root.optJSONArray("transactions")?.objects()?.forEach { doc ->
@@ -110,13 +162,14 @@ class Backup(
                 if (dao.insertTransaction(row) != -1L) added++
             }
         }
+        used += restoredImages
         // Cadangan versi awal menyimpan rencana di "budgetPlan" (tanggal berupa teks).
         val planDoc = root.optJSONObject("settings")?.optJSONObject("budgetPlan") ?: root.optJSONObject("budgetPlan")
         val backupPlan = planDoc?.let { runCatching { budgetPlanFromDoc(it.toMap()) }.getOrNull() }
         val planRestored = backupPlan != null && settings.plan.value == null
         if (planRestored) settings.savePlan(backupPlan!!)
         root.optJSONObject("settings")?.let { settings.restoreBackup(it.toMap().mapValues { (_, v) -> v.toPlain() }) }
-        return ImportResult(added, planRestored)
+        return ImportResult(added, planRestored, restoredImages.size)
     }
 
     /** Kategori tak dikenal (mis. berkas dari versi lain) masuk ke "Lainnya" jenisnya, bukan tanpa kategori. */

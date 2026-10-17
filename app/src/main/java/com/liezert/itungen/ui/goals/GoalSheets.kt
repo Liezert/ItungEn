@@ -1,6 +1,14 @@
 package com.liezert.itungen.ui.goals
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -29,22 +37,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.liezert.glass.components.GlassSurface
-import com.liezert.glass.components.LiquidButton
 import com.liezert.itungen.R
+import com.liezert.itungen.domain.model.AmountKind
 import com.liezert.itungen.domain.model.Goal
+import com.liezert.itungen.domain.model.GoalDeposit
 import com.liezert.itungen.domain.model.formatRupiah
 import com.liezert.itungen.domain.usecase.GoalError
 import com.liezert.itungen.domain.usecase.TransferError
 import com.liezert.itungen.domain.usecase.suggestedMonthly
 import com.liezert.itungen.ui.components.AmountField
+import com.liezert.itungen.ui.components.AmountText
 import com.liezert.itungen.domain.model.MAX_TITLE
-import com.liezert.itungen.ui.components.GlassTextField
+import com.liezert.itungen.ui.components.ItungTextField
 import com.liezert.itungen.ui.components.Ico
 import com.liezert.itungen.ui.components.IconCircle
-import com.liezert.itungen.ui.components.LiquidAlertDialog
-import com.liezert.itungen.ui.components.LiquidDatePickerDialog
+import com.liezert.itungen.ui.components.ItungAlertDialog
+import com.liezert.itungen.ui.components.ItungDatePickerDialog
 import com.liezert.itungen.ui.components.rememberIndonesianDatePickerState
 import com.liezert.itungen.ui.theme.Bold
 import com.liezert.itungen.ui.theme.Ink
@@ -55,6 +65,8 @@ import com.liezert.itungen.ui.theme.appText
 import com.liezert.itungen.ui.theme.formatId
 import java.time.LocalDate
 import androidx.compose.ui.text.style.TextOverflow
+import com.liezert.itungen.ui.design.ItungSurface
+import com.liezert.itungen.ui.design.ItungButton
 
 private const val DayMillis = 86_400_000L
 
@@ -82,6 +94,8 @@ fun CreateGoalSheet(
     onCreate: (title: String, target: Long?, targetDate: LocalDate?, plannedMonthly: Long?) -> Unit,
     /** Isian berubah: pesan dari percobaan sebelumnya dihapus (dulu bertahan sampai disimpan). */
     onEdited: () -> Unit = {},
+    onPickImage: (Uri) -> Unit = {},
+    onRemoveImage: () -> Unit = {},
 ) {
     val title = rememberTextFieldState()
     val target = rememberTextFieldState()
@@ -94,7 +108,8 @@ fun CreateGoalSheet(
 
     SheetBody {
         Text("Buat Target", style = appText(20f, 28f, Bold))
-        GlassTextField(title, "Nama target, mis. Sepatu Lari", maxLength = MAX_TITLE)
+        ItungTextField(title, "Nama target, mis. Sepatu Lari", maxLength = MAX_TITLE)
+        ProductImagePicker(state.form.draftImage, title.text.toString().ifBlank { "target" }, onPickImage, onRemoveImage)
         AmountField(target, "Target dana")
         OptionRow(
             label = targetDate?.formatId() ?: "Tanggal target (opsional)",
@@ -109,7 +124,7 @@ fun CreateGoalSheet(
                 planned.setTextAndPlaceCursorAtEnd(suggestion.toString())
             }
         }
-        FormMessage(state.form.goalError?.message() ?: if (state.form.failed) "Gagal menyimpan. Coba lagi." else null)
+        FormMessage(state.form.goalError?.message() ?: formMessage(state.form))
         SheetButton("Buat Target", enabled = !state.form.busy) {
             onCreate(
                 title.text.toString(),
@@ -121,7 +136,7 @@ fun CreateGoalSheet(
     }
 
     val picker = rememberIndonesianDatePickerState(targetDate ?: state.today.plusMonths(3)) { it >= state.today }
-    LiquidDatePickerDialog(
+    ItungDatePickerDialog(
         visible = picking,
         state = picker,
         onConfirm = {
@@ -132,27 +147,36 @@ fun CreateGoalSheet(
     )
 }
 
-/** Isi sheet Tambah Dana (§4.2): dari dompet utama ke dompet goal; pembatalan target ada di sini juga. */
+/**
+ * Isi sheet Tambah Dana (§4.2): dari dompet utama ke dompet goal. Sekaligus detail target: gambar, [deposits]
+ * (riwayat setoran), dan Hapus target.
+ */
 @Composable
 fun AddFundsSheet(
     goal: Goal,
     state: GoalsUiState,
     onAddFunds: (amount: Long?) -> Unit,
-    onCancelGoal: () -> Unit,
+    onDeleteGoal: () -> Unit,
+    deposits: List<GoalDeposit> = emptyList(),
     onEdited: () -> Unit = {},
+    onPickImage: (Uri) -> Unit = {},
+    onRemoveImage: () -> Unit = {},
 ) {
     val amount = rememberTextFieldState()
     ClearOnEdit(onEdited) { amount.text.toString() }
-    var confirmCancel by rememberSaveable { mutableStateOf(false) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
 
     SheetBody {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconCircle(R.drawable.ic_goal_shoe_large, 48.dp, Ink.Accent.copy(alpha = 0.2f))
+            GoalImage(goal.imagePath, "Gambar ${goal.name}", Modifier.size(48.dp).clip(CircleShape)) {
+                IconCircle(R.drawable.ic_goal_shoe_large, 48.dp, Ink.Accent.copy(alpha = 0.2f))
+            }
             Column {
                 Text("Tambah Dana", style = appText(20f, 28f, Bold))
                 Text("${goal.name} · ${goal.percent}% tercapai", style = appText(13f, 18f, Regular, Ink.Gray))
             }
         }
+        ProductImagePicker(goal.imagePath, goal.name, onPickImage, onRemoveImage)
         Text(
             "Saldo utama: ${formatRupiah(state.mainBalance)}",
             style = appText(14f, 20f, Medium, if (state.mainBalance > 0) Ink.Muted else Ink.Red),
@@ -168,28 +192,65 @@ fun AddFundsSheet(
                 SuggestionChip("Sisa ${formatRupiah(goal.remaining)}") { amount.setTextAndPlaceCursorAtEnd(goal.remaining.toString()) }
             }
         }
-        FormMessage(state.form.transferError?.message() ?: if (state.form.failed) "Gagal menyimpan. Coba lagi." else null)
+        FormMessage(state.form.transferError?.message() ?: formMessage(state.form))
         SheetButton("Tambah Dana", enabled = !state.form.busy) { onAddFunds(amount.text.toString().toLongOrNull()) }
-        LiquidButton(
-            onClick = { confirmCancel = true },
+        DepositHistory(deposits)
+        ItungButton(
+            onClick = { confirmDelete = true },
             modifier = Modifier.align(Alignment.CenterHorizontally),
-        ) { Text("Batalkan target", style = appText(14f, 20f, SemiBold, Ink.Red)) }
+        ) { Text("Hapus target", style = appText(14f, 20f, SemiBold, Ink.Red)) }
     }
 
-    LiquidAlertDialog(
-        visible = confirmCancel,
-        title = "Batalkan \"${goal.name}\"?",
-        text = if (goal.saved > 0) "Dana ${formatRupiah(goal.saved)} dikembalikan ke saldo utama, lalu target diarsipkan."
-        else "Target diarsipkan.",
-        confirmLabel = "Batalkan",
+    DeleteGoalDialog(
+        goal,
+        visible = confirmDelete,
         onConfirm = {
-            confirmCancel = false
-            onCancelGoal()
+            confirmDelete = false
+            onDeleteGoal()
         },
-        onDismiss = { confirmCancel = false },
-        dismissLabel = "Kembali",
-        confirmColor = Ink.Red,
+        onDismiss = { confirmDelete = false },
     )
+}
+
+/** Konfirmasi Hapus target (dari kartu atau sheet): dananya kembali ke saldo utama, jadi tidak ada uang yang hilang. */
+@Composable
+fun DeleteGoalDialog(goal: Goal, visible: Boolean, onConfirm: () -> Unit, onDismiss: () -> Unit) = ItungAlertDialog(
+    visible = visible,
+    title = "Hapus \"${goal.name}\"?",
+    text = if (goal.saved > 0) "Dana ${formatRupiah(goal.saved)} dikembalikan ke saldo utama. Riwayat transfernya tetap ada di Semua Transaksi."
+    else "Target ini dihapus dari daftar.",
+    confirmLabel = "Hapus",
+    onConfirm = onConfirm,
+    onDismiss = onDismiss,
+    dismissLabel = "Kembali",
+    confirmColor = Ink.Red,
+)
+
+/** Riwayat setoran target ini (Tambah Dana), terbaru dulu. */
+@Composable
+private fun DepositHistory(deposits: List<GoalDeposit>) {
+    Column(Modifier.fillMaxWidth().padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("RIWAYAT SETORAN", style = appText(12f, 18f, Bold, Ink.Subtle, tracking = 1.2f))
+        if (deposits.isEmpty()) {
+            Text("Belum ada setoran. Dana yang ditambahkan tercatat di sini.", style = appText(13f, 18f, Regular, Ink.Gray))
+        }
+        deposits.forEach { deposit ->
+            Row(
+                Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
+                Arrangement.spacedBy(12.dp),
+                Alignment.CenterVertically,
+            ) {
+                Text(
+                    deposit.date.formatId(),
+                    Modifier.weight(1f),
+                    style = appText(14f, 20f, Regular, Ink.Muted),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                AmountText(deposit.amount, AmountKind.NEUTRAL, appText(14f, 20f, SemiBold))
+            }
+        }
+    }
 }
 
 /** Panggil [onEdited] setiap [value] (gabungan isian form) berubah setelah sheet terbuka. */
@@ -212,11 +273,17 @@ private fun SheetBody(content: @Composable androidx.compose.foundation.layout.Co
 }
 
 @Composable
-private fun OptionRow(label: String, trailing: String?, onClick: () -> Unit, onTrailing: () -> Unit) {
-    GlassSurface(Modifier.fillMaxWidth(), contentPadding = PaddingValues(13.dp), onClick = onClick) {
+private fun OptionRow(
+    label: String,
+    trailing: String?,
+    onClick: () -> Unit,
+    onTrailing: () -> Unit,
+    @DrawableRes icon: Int = R.drawable.ic_add_calendar,
+) {
+    ItungSurface(Modifier.fillMaxWidth(), contentPadding = PaddingValues(13.dp), onClick = onClick) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconCircle(R.drawable.ic_add_calendar, 32.dp, Ink.white(0.1f))
+                IconCircle(icon, 32.dp, Ink.white(0.1f))
                 Text(label, style = appText(16f, 24f, Regular))
             }
             if (trailing != null) {
@@ -234,12 +301,47 @@ private fun OptionRow(label: String, trailing: String?, onClick: () -> Unit, onT
 
 @Composable
 private fun SuggestionChip(label: String, onClick: () -> Unit) {
-    LiquidButton(
+    ItungButton(
         onClick = onClick,
         modifier = Modifier.height(36.dp),
         surfaceColor = Ink.Accent.copy(alpha = 0.2f),
         contentPadding = 14.dp,
     ) { Text(label, style = appText(13f, 18f, SemiBold, Ink.AccentLight), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+}
+
+private fun formMessage(form: GoalFormState) = when {
+    form.imageFailed -> "Gambar tidak bisa dibuka. Coba gambar lain."
+    form.failed -> "Gagal menyimpan. Coba lagi."
+    else -> null
+}
+
+/**
+ * Satu gambar produk per target: dipilih lewat Photo Picker sistem (hanya gambar, tanpa izin penyimpanan).
+ * Tanpa gambar: satu baris "Tambah gambar produk"; dengan gambar: pratinjau lebar + Ganti / Hapus.
+ */
+@Composable
+private fun ProductImagePicker(imagePath: String?, name: String, onPick: (Uri) -> Unit, onRemove: () -> Unit) {
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(onPick) }
+    val launch = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+    if (imagePath == null) {
+        OptionRow(label = "Tambah gambar produk (opsional)", trailing = null, onClick = launch, onTrailing = {}, icon = R.drawable.ic_image)
+        return
+    }
+    ItungSurface(Modifier.fillMaxWidth(), contentPadding = PaddingValues(1.dp)) {
+        Column {
+            GoalImage(
+                imagePath,
+                "Gambar $name",
+                Modifier.fillMaxWidth().height(140.dp).clip(RoundedCornerShape(topStart = 23.dp, topEnd = 23.dp)).background(Ink.EmptyIconBg),
+            ) { Ico(R.drawable.ic_goal_shoe_large) }
+            Row(Modifier.fillMaxWidth().padding(8.dp), Arrangement.spacedBy(8.dp)) {
+                SuggestionChip("Ganti gambar", launch)
+                ItungButton(onClick = onRemove, modifier = Modifier.height(36.dp), contentPadding = 14.dp) {
+                    Text("Hapus gambar", style = appText(13f, 18f, SemiBold, Ink.Red), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -249,7 +351,7 @@ private fun FormMessage(message: String?) {
 
 @Composable
 private fun SheetButton(label: String, enabled: Boolean, onClick: () -> Unit) {
-    LiquidButton(
+    ItungButton(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().height(52.dp),
         tint = Ink.Accent.copy(alpha = if (enabled) 1f else 0.5f),

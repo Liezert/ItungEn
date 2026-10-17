@@ -30,11 +30,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.liezert.glass.components.GlassCard
-import com.liezert.glass.components.LiquidBottomTab
-import com.liezert.glass.components.LiquidBottomTabs
-import com.liezert.glass.components.LiquidButton
-import com.liezert.glass.components.LocalGlassBackdrop
 import com.liezert.itungen.ItungEnApp
 import com.liezert.itungen.R
 import com.liezert.itungen.domain.model.Category
@@ -52,10 +47,10 @@ import com.liezert.itungen.domain.usecase.cycleOf
 import com.liezert.itungen.ui.components.AmountField
 import com.liezert.itungen.ui.insight.CategoryLimitSheet
 import com.liezert.itungen.ui.components.ChoiceSheet
-import com.liezert.itungen.ui.components.GlassIconButton
+import com.liezert.itungen.ui.components.ItungIconButton
 import com.liezert.itungen.ui.components.Ico
-import com.liezert.itungen.ui.components.LiquidAlertDialog
-import com.liezert.itungen.ui.components.LiquidDatePickerDialog
+import com.liezert.itungen.ui.components.ItungAlertDialog
+import com.liezert.itungen.ui.components.ItungDatePickerDialog
 import androidx.activity.compose.BackHandler
 import com.liezert.itungen.ui.components.rememberIndonesianDatePickerState
 import com.liezert.itungen.ui.components.TopBar
@@ -72,6 +67,10 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import com.liezert.itungen.ui.design.ItungTabs
+import com.liezert.itungen.ui.design.ItungTab
+import com.liezert.itungen.ui.design.ItungCard
+import com.liezert.itungen.ui.design.ItungButton
 
 private val Id = Locale.forLanguageTag("id-ID")
 private val LongDate = DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Id)
@@ -171,7 +170,7 @@ fun BudgetScreen(onBack: () -> Unit) {
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding()) {
         TopBar(
-            leading = { GlassIconButton(R.drawable.ic_back, back, "Kembali") },
+            leading = { ItungIconButton(R.drawable.ic_back, back, "Kembali") },
             trailing = { Spacer(Modifier.size(48.dp)) },
         )
         Column(Modifier.screenPad(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -181,17 +180,16 @@ fun BudgetScreen(onBack: () -> Unit) {
                 style = appText(14f, 20f, Regular, Ink.Gray),
             )
             Text("Uang masuk kapan?", Modifier.padding(start = 4.dp, top = 4.dp), style = appText(13f, 18f, Medium, Ink.Gray))
-            LiquidBottomTabs(
+            ItungTabs(
                 selectedTabIndex = { Periods.indexOfFirst { it.first == period } },
                 onTabSelected = { switchPeriod(Periods[it].first) },
-                backdrop = LocalGlassBackdrop.current,
                 tabsCount = Periods.size,
                 modifier = Modifier.fillMaxWidth(),
                 accentColor = Ink.Blue,
                 height = 52.dp,
             ) {
                 Periods.forEach { (value, label) ->
-                    LiquidBottomTab({ switchPeriod(value) }, selected = value == period) {
+                    ItungTab({ switchPeriod(value) }, selected = value == period) {
                         Text(label, style = appText(14f, 20f, SemiBold, if (value == period) Ink.White else Ink.Muted))
                     }
                 }
@@ -232,7 +230,7 @@ fun BudgetScreen(onBack: () -> Unit) {
             )
             AmountField(savings, "Target tabungan ${period.per()}")
 
-            GlassCard(Modifier.fillMaxWidth(), padding = 17.dp, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            ItungCard(Modifier.fillMaxWidth(), padding = 17.dp, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Jatah hari ini", style = appText(13f, 18f, Medium, Ink.Gray))
                 Text(
                     when {
@@ -255,7 +253,7 @@ fun BudgetScreen(onBack: () -> Unit) {
                 )
             }
 
-            LiquidButton(
+            ItungButton(
                 onClick = {
                     container.saveBudgetPlan(draft)
                     onBack()
@@ -284,7 +282,7 @@ fun BudgetScreen(onBack: () -> Unit) {
         Spacer(Modifier.height(bottomClearance()))
     }
 
-    LiquidAlertDialog(
+    ItungAlertDialog(
         visible = confirmBack,
         title = "Simpan perubahan anggaran?",
         text = "Perubahan rencana belum disimpan.",
@@ -318,7 +316,7 @@ fun BudgetScreen(onBack: () -> Unit) {
         }) { picking = false }
         BudgetPeriod.UNTIL_DATE -> {
             val pickerState = rememberIndonesianDatePickerState(nextDate) { it > today }
-            LiquidDatePickerDialog(
+            ItungDatePickerDialog(
                 visible = picking,
                 state = pickerState,
                 onConfirm = {
@@ -333,7 +331,7 @@ fun BudgetScreen(onBack: () -> Unit) {
 
 @Composable
 private fun DateRow(title: String, value: String, onClick: () -> Unit) {
-    GlassCard(Modifier.fillMaxWidth(), padding = 13.dp, onClick = onClick) {
+    ItungCard(Modifier.fillMaxWidth(), padding = 13.dp, onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f)) {
                 Text(title, style = appText(13f, 18f, Medium, Ink.Gray))

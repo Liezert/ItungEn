@@ -22,12 +22,12 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.liezert.glass.components.LiquidSheet
 import com.liezert.itungen.ui.theme.Bold
 import com.liezert.itungen.ui.theme.Ink
 import com.liezert.itungen.ui.theme.Medium
 import com.liezert.itungen.ui.theme.appText
 import androidx.compose.ui.text.style.TextOverflow
+import com.liezert.itungen.ui.design.ItungSheet
 
 /** Sheet kaca berisi pilihan bulat sekali ketuk (tanggal, hari, jam), bukan − / + berkali-kali. */
 @Composable
@@ -40,7 +40,7 @@ fun ChoiceSheet(
     onPick: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    LiquidSheet(visible, onDismiss) {
+    ItungSheet(visible, onDismiss) {
         Text(title, Modifier.padding(start = 24.dp, top = 4.dp, bottom = 12.dp), style = appText(18f, 24f, Bold))
         Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             options.chunked(columns).forEach { row ->

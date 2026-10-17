@@ -3,6 +3,8 @@
 
     <!-- Pengingat malam (opsional, diminta saat diaktifkan di Pengaturan). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Notifikasi catat cepat ditampilkan lagi setelah HP dinyalakan ulang (bila toggle-nya aktif). -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- allowBackup=false: DESIGN_SPEC §11.3, cadangan hanya lewat ekspor manual. -->
     <application
@@ -28,6 +30,18 @@
         <receiver
             android:name=".work.ReminderReceiver"
             android:exported="false" />
+        <!-- Nominal dari kolom ketik (RemoteInput) di notifikasi catat pemasukan. -->
+        <receiver
+            android:name=".work.QuickIncomeReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".work.QuickIncomeBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

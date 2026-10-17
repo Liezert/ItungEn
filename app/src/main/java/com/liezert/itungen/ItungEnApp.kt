@@ -1,6 +1,7 @@
 package com.liezert.itungen
 
 import android.app.Application
+import android.content.ContentResolver
 import android.content.Context
 import androidx.core.content.edit
 import com.google.firebase.FirebaseApp
@@ -9,6 +10,10 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.MemoryCacheSettings
 import com.liezert.itungen.data.backup.Backup
+import com.liezert.itungen.ui.design.ActiveTheme
+import com.liezert.itungen.ui.design.ThemeSpec
+import com.liezert.itungen.ui.design.Themes
+import com.liezert.itungen.data.images.GoalImageStore
 import com.liezert.itungen.data.local.AppDatabase
 import com.liezert.itungen.data.settings.SyncedSettings
 import com.liezert.itungen.data.repository.RoomGoalRepository
@@ -28,6 +33,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import java.io.File
 import java.time.Clock
 
 class ItungEnApp : Application() {
@@ -46,6 +52,9 @@ class AppContainer(context: Context) {
     val settings = SyncedSettings(prefs, clock)
     val transactionRepository: TransactionRepository = RoomTransactionRepository(database, clock)
     val goalRepository: GoalRepository = RoomGoalRepository(database, clock)
+    /** Gambar produk goal di penyimpanan internal app; Photo Picker tidak butuh izin. */
+    val goalImages = GoalImageStore(File(context.filesDir, "goal_images"))
+    val contentResolver: ContentResolver = context.contentResolver
 
     // Firebase opsional: tanpa google-services.json, initializeApp mengembalikan null dan app berjalan sebagai tamu.
     private val firebaseReady = FirebaseApp.initializeApp(context) != null
@@ -66,12 +75,27 @@ class AppContainer(context: Context) {
 
     fun saveBudgetPlan(plan: BudgetPlan) = settings.savePlan(plan)
 
-    val backup = Backup(database, settings)
+    val backup = Backup(database, settings, goalImages)
 
     /** Pengingat harian bila hari itu belum ada catatan. */
     var reminderEnabled: Boolean
         get() = prefs.getBoolean("reminder", false)
         set(value) = prefs.edit { putBoolean("reminder", value) }
+
+    /** Tema tampilan (ui/design/Themes); bawaan Liquid Glass. Mengganti tema langsung berlaku tanpa restart. */
+    var themeId: String
+        get() = prefs.getString("theme", null) ?: Themes.all.first().id
+        private set(value) = prefs.edit { putString("theme", value) }
+
+    fun setTheme(spec: ThemeSpec) {
+        themeId = spec.id
+        ActiveTheme.spec = spec
+    }
+
+    /** Notifikasi tetap "Catat pemasukan" (Pengaturan); default mati. */
+    var quickIncomeEnabled: Boolean
+        get() = prefs.getBoolean("quick_income", false)
+        set(value) = prefs.edit { putBoolean("quick_income", value) }
 
     /** Dialog izin notifikasi sudah pernah ditampilkan (untuk mengenali penolakan permanen). */
     var notificationAsked: Boolean
@@ -118,6 +142,12 @@ class AppContainer(context: Context) {
         set(value) = prefs.edit { putBoolean("onboarded", value) }
 
     /** Mis. saat app dibuka: tarik perubahan dari HP lain (tidak melakukan apa-apa bila belum masuk). */
+    init {
+        // Sekali per proses: file gambar yang tidak dipakai goal mana pun (sheet ditutup sebelum disimpan, target
+        // dibatalkan di HP lain, app tertutup di tengah jalan) dihapus agar tidak ada file yatim.
+        appScope.launch { goalImages.deleteOrphans(goalRepository.imagesInUse()) }
+    }
+
     fun syncInBackground() {
         appScope.launch { sync.sync() }
     }

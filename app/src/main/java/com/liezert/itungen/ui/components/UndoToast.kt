@@ -28,13 +28,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.shapes.Capsule
 import com.liezert.glass.components.GlassOverlay
-import com.liezert.glass.components.GlassSurface
-import com.liezert.glass.components.LiquidButton
 import com.liezert.itungen.ui.theme.Ink
 import com.liezert.itungen.ui.theme.Medium
 import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
 import androidx.compose.ui.text.style.TextOverflow
+import com.liezert.itungen.ui.design.ItungSurface
+import com.liezert.itungen.ui.design.ItungButton
 
 /** Jarak dari bawah layar ke atas navbar (17 + 64 dp navbar + napas 12 dp). */
 val AboveNavBar = 93.dp
@@ -55,7 +55,7 @@ fun UndoToast(message: String?, onUndo: () -> Unit, bottomOffset: Dp = AboveNavB
                 enter = slideInVertically(spring(dampingRatio = 0.8f, stiffness = 500f)) { it } + fadeIn(),
                 exit = slideOutVertically { it / 2 } + fadeOut(),
             ) {
-                GlassSurface(
+                ItungSurface(
                     Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(56.dp),
                     shape = Capsule(),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 6.dp),
@@ -63,7 +63,7 @@ fun UndoToast(message: String?, onUndo: () -> Unit, bottomOffset: Dp = AboveNavB
                 ) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                         Text(last, Modifier.weight(1f), style = appText(14f, 20f, Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        LiquidButton(onClick = onUndo, modifier = Modifier.height(44.dp), contentPadding = 16.dp) {
+                        ItungButton(onClick = onUndo, modifier = Modifier.height(44.dp), contentPadding = 16.dp) {
                             Text("Urungkan", style = appText(14f, 20f, SemiBold, Ink.Blue))
                         }
                     }

@@ -51,26 +51,25 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kyant.shapes.Capsule
-import com.liezert.glass.components.GlassSurface
 import com.liezert.itungen.R
 import com.liezert.itungen.domain.model.Transaction
 import com.liezert.itungen.domain.model.TransactionType
-import com.liezert.itungen.domain.model.formatSigned
-import com.liezert.itungen.ui.components.GlassIconButton
+import com.liezert.itungen.domain.model.amountDescription
+import com.liezert.itungen.ui.components.AmountText
+import com.liezert.itungen.ui.components.amountKind
+import com.liezert.itungen.ui.components.ItungIconButton
 import com.liezert.itungen.ui.components.Ico
 import com.liezert.itungen.ui.components.IconCircle
-import com.liezert.itungen.ui.components.LiquidAlertDialog
+import com.liezert.itungen.ui.components.ItungAlertDialog
 import com.liezert.itungen.ui.components.categoryLabel
 import com.liezert.itungen.ui.components.toastMessage
 import com.liezert.itungen.ui.components.PillChip
 import com.liezert.itungen.ui.components.TopBar
 import com.liezert.itungen.ui.components.UndoToast
-import com.liezert.itungen.ui.components.amountColor
 import com.liezert.itungen.ui.components.AboveNavBar
 import com.liezert.itungen.ui.components.bottomClearance
 import com.liezert.itungen.ui.components.clockLabel
 import com.liezert.itungen.ui.components.groupLabel
-import com.liezert.itungen.ui.components.incoming
 import com.liezert.itungen.ui.components.screenPad
 import com.liezert.itungen.ui.components.style
 import com.liezert.itungen.ui.theme.Bold
@@ -80,6 +79,10 @@ import com.liezert.itungen.ui.theme.Regular
 import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
 import androidx.compose.ui.text.style.TextOverflow
+import com.liezert.itungen.ui.design.ItungSurface
+import com.liezert.itungen.ui.design.ItungDivider
+import com.liezert.itungen.ui.design.ItungTransactionRow
+import com.liezert.itungen.ui.design.SurfaceRole
 
 @Composable
 fun TransactionsScreen(
@@ -124,7 +127,7 @@ fun TransactionsContent(
 
     Column(modifier.fillMaxSize()) {
         TopBar(
-            leading = { GlassIconButton(R.drawable.ic_back, onBack, "Kembali") },
+            leading = { ItungIconButton(R.drawable.ic_back, onBack, "Kembali") },
             trailing = { Spacer(Modifier.size(48.dp)) },
         )
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -162,10 +165,10 @@ fun TransactionsContent(
     }
 
     val pending = confirmDelete
-    LiquidAlertDialog(
+    ItungAlertDialog(
         visible = pending != null,
         title = "Hapus transaksi?",
-        text = pending?.let { "${it.note ?: it.category?.name ?: "Transaksi"} · ${formatSigned(it.amount, it.incoming)}" }.orEmpty(),
+        text = pending?.let { "${it.note ?: it.category?.name ?: "Transaksi"} · ${amountDescription(it.amount, it.amountKind)}" }.orEmpty(),
         confirmLabel = "Hapus",
         onConfirm = {
             pending?.let(onDelete)
@@ -181,9 +184,10 @@ private fun SearchPill(query: String, onChange: (String) -> Unit, modifier: Modi
     // Teks yang diketik dipegang di sini (sinkron dengan keyboard). Bila nilainya menunggu putaran ViewModel yang
     // asinkron, huruf yang diketik cepat hilang ("ojek" jadi "e"); ViewModel cukup menerima salinannya untuk kueri.
     var text by rememberSaveable { mutableStateOf(query) }
-    GlassSurface(
+    ItungSurface(
         modifier.fillMaxWidth(),
         shape = Capsule(),
+        role = SurfaceRole.FIELD,
     ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 17.dp, vertical = 13.dp),
@@ -240,25 +244,26 @@ private fun TransactionListCard(
             .collect { nearEnd -> if (nearEnd) onLoadMore() }
     }
     val groups = state.transactions.groupBy { it.date }.toList() // urutan sumber: terbaru dulu
-    GlassSurface(
+    ItungSurface(
         modifier.fillMaxWidth(),
         contentPadding = PaddingValues(start = 1.dp, end = 1.dp, top = 9.dp, bottom = 1.dp),
+        role = SurfaceRole.CARD,
     ) {
         if (groups.isEmpty()) {
-            if (state.loading) return@GlassSurface
+            if (state.loading) return@ItungSurface
             Text(
                 if (state.hasAny) "Tidak ada transaksi yang cocok." else "Belum ada transaksi. Tekan + untuk mencatat.",
                 Modifier.padding(24.dp),
                 style = appText(14f, 20f, Regular, Ink.Muted),
             )
-            return@GlassSurface
+            return@ItungSurface
         }
         // Satu item per baris (bukan per tanggal): hari dengan banyak transaksi tetap ringan discroll.
         LazyColumn(state = listState, contentPadding = PaddingValues(16.dp)) {
             groups.forEachIndexed { index, (date, rows) ->
                 if (index > 0) {
                     item(key = "divider-$date", contentType = "divider") {
-                        Box(Modifier.padding(top = 20.dp, bottom = 16.dp).fillMaxWidth().height(1.dp).background(Ink.white(0.05f)))
+                        ItungDivider(Modifier.padding(top = 20.dp, bottom = 16.dp), Ink.white(0.05f))
                     }
                 }
                 item(key = "group-$date", contentType = "header") {
@@ -281,33 +286,20 @@ private fun TxRow(item: Transaction, state: TransactionsUiState) {
     val style = item.style()
     val categoryName = item.categoryLabel
     val clock = item.clockLabel(state.zone)
-    Row(
-        Modifier.fillMaxWidth().padding(8.dp),
-        Arrangement.SpaceBetween,
-        Alignment.CenterVertically,
-    ) {
-        Row(
-            Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconCircle(style.rowIcon, 40.dp, if (item.type == TransactionType.INCOME) Ink.Green.copy(alpha = 0.2f) else Ink.white(0.1f))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(item.note ?: categoryName, style = appText(14f, 20f, SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    if (clock != null) "$clock • $categoryName" else categoryName,
-                    style = appText(12f, 16f, Regular, Ink.Muted),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        Text(
-            formatSigned(item.amount, item.incoming),
-            Modifier.padding(start = 12.dp),
-            style = appText(14f, 20f, Bold, item.amountColor),
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-        )
-    }
+    ItungTransactionRow(
+        icon = { IconCircle(style.rowIcon, 40.dp, if (item.type == TransactionType.INCOME) Ink.Income.copy(alpha = 0.2f) else Ink.white(0.1f)) },
+        title = { Text(item.note ?: categoryName, style = appText(14f, 20f, SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        subtitle = {
+            Text(
+                if (clock != null) "$clock • $categoryName" else categoryName,
+                style = appText(12f, 16f, Regular, Ink.Muted),
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        },
+        amount = { AmountText(item.amount, item.amountKind, appText(14f, 20f, Bold, Ink.Gray), arrow = true) },
+        modifier = Modifier.padding(8.dp),
+        dense = true,
+    )
 }
 
 /**

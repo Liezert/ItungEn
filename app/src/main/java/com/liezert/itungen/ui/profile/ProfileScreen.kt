@@ -26,9 +26,8 @@ import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.text.BasicText
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.liezert.glass.components.GlassSurface
 import com.liezert.itungen.R
-import com.liezert.itungen.ui.home.HiddenAmount
+import com.liezert.itungen.ui.components.HiddenAmount
 import com.liezert.itungen.ItungEnApp
 import androidx.compose.ui.platform.LocalContext
 import com.liezert.itungen.domain.model.formatRupiah
@@ -48,6 +47,7 @@ import com.liezert.itungen.ui.theme.appText
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import androidx.compose.ui.text.style.TextOverflow
+import com.liezert.itungen.ui.design.ItungSurface
 
 private val JoinedFormat = DateTimeFormatter.ofPattern("MMM yyyy", Locale.forLanguageTag("id-ID"))
 
@@ -76,7 +76,7 @@ fun ProfileContent(
             trailing = { Spacer(Modifier.size(48.dp)) },
         )
         Column(Modifier.screenPad(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            GlassSurface(Modifier.fillMaxWidth()) {
+            ItungSurface(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(21.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         IconCircle(R.drawable.ic_profile_avatar, 56.dp, Ink.AvatarBg, border = Ink.white(0.1f))
@@ -99,7 +99,7 @@ fun ProfileContent(
                 }
             }
             // Akun, sinkron (otomatis), dan tema ada di Pengaturan.
-            GlassSurface(Modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp), onClick = onOpenSettings) {
+            ItungSurface(Modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp), onClick = onOpenSettings) {
                 Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(12.dp), Alignment.CenterVertically) {
                     IconCircle(R.drawable.ic_settings, 32.dp, Ink.white(0.1f))
                     Column(Modifier.weight(1f)) {

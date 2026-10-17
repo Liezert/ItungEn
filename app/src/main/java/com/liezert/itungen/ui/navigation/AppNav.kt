@@ -60,20 +60,19 @@ import androidx.navigation.compose.rememberNavController
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.liezert.glass.components.GlassOverlayHost
-import com.liezert.glass.components.LiquidBottomTab
-import com.liezert.glass.components.LiquidBottomTabs
-import com.liezert.glass.components.LiquidButton
 import com.liezert.glass.components.LocalGlassBackdrop
 import com.liezert.glass.components.LocalGlassEconomy
 import com.liezert.glass.components.LocalGlassOverlayHost
-import com.liezert.glass.components.ProgressiveBlur
 import com.liezert.itungen.ItungEnApp
 import com.liezert.itungen.R
 import com.liezert.itungen.ui.account.LoginScreen
 import com.liezert.itungen.ui.addtransaction.AddTransactionViewModel
 import com.liezert.itungen.ui.budget.BudgetScreen
 import com.liezert.itungen.ui.addtransaction.AddTransactionScreen
-import com.liezert.itungen.ui.components.AppBackground
+import com.liezert.itungen.ui.design.ItungBackground
+import com.liezert.itungen.ui.design.ItungStatusBarCover
+import com.liezert.itungen.ui.design.LocalItungTheme
+import com.liezert.itungen.ui.design.TabsRole
 import com.liezert.itungen.ui.components.rememberBackgroundBackdrop
 import com.liezert.itungen.ui.goals.GoalsScreen
 import com.liezert.itungen.ui.home.HomeScreen
@@ -85,6 +84,9 @@ import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
 import com.liezert.itungen.ui.transactions.TransactionsScreen
 import androidx.compose.ui.text.style.TextOverflow
+import com.liezert.itungen.ui.design.ItungTabs
+import com.liezert.itungen.ui.design.ItungTab
+import com.liezert.itungen.ui.design.ItungButton
 
 private object Routes {
     const val Home = "home"
@@ -143,13 +145,14 @@ private fun NavHostController.switchTab(index: Int) = navigate(TabRoutes[index])
     restoreState = true
 }
 
-private class Tab(val label: String, @param:DrawableRes val icon: Int, val accent: Color)
+/** [accent] dibaca saat digambar: warnanya ikut tema dan mode gelap/terang yang aktif. */
+private class Tab(val label: String, @param:DrawableRes val icon: Int, val accent: () -> Color)
 
 private val Tabs = listOf(
-    Tab("Beranda", R.drawable.ic_nav_home, Ink.NavHome),
-    Tab("Insight", R.drawable.ic_nav_category, Ink.NavInsight),
-    Tab("Goals", R.drawable.ic_nav_goals, Ink.NavGoals),
-    Tab("Profil", R.drawable.ic_nav_profile, Ink.NavProfile),
+    Tab("Beranda", R.drawable.ic_nav_home) { Ink.NavHome },
+    Tab("Insight", R.drawable.ic_nav_category) { Ink.NavInsight },
+    Tab("Goals", R.drawable.ic_nav_goals) { Ink.NavGoals },
+    Tab("Profil", R.drawable.ic_nav_profile) { Ink.NavProfile },
 )
 
 @Composable
@@ -196,9 +199,10 @@ fun AppNav(
 
     CompositionLocalProvider(LocalGlassOverlayHost provides overlay) {
         Box(Modifier.fillMaxSize().background(Ink.Black)) {
-            // Mode hemat: tidak ada kaca yang membiaskan isi layar, jadi layar tidak perlu direkam ke backdrop.
-            Box(Modifier.then(if (economy) Modifier else Modifier.layerBackdrop(screen)).fillMaxSize()) {
-                AppBackground(vignette)
+            // Mode hemat / tema tanpa kaca: tidak ada kaca yang membiaskan isi layar, jadi layar tidak perlu direkam.
+            val captures = !economy && LocalItungTheme.current.capturesScreen
+            Box(Modifier.then(if (captures) Modifier.layerBackdrop(screen) else Modifier).fillMaxSize()) {
+                ItungBackground(vignette)
                 CompositionLocalProvider(LocalGlassBackdrop provides background) {
                     NavHost(
                         nav,
@@ -253,17 +257,14 @@ fun AppNav(
                 }
             }
 
-            // Efek tepi scroll iOS 26: isi yang discroll ke bawah status bar memudar dalam blur, tidak menabrak jam/ikon.
-            // Mode hemat: tanpa blur (isi tetap terlihat di bawah status bar).
-            if (!economy) ProgressiveBlur(
-                backdrop = screen,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp),
-                // ponytail: tint gelap, bukan abu-abu demo (#808080 α0.8) yang terlalu terang di atas latar hitam.
-                tint = Ink.Black,
-                tintIntensity = 0.35f,
-            )
+            // Isi yang discroll ke bawah status bar tidak menabrak jam/ikon (Liquid Glass: blur progresif).
+            CompositionLocalProvider(LocalGlassBackdrop provides screen) {
+                ItungStatusBarCover(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 24.dp),
+                )
+            }
 
             CompositionLocalProvider(LocalGlassBackdrop provides screen) {
                 // Navbar hanya di tab dan Semua Transaksi; layar Masuk dan Tambah Transaksi tampil penuh (DESIGN_SPEC §6.3).
@@ -287,7 +288,7 @@ fun AppNav(
                             enter = scaleIn(spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), 0.3f) + fadeIn(tween(150)),
                             exit = scaleOut(spring(stiffness = Spring.StiffnessMedium), 0.3f) + fadeOut(tween(120)),
                         ) {
-                            LiquidButton(
+                            ItungButton(
                                 onClick = { nav.navigate("add") { launchSingleTop = true } },
                                 modifier = Modifier.size(56.dp).semantics { contentDescription = "Tambah transaksi" },
                                 tint = Ink.Blue,
@@ -296,18 +297,18 @@ fun AppNav(
                                 Image(painterResource(R.drawable.ic_add), null, Modifier.size(28.dp), colorFilter = ColorFilter.tint(Color.White))
                             }
                         }
-                        LiquidBottomTabs(
+                        ItungTabs(
+                            role = TabsRole.NAVBAR,
                             selectedTabIndex = { currentTab },
                             onTabSelected = selectTab,
                             onTabReselected = selectTab,
-                            backdrop = screen,
                             tabsCount = Tabs.size,
                             modifier = Modifier.fillMaxWidth(),
                             // Lapisan aksen hanya satu warna: warna tab yang sedang aktif.
-                            accentColor = Tabs[tabIndex].accent.copy(alpha = 1f),
+                            accentColor = Tabs[tabIndex].accent().copy(alpha = 1f),
                         ) {
                             Tabs.forEachIndexed { index, tab ->
-                                LiquidBottomTab({ selectTab(index) }, selected = index == tabIndex) {
+                                ItungTab({ selectTab(index) }, selected = index == tabIndex) {
                                     Box(
                                         Modifier
                                             .size(28.dp)

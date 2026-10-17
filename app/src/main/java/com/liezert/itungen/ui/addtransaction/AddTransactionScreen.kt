@@ -66,12 +66,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.liezert.glass.components.GlassDefaults
-import com.liezert.glass.components.GlassSurface
-import com.liezert.glass.components.LiquidBottomTab
-import com.liezert.glass.components.LiquidBottomTabs
-import com.liezert.glass.components.LiquidButton
-import com.liezert.glass.components.LocalGlassBackdrop
 import com.liezert.itungen.R
 import com.liezert.itungen.domain.model.MAX_AMOUNT
 import com.liezert.itungen.domain.model.MAX_NOTE
@@ -85,11 +79,11 @@ import com.liezert.itungen.domain.usecase.hasOperator
 import com.liezert.itungen.domain.usecase.keypadDigit
 import com.liezert.itungen.domain.usecase.keypadOperator
 import com.liezert.itungen.domain.usecase.keypadRounds
-import com.liezert.itungen.ui.components.GlassIconButton
+import com.liezert.itungen.ui.components.ItungIconButton
 import com.liezert.itungen.ui.components.Ico
 import com.liezert.itungen.ui.components.IconCircle
-import com.liezert.itungen.ui.components.LiquidAlertDialog
-import com.liezert.itungen.ui.components.LiquidDatePickerDialog
+import com.liezert.itungen.ui.components.ItungAlertDialog
+import com.liezert.itungen.ui.components.ItungDatePickerDialog
 import androidx.activity.compose.BackHandler
 import com.liezert.itungen.ui.components.rememberIndonesianDatePickerState
 import com.liezert.itungen.ui.components.relativeDay
@@ -103,6 +97,12 @@ import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
 import com.liezert.itungen.ui.theme.formatId
 import java.time.LocalDate
+import com.liezert.itungen.ui.design.ItungTabs
+import com.liezert.itungen.ui.design.ItungTab
+import com.liezert.itungen.ui.design.ItungSurface
+import com.liezert.itungen.ui.design.ItungDefaults
+import com.liezert.itungen.ui.design.ItungButton
+import com.liezert.itungen.ui.design.ItungDivider
 
 private const val DayMillis = 86_400_000L
 
@@ -158,7 +158,7 @@ fun AddTransactionContent(
     val focus = LocalFocusManager.current
 
     val income = state.type == CategoryType.INCOME
-    val tint = if (income) Ink.Green else Ink.Red
+    val tint = if (income) Ink.Income else Ink.Expense
     val result = evaluateKeypad(amount)
     // Nominal divalidasi dari isian saat ini (bukan disimpan sebagai galat), jadi pesannya hilang begitu isian benar.
     val amountMessage = when {
@@ -196,7 +196,7 @@ fun AddTransactionContent(
             Arrangement.SpaceBetween,
             Alignment.CenterVertically,
         ) {
-            GlassIconButton(R.drawable.ic_close, close, "Tutup")
+            ItungIconButton(R.drawable.ic_close, close, "Tutup")
             Text(if (state.editing) "Ubah Transaksi" else "Tambah Transaksi", style = appText(16f, 24f, Bold))
             Spacer(Modifier.size(48.dp))
         }
@@ -242,7 +242,7 @@ fun AddTransactionContent(
 
             // Tinggi tetap: alasan tombol belum aktif / gagal simpan tertulis di tombolnya, bukan di baris tambahan.
             val enabled = result != null && result in 1..MAX_AMOUNT && state.categoryId != null && !state.saving
-            LiquidButton(
+            ItungButton(
                 onClick = { onSave(result.toString(), note.text.toString()) },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 tint = tint.copy(alpha = if (enabled) 1f else 0.5f),
@@ -261,7 +261,7 @@ fun AddTransactionContent(
         }
     }
 
-    LiquidAlertDialog(
+    ItungAlertDialog(
         visible = confirmClose,
         title = "Buang isian?",
         text = "Nominal dan catatan yang belum disimpan akan hilang.",
@@ -275,7 +275,7 @@ fun AddTransactionContent(
         confirmColor = Ink.Red,
     )
 
-    LiquidDatePickerDialog(
+    ItungDatePickerDialog(
         visible = showPicker,
         state = pickerState,
         onConfirm = {
@@ -299,17 +299,16 @@ private val Types = listOf(CategoryType.EXPENSE to "Pengeluaran", CategoryType.I
 @Composable
 private fun TypeToggle(type: CategoryType, tint: Color, modifier: Modifier = Modifier, onChange: (CategoryType) -> Unit) {
     val index = Types.indexOfFirst { it.first == type }
-    LiquidBottomTabs(
+    ItungTabs(
         selectedTabIndex = { index },
         onTabSelected = { onChange(Types[it].first) },
-        backdrop = LocalGlassBackdrop.current,
         tabsCount = Types.size,
         modifier = modifier.fillMaxWidth(),
         accentColor = tint,
         height = 52.dp,
     ) {
         Types.forEach { (t, label) ->
-            LiquidBottomTab({ onChange(t) }, selected = t == type) {
+            ItungTab({ onChange(t) }, selected = t == type) {
                 Text(label, style = appText(14f, 20f, SemiBold, if (t == type) Ink.White else Ink.Muted))
             }
         }
@@ -330,7 +329,7 @@ private fun AmountCard(
     modifier: Modifier = Modifier,
     onAmountClick: () -> Unit,
 ) {
-    GlassSurface(modifier.fillMaxWidth()) {
+    ItungSurface(modifier.fillMaxWidth()) {
         Column {
             Column(
                 Modifier
@@ -360,7 +359,7 @@ private fun AmountCard(
                     )
                 }
             }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Ink.white(0.08f)))
+            ItungDivider(color = Ink.white(0.08f))
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 17.dp, vertical = 14.dp),
                 Arrangement.spacedBy(12.dp),
@@ -456,10 +455,10 @@ private fun Key(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    LiquidButton(
+    ItungButton(
         onClick = onClick,
         modifier = modifier.height(KeyHeight).semantics { contentDescription = description },
-        surfaceColor = if (operator) Ink.white(0.14f) else GlassDefaults.Surface,
+        surfaceColor = if (operator) Ink.white(0.14f) else ItungDefaults.surface,
         contentPadding = 0.dp,
     ) { content() }
 }
@@ -485,10 +484,10 @@ private fun CategoryRow(categories: List<Category>, selectedId: Long?, onSelect:
     ) {
         items(categories, key = { it.id }) { category ->
             val selected = category.id == selectedId
-            LiquidButton(
+            ItungButton(
                 onClick = { onSelect(category.id) },
                 modifier = Modifier.height(40.dp).semantics { this.selected = selected },
-                surfaceColor = if (selected) Ink.white(0.22f) else GlassDefaults.Surface,
+                surfaceColor = if (selected) Ink.white(0.22f) else ItungDefaults.surface,
                 contentPadding = 12.dp,
             ) {
                 Ico(category.style().chipIcon)
@@ -507,7 +506,7 @@ private fun CategoryRow(categories: List<Category>, selectedId: Long?, onSelect:
 /** Pemilih tanggal ala baris dompet ShopeePay di GoPay: ikon, tanggal relatif + lengkap, panah bawah. */
 @Composable
 private fun DateSelector(date: LocalDate, today: LocalDate, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    GlassSurface(modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp), onClick = onClick) {
+    ItungSurface(modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp), onClick = onClick) {
         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(12.dp), Alignment.CenterVertically) {
             IconCircle(R.drawable.ic_add_calendar, 36.dp, Ink.white(0.1f))
             Text(

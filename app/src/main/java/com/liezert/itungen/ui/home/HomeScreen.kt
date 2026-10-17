@@ -34,17 +34,17 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.liezert.glass.components.GlassCard
-import com.liezert.glass.components.LiquidButton
 import com.liezert.itungen.ItungEnApp
 import com.liezert.itungen.R
 import com.liezert.itungen.domain.model.Goal
 import com.liezert.itungen.domain.model.Transaction
 import com.liezert.itungen.domain.model.TransactionType
-import com.liezert.itungen.domain.model.RupiahPrefix
 import com.liezert.itungen.domain.model.formatRupiah
-import com.liezert.itungen.domain.model.formatRupiahShort
-import com.liezert.itungen.domain.model.formatSigned
+import com.liezert.itungen.domain.model.AmountKind
+import com.liezert.itungen.ui.components.AmountText
+import com.liezert.itungen.ui.goals.GoalImage
+import com.liezert.itungen.ui.components.HiddenAmount
+import com.liezert.itungen.ui.components.amountKind
 import com.liezert.itungen.domain.usecase.Budget
 import com.liezert.itungen.domain.usecase.BudgetPeriod
 import com.liezert.itungen.domain.usecase.BudgetStatus
@@ -53,18 +53,16 @@ import com.liezert.itungen.domain.usecase.LimitWarning
 import com.liezert.itungen.domain.usecase.QuickTemplate
 import com.liezert.itungen.domain.usecase.Shortfall
 import com.liezert.itungen.ui.components.AboveNavBar
-import com.liezert.itungen.ui.components.GlassIconButton
+import com.liezert.itungen.ui.components.ItungIconButton
 import com.liezert.itungen.ui.components.Ico
 import com.liezert.itungen.ui.components.IconCircle
 import com.liezert.itungen.ui.components.ProgressBar
 import com.liezert.itungen.ui.components.TopBar
 import com.liezert.itungen.ui.components.UndoToast
-import com.liezert.itungen.ui.components.amountColor
 import com.liezert.itungen.ui.components.categoryLabel
 import com.liezert.itungen.ui.components.toastMessage
 import com.liezert.itungen.ui.components.bottomClearance
 import com.liezert.itungen.ui.components.clockLabel
-import com.liezert.itungen.ui.components.incoming
 import com.liezert.itungen.ui.components.relativeDay
 import com.liezert.itungen.ui.components.screenPad
 import com.liezert.itungen.ui.components.style
@@ -78,10 +76,10 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 import androidx.compose.ui.text.style.TextOverflow
+import com.liezert.itungen.ui.design.ItungCard
+import com.liezert.itungen.ui.design.ItungButton
+import com.liezert.itungen.ui.design.ItungTransactionRow
 
-
-/** Pengganti nominal saat saldo disembunyikan. */
-const val HiddenAmount = RupiahPrefix + "••••••"
 
 /** Nominal, atau [HiddenAmount] saat "Sembunyikan saldo" aktif: berlaku untuk semua nominal di Beranda. */
 private fun money(amount: Long, hidden: Boolean) = if (hidden) HiddenAmount else formatRupiah(amount)
@@ -152,7 +150,7 @@ fun HomeContent(
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         TopBar(
             leading = { Spacer(Modifier.size(48.dp)) }, // hamburger ditunda sampai punya isi (DESIGN_SPEC §11.2)
-            trailing = { GlassIconButton(R.drawable.ic_history, onHistory, "Semua transaksi") },
+            trailing = { ItungIconButton(R.drawable.ic_history, onHistory, "Semua transaksi") },
         )
         Spacer(Modifier.height(8.dp))
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -194,7 +192,7 @@ private fun BudgetStatus.color() = when (this) {
 @Composable
 private fun BudgetCard(budget: Budget, hidden: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val statusColor = budget.status.color()
-    GlassCard(
+    ItungCard(
         modifier.fillMaxWidth(),
         tint = Brush.verticalGradient(listOf(statusColor.copy(alpha = 0.18f), Color.Transparent)),
         onClick = onClick,
@@ -215,7 +213,7 @@ private fun BudgetCard(budget: Budget, hidden: Boolean, onClick: () -> Unit, mod
             Text(unrealisticMessage(budget, hidden) + " Ketuk untuk mengubah.", style = appText(14f, 20f, Regular, Ink.Gray))
             // Jatah harian tidak bisa dihitung, tetapi belanja hari ini tetap terlihat.
             Text("Keluar hari ini ${money(-budget.todayRemaining, hidden)}", style = appText(14f, 20f, Medium, Ink.White))
-            return@GlassCard
+            return@ItungCard
         }
 
         if (budget.overdue) {
@@ -278,12 +276,21 @@ private fun BudgetStat(label: String, value: String, modifier: Modifier = Modifi
     }
 }
 
+/** Seperti [BudgetStat], untuk nominal pemasukan/pengeluaran (hijau/merah, tanpa +/-). */
+@Composable
+private fun AmountStat(label: String, amount: Long, kind: AmountKind, hidden: Boolean, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, style = appText(12f, 16f, Medium, Ink.Gray), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        AmountText(amount, kind, appText(15f, 20f, SemiBold), hidden = hidden)
+    }
+}
+
 /** Kategori yang mendekati (≥ 80%) atau melewati batas bulanannya; ketuk untuk melihat di Insight. */
 @Composable
 private fun LimitWarningCard(warnings: List<LimitWarning>, hidden: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val over = warnings.any { it.level == LimitLevel.OVER }
     val color = if (over) Ink.Red else Ink.Orange
-    GlassCard(
+    ItungCard(
         modifier.fillMaxWidth(),
         tint = Brush.verticalGradient(listOf(color.copy(alpha = 0.16f), Color.Transparent)),
         onClick = onClick,
@@ -304,7 +311,7 @@ private fun LimitWarningCard(warnings: List<LimitWarning>, hidden: Boolean, onCl
 
 @Composable
 private fun BudgetSetupCard(onSetup: () -> Unit, modifier: Modifier = Modifier) {
-    GlassCard(
+    ItungCard(
         modifier.fillMaxWidth(),
         tint = Brush.verticalGradient(listOf(Ink.Blue.copy(alpha = 0.18f), Color.Transparent)),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -315,7 +322,7 @@ private fun BudgetSetupCard(onSetup: () -> Unit, modifier: Modifier = Modifier) 
                 "ItungEn menghitung jatah harianmu, dan memberi tahu kalau mulai boros.",
             style = appText(14f, 20f, Regular, Ink.Gray),
         )
-        LiquidButton(onClick = onSetup, modifier = Modifier.fillMaxWidth().padding(top = 4.dp), tint = Ink.Blue) {
+        ItungButton(onClick = onSetup, modifier = Modifier.fillMaxWidth().padding(top = 4.dp), tint = Ink.Blue) {
             Text("Atur anggaran", style = appText(15f, 20f, SemiBold, Color.White))
         }
     }
@@ -323,7 +330,7 @@ private fun BudgetSetupCard(onSetup: () -> Unit, modifier: Modifier = Modifier) 
 
 @Composable
 private fun BalanceCard(state: HomeUiState, hidden: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
-    GlassCard(
+    ItungCard(
         modifier.fillMaxWidth(),
         tint = Brush.linearGradient(listOf(Ink.Blue.copy(alpha = 0.22f), Ink.Purple.copy(alpha = 0.10f))),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -343,8 +350,8 @@ private fun BalanceCard(state: HomeUiState, hidden: Boolean, onToggle: () -> Uni
             style = appText(24f, 32f, Bold, if (state.balance < 0 && !hidden) Ink.Red else Ink.White),
         )
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), Arrangement.spacedBy(12.dp)) {
-            BudgetStat("Masuk bulan ini", if (hidden) HiddenAmount else "+" + formatRupiah(state.monthIncome), Modifier.weight(1f))
-            BudgetStat("Keluar bulan ini", if (hidden) HiddenAmount else "-" + formatRupiah(state.monthExpense), Modifier.weight(1f))
+            AmountStat("Masuk bulan ini", state.monthIncome, AmountKind.INCOME, hidden, Modifier.weight(1f))
+            AmountStat("Keluar bulan ini", state.monthExpense, AmountKind.EXPENSE, hidden, Modifier.weight(1f))
         }
     }
 }
@@ -357,11 +364,15 @@ private fun QuickAddRow(templates: List<QuickTemplate>, hidden: Boolean, onQuick
         LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(templates) { template ->
                 val income = template.type == TransactionType.INCOME
-                LiquidButton(onClick = { onQuickAdd(template) }, modifier = Modifier.height(44.dp)) {
+                ItungButton(onClick = { onQuickAdd(template) }, modifier = Modifier.height(44.dp)) {
                     Text(template.label, style = appText(14f, 20f, Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(
-                        (if (income) "+" else "-") + if (hidden) "•••" else formatRupiahShort(template.amount).removePrefix(RupiahPrefix),
-                        style = appText(14f, 20f, SemiBold, if (income) Ink.Green else Ink.Red),
+                    AmountText(
+                        template.amount,
+                        if (income) AmountKind.INCOME else AmountKind.EXPENSE,
+                        appText(14f, 20f, SemiBold),
+                        Modifier.padding(start = 6.dp),
+                        hidden = hidden,
+                        short = true,
                     )
                 }
             }
@@ -371,7 +382,7 @@ private fun QuickAddRow(templates: List<QuickTemplate>, hidden: Boolean, onQuick
 
 @Composable
 private fun GoalPreviewCard(goal: Goal, hidden: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    GlassCard(
+    ItungCard(
         modifier.fillMaxWidth(),
         tint = Brush.verticalGradient(listOf(Ink.Accent.copy(alpha = 0.16f), Color.Transparent)),
         onClick = onClick,
@@ -382,7 +393,9 @@ private fun GoalPreviewCard(goal: Goal, hidden: Boolean, onClick: () -> Unit, mo
             Ico(R.drawable.ic_target)
         }
         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(16.dp), Alignment.CenterVertically) {
-            IconCircle(R.drawable.ic_goal_shoe, 48.dp, Ink.white(0.05f), border = Ink.white(0.14f))
+            GoalImage(goal.imagePath, "Gambar ${goal.name}", Modifier.size(48.dp).clip(CircleShape)) {
+                IconCircle(R.drawable.ic_goal_shoe, 48.dp, Ink.white(0.05f), border = Ink.white(0.14f))
+            }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                     Text(goal.name, style = appText(16f, 24f, SemiBold))
@@ -411,7 +424,7 @@ private fun RecentCard(
     onOpenGoals: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    GlassCard(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    ItungCard(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Text("Riwayat Terakhir", style = appText(16f, 24f))
             Text(
@@ -435,34 +448,18 @@ private fun RecentRow(item: Transaction, state: HomeUiState, hidden: Boolean, on
     val clock = if (item.date >= state.today.minusDays(1)) item.clockLabel(state.zone) else null
     // Transfer goal tidak bisa diubah dari sini (mengikuti goal-nya): ketukan membuka Goals.
     val editable = item.type == TransactionType.INCOME || item.type == TransactionType.EXPENSE
-    Row(
-        Modifier.fillMaxWidth().then(
-            if (editable) Modifier.clickable(onClickLabel = "Ubah", role = Role.Button) { onEdit(item) }
-            else Modifier.clickable(onClickLabel = "Buka Goals", role = Role.Button, onClick = onOpenGoals)
-        ),
-        Arrangement.SpaceBetween,
-        Alignment.CenterVertically,
-    ) {
-        Row(
-            Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconCircle(style.rowIcon, 40.dp, Ink.white(0.05f), border = Ink.white(0.14f))
-            Column(Modifier.weight(1f)) {
-                Text(item.note ?: item.categoryLabel, style = appText(16f, 24f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    if (clock != null) "$day, $clock" else day,
-                    style = appText(16f, 24f, Regular, Ink.Gray),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        Text(
-            if (hidden) (if (item.incoming) "+" else "-") + HiddenAmount else formatSigned(item.amount, item.incoming),
-            Modifier.padding(start = 12.dp),
-            style = appText(16f, 24f, Regular, item.amountColor),
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-        )
-    }
+    ItungTransactionRow(
+        icon = { IconCircle(style.rowIcon, 40.dp, Ink.white(0.05f), border = Ink.white(0.14f)) },
+        title = { Text(item.note ?: item.categoryLabel, style = appText(16f, 24f), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        subtitle = {
+            Text(
+                if (clock != null) "$day, $clock" else day,
+                style = appText(16f, 24f, Regular, Ink.Gray),
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        },
+        amount = { AmountText(item.amount, item.amountKind, appText(16f, 24f, Regular, Ink.Gray), hidden = hidden, arrow = true) },
+        modifier = if (editable) Modifier.clickable(onClickLabel = "Ubah", role = Role.Button) { onEdit(item) }
+        else Modifier.clickable(onClickLabel = "Buka Goals", role = Role.Button, onClick = onOpenGoals),
+    )
 }

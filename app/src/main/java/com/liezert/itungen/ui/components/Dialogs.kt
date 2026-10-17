@@ -27,12 +27,12 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
-import com.liezert.glass.components.LiquidButton
-import com.liezert.glass.components.LiquidDialog
 import com.liezert.itungen.ui.theme.Ink
 import com.liezert.itungen.ui.theme.Medium
 import com.liezert.itungen.ui.theme.Regular
 import com.liezert.itungen.ui.theme.appText
+import com.liezert.itungen.ui.design.ItungDialog
+import com.liezert.itungen.ui.design.ItungButton
 
 private val Indonesian = Locale.forLanguageTag("id-ID")
 
@@ -44,7 +44,7 @@ private val CancelSurface: Color @Composable get() = Color(if (Ink.dark) 0xFF121
 
 /** Alert kaca, tata letak dari DialogContent repo Kyant0: judul, isi, lalu dua tombol kapsul sama lebar. */
 @Composable
-fun LiquidAlertDialog(
+fun ItungAlertDialog(
     visible: Boolean,
     title: String,
     text: String,
@@ -54,7 +54,7 @@ fun LiquidAlertDialog(
     dismissLabel: String = "Batal",
     confirmColor: Color = DialogAccent,
 ) {
-    LiquidDialog(visible, onDismiss) {
+    ItungDialog(visible, onDismiss) {
         Text(title, Modifier.padding(28.dp, 24.dp, 28.dp, 12.dp), style = appText(24f, 30f, Medium))
         Text(
             text,
@@ -65,10 +65,10 @@ fun LiquidAlertDialog(
             style = appText(15f, 21f, Regular, Ink.White.copy(0.68f)),
         )
         DialogButtons {
-            LiquidButton(onDismiss, modifier = Modifier.weight(1f), surfaceColor = CancelSurface) {
+            ItungButton(onDismiss, modifier = Modifier.weight(1f), surfaceColor = CancelSurface) {
                 Text(dismissLabel, style = appText(16f, 22f))
             }
-            LiquidButton(onConfirm, modifier = Modifier.weight(1f), tint = confirmColor) {
+            ItungButton(onConfirm, modifier = Modifier.weight(1f), tint = confirmColor) {
                 Text(confirmLabel, style = appText(16f, 22f, color = Color.White))
             }
         }
@@ -79,7 +79,7 @@ private const val DayMillis = 86_400_000L
 
 /**
  * State pemilih tanggal berbahasa Indonesia. Nama bulan dan hari diambil dari locale state saat state dibuat, bukan
- * saat dialog digambar, jadi locale harus diberikan di sini; konfigurasi di [LiquidDatePickerDialog] hanya
+ * saat dialog digambar, jadi locale harus diberikan di sini; konfigurasi di [ItungDatePickerDialog] hanya
  * menerjemahkan teks tombol dan judul. [selectable] = tanggal yang boleh dipilih.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -100,13 +100,13 @@ fun rememberIndonesianDatePickerState(initialSelectedDate: LocalDate, selectable
 /** Pemilih tanggal Material di dalam kaca dialog (latar picker transparan agar kacanya terlihat). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LiquidDatePickerDialog(
+fun ItungDatePickerDialog(
     visible: Boolean,
     state: DatePickerState,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    LiquidDialog(visible, onDismiss, Modifier.padding(horizontal = 8.dp, vertical = 16.dp)) {
+    ItungDialog(visible, onDismiss, Modifier.padding(horizontal = 8.dp, vertical = 16.dp)) {
         // Bahasa Indonesia apa pun bahasa HP-nya (nama bulan/hari dan teks "Pilih tanggal"), sama seperti seluruh app.
         val configuration = LocalConfiguration.current
         val context = LocalContext.current
@@ -121,10 +121,10 @@ fun LiquidDatePickerDialog(
             )
         }
         DialogButtons {
-            LiquidButton(onDismiss, modifier = Modifier.weight(1f), surfaceColor = CancelSurface) {
+            ItungButton(onDismiss, modifier = Modifier.weight(1f), surfaceColor = CancelSurface) {
                 Text("Batal", style = appText(16f, 22f))
             }
-            LiquidButton(onConfirm, modifier = Modifier.weight(1f), tint = DialogAccent) {
+            ItungButton(onConfirm, modifier = Modifier.weight(1f), tint = DialogAccent) {
                 Text("OK", style = appText(16f, 22f, color = Color.White))
             }
         }

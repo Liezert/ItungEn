@@ -243,7 +243,7 @@ class SyncManager(
                 dao.insertGoal(goalFromDoc(uuid, doc, walletId))
             }
             local.synced -> {
-                dao.updateGoal(goalFromDoc(uuid, doc, local.walletId, local.id))
+                dao.updateGoal(goalFromDoc(uuid, doc, local.walletId, local.id, local))
                 dao.setWalletArchived(local.walletId, archived)
             }
             else -> Unit // perubahan lokal belum terunggah menang; akan menimpa dokumen ini saat diunggah

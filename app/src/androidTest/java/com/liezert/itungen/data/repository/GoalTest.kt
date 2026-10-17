@@ -4,6 +4,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.liezert.itungen.data.local.AppDatabase
 import com.liezert.itungen.domain.model.CategoryType
+import com.liezert.itungen.domain.model.GoalDeposit
 import com.liezert.itungen.domain.model.GoalStatus
 import com.liezert.itungen.domain.model.TransactionType
 import com.liezert.itungen.domain.usecase.InsufficientBalanceException
@@ -20,7 +21,7 @@ import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneOffset
 
-/** Tambah Dana dan batalkan goal: invarian saldo dan atomisitas (§4.2, §7.2, §9). */
+/** Tambah Dana, riwayat setoran, dan hapus (batalkan) goal: invarian saldo dan atomisitas (§4.2, §7.2, §9). */
 @RunWith(AndroidJUnit4::class)
 class GoalTest {
     private lateinit var db: AppDatabase
@@ -80,6 +81,33 @@ class GoalTest {
         assertEquals(1_000_000L, money.observeMainBalance().first())
         assertTrue(goals.observeGoals().first().isEmpty())
         val back = money.allTransactions().first { it.type == TransactionType.TRANSFER_IN }
-        assertEquals(400_000L to "Dari Liburan (dibatalkan)", back.amount to back.note)
+        assertEquals(400_000L to "Dari Liburan (dihapus)", back.amount to back.note)
+    }
+
+    /** Riwayat setoran per target: hanya Tambah Dana ke target itu, terbaru dulu. */
+    @Test
+    fun deposits_listOnlyThisGoalsTopUps_newestFirst() = runBlocking<Unit> {
+        val bike = goals.createGoal("Sepeda", 800_000, null, 0)
+        val laptop = goals.createGoal("Laptop", 5_000_000, null, 0)
+        goals.addFunds(bike, 100_000)
+        goals.addFunds(laptop, 50_000)
+        goals.addFunds(bike, 200_000)
+
+        assertEquals(listOf(200_000L, 100_000L), goals.observeDeposits(bike).first().map { it.amount })
+        assertEquals(listOf(GoalDeposit(50_000, today)), goals.observeDeposits(laptop).first())
+    }
+
+    /** Fase 2: gambar produk tersimpan di goal; dibatalkan = gambarnya dilepas (file-nya dihapus pemanggil). */
+    @Test
+    fun image_isSavedReplacedAndClearedOnCancel() = runBlocking<Unit> {
+        val id = goals.createGoal("Laptop", 2_000_000, null, 0, imagePath = "goal_a.webp")
+        assertEquals("goal_a.webp", goals.observeGoals().first().single { it.id == id }.imagePath)
+        goals.setImage(id, "goal_b.webp")
+        assertEquals("goal_b.webp", goals.observeGoals().first().single { it.id == id }.imagePath)
+        goals.setImage(id, null)
+        assertEquals(null, goals.observeGoals().first().single { it.id == id }.imagePath)
+        goals.setImage(id, "goal_c.webp")
+        goals.cancelGoal(id)
+        assertEquals(null, db.goalDao().get(id).imagePath)
     }
 }

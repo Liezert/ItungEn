@@ -44,6 +44,16 @@ class SyncMappingTest {
         assertEquals(local.copy(id = 0, walletId = 5, synced = true), goalFromDoc("goal-1", doc, 5))
     }
 
+    /** Fase 2: gambar produk hanya ada di HP ini; dokumen goal dari HP lain tidak membawa dan tidak menghapusnya. */
+    @Test
+    fun goal_imageStaysLocal() {
+        val local = GoalEntity(walletId = 5, title = "Laptop", targetAmount = 2_000_000, createdAt = Instant.EPOCH, uuid = "g", imagePath = "goal_a.webp")
+        val doc = PendingGoal(local, "wallet-1", walletArchived = false).toDoc()
+        assertEquals(false, doc.containsKey("imagePath"))
+        assertEquals(null, goalFromDoc("g", doc, 5).imagePath)
+        assertEquals("goal_a.webp", goalFromDoc("g", doc, 5, local = local).imagePath)
+    }
+
     @Test
     fun budgetPlan_roundTrip_andReadsOldTextDates() {
         val plan = BudgetPlan(

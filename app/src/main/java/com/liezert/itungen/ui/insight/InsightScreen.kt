@@ -33,14 +33,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.liezert.glass.components.GlassCard
-import com.liezert.glass.components.GlassSurface
-import com.liezert.glass.components.LiquidBottomTab
-import com.liezert.glass.components.LiquidBottomTabs
-import com.liezert.glass.components.LiquidButton
-import com.liezert.glass.components.LocalGlassBackdrop
 import com.liezert.itungen.domain.model.CategoryType
 import com.liezert.itungen.domain.model.formatRupiah
+import com.liezert.itungen.domain.model.AmountKind
+import com.liezert.itungen.ui.components.AmountText
 import com.liezert.itungen.domain.model.Category
 import com.liezert.itungen.domain.usecase.CategorySpend
 import com.liezert.itungen.domain.usecase.LimitLevel
@@ -62,6 +58,11 @@ import com.liezert.itungen.ui.theme.appText
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import com.liezert.itungen.ui.design.ItungTabs
+import com.liezert.itungen.ui.design.ItungTab
+import com.liezert.itungen.ui.design.ItungSurface
+import com.liezert.itungen.ui.design.ItungCard
+import com.liezert.itungen.ui.design.ItungButton
 
 private val MonthFormat = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("id-ID"))
 private val MonthOnly = DateTimeFormatter.ofPattern("MMMM", Locale.forLanguageTag("id-ID"))
@@ -100,7 +101,7 @@ fun InsightContent(
     val total = state.total
     var limitFor by remember { mutableStateOf<Category?>(null) }
     val lastMonth = state.month.minusMonths(1).format(MonthOnly)
-    val accent = if (state.income) Ink.Green else Ink.Red
+    val accent = if (state.income) Ink.Income else Ink.Expense
 
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         TopBar(
@@ -122,17 +123,16 @@ fun InsightContent(
         }
         Spacer(Modifier.height(16.dp))
         // Segmented control kaca, sama dengan toggle di Tambah Transaksi.
-        LiquidBottomTabs(
+        ItungTabs(
             selectedTabIndex = { Kinds.indexOfFirst { it.first == state.type } },
             onTabSelected = { onType(Kinds[it].first) },
-            backdrop = LocalGlassBackdrop.current,
             tabsCount = Kinds.size,
             modifier = Modifier.screenPad().fillMaxWidth(),
             accentColor = accent,
             height = 52.dp,
         ) {
             Kinds.forEach { (type, label) ->
-                LiquidBottomTab({ onType(type) }, selected = type == state.type) {
+                ItungTab({ onType(type) }, selected = type == state.type) {
                     Text(label, style = appText(14f, 20f, SemiBold, if (type == state.type) Ink.White else Ink.Muted))
                 }
             }
@@ -172,7 +172,7 @@ fun InsightContent(
 
 @Composable
 private fun MonthButton(symbol: String, description: String, enabled: Boolean, onClick: () -> Unit) {
-    LiquidButton(
+    ItungButton(
         onClick = onClick,
         modifier = Modifier.size(40.dp).semantics { contentDescription = description },
         enabled = enabled,
@@ -195,8 +195,9 @@ private fun ComparisonText(
 ) {
     if (previous == 0L && current == 0L) return
     val diff = current - previous
-    val up = if (income) Ink.Green else Ink.Red
-    val down = if (income) Ink.Red else Ink.Green
+    // Naik = baik untuk pemasukan, buruk untuk pengeluaran.
+    val up = if (income) Ink.Income else Ink.Expense
+    val down = if (income) Ink.Expense else Ink.Income
     // Persen dari pembanding yang sangat kecil (mis. Rp 1) tidak bermakna; tampilkan nominalnya saja.
     // Selisih kecil dibulatkan ke 0% terbaca "turun (0%)"; tampilkan "<1%".
     val pct = (kotlin.math.abs(diff) * 100 / maxOf(previous, 1)).takeIf { it <= 999 }?.let { if (it == 0L) " (<1%)" else " ($it%)" }.orEmpty()
@@ -214,19 +215,17 @@ private fun ComparisonText(
 private fun SummaryCard(state: InsightUiState, modifier: Modifier = Modifier) {
     val spending = state.spending
     val total = state.total
-    val accent = if (state.income) Ink.Green else Ink.Red
-    val sign = if (state.income) "+" else "-"
-    GlassCard(
+    val accent = if (state.income) Ink.Income else Ink.Expense
+    val kind = if (state.income) AmountKind.INCOME else AmountKind.EXPENSE
+    ItungCard(
         modifier.fillMaxWidth(),
         tint = Brush.verticalGradient(listOf(accent.copy(alpha = if (total > 0) 0.14f else 0f), Color.Transparent)),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("TOTAL ${state.noun.uppercase()}", style = appText(14f, 20f, SemiBold, Ink.Gray, tracking = 0.7f))
-            Text(
-                if (total > 0) "$sign${formatRupiah(total)}" else formatRupiah(0),
-                style = appText(28f, 42f, Bold, if (total > 0) accent else Ink.White, tracking = -0.7f),
-            )
+            // Nol tetap warna teks biasa: belum ada pemasukan/pengeluaran untuk diwarnai.
+            AmountText(total, if (total > 0) kind else AmountKind.NEUTRAL, appText(28f, 42f, Bold, Ink.White, tracking = -0.7f))
             ComparisonText(total, state.previousTotal, state.month.minusMonths(1).format(MonthOnly), 13f, state.income)
         }
         // Diagram lingkaran per kategori: jumlah kategori di tengah, legenda (warna, nama, persen) di sampingnya.
@@ -287,7 +286,7 @@ private fun BreakdownItem(
         LimitLevel.NEAR -> Ink.Orange
         else -> style.color
     }
-    GlassSurface(Modifier.fillMaxWidth(), onClick = onClick) {
+    ItungSurface(Modifier.fillMaxWidth(), onClick = onClick) {
         Row(
             Modifier.fillMaxWidth().padding(start = 17.dp, end = 17.dp, top = 17.dp, bottom = 29.dp),
             Arrangement.SpaceBetween,
@@ -314,11 +313,11 @@ private fun BreakdownItem(
                     }
                 }
             }
-            Text(
-                (if (income) "+" else "-") + formatRupiah(item.total),
+            AmountText(
+                item.total,
+                if (income) AmountKind.INCOME else AmountKind.EXPENSE,
+                appText(16f, 24f, Bold),
                 Modifier.padding(start = 12.dp),
-                style = appText(16f, 24f, Bold, if (income) Ink.Green else Ink.Red),
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
         // Garis progres tipis di tepi bawah kartu: terhadap batas bila ada, selain itu porsi dari total bulan ini.

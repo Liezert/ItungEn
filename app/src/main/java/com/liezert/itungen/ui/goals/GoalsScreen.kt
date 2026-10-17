@@ -1,7 +1,6 @@
 package com.liezert.itungen.ui.goals
 
 import androidx.annotation.DrawableRes
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +16,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.Image
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,18 +35,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.liezert.glass.components.GlassCard
-import com.liezert.glass.components.GlassSurface
-import com.liezert.glass.components.LiquidButton
-import com.liezert.glass.components.LiquidSheet
 import com.liezert.itungen.R
 import com.liezert.itungen.domain.model.Goal
 import com.liezert.itungen.domain.model.RupiahPrefix
@@ -63,6 +62,11 @@ import com.liezert.itungen.ui.theme.Medium
 import com.liezert.itungen.ui.theme.Regular
 import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
+import com.liezert.itungen.ui.design.ItungSurface
+import com.liezert.itungen.ui.design.ItungSheet
+import com.liezert.itungen.ui.design.ItungCard
+import com.liezert.itungen.ui.design.ItungButton
+import com.liezert.itungen.ui.design.ItungImageCard
 
 private val GoalBrush = Brush.horizontalGradient(listOf(Ink.Accent, Ink.AccentLight))
 private val Dash = Color(0xFF414754)
@@ -90,24 +94,55 @@ fun GoalsScreen(
         opened++
     }
 
+    // Hapus langsung dari kartu; [deleting] tetap terisi selama dialog menutup agar teksnya tidak hilang.
+    var deleting by remember { mutableStateOf<Goal?>(null) }
+    var confirmDelete by remember { mutableStateOf(false) }
     GoalsContent(
         goals = state.goals,
         loading = state.loading,
         onAddGoal = { open(Sheet.Create) },
         onAddFunds = { open(Sheet.Funds(it.id)) },
+        onDelete = {
+            deleting = it
+            confirmDelete = true
+        },
     )
+    deleting?.let { goal ->
+        DeleteGoalDialog(
+            goal,
+            visible = confirmDelete,
+            onConfirm = {
+                confirmDelete = false
+                viewModel.cancelGoal(goal.id)
+            },
+            onDismiss = { confirmDelete = false },
+        )
+    }
 
-    LiquidSheet(sheetOpen, onDismiss = { sheetOpen = false }) {
+    // Tutup sheet Buat Target tanpa menyimpan: gambar drafnya dihapus (setelah dibuat, drafnya sudah kosong).
+    LaunchedEffect(sheetOpen) { if (!sheetOpen) viewModel.discardDraftImage() }
+
+    ItungSheet(sheetOpen, onDismiss = { sheetOpen = false }) {
         key(opened) {
             when (val s = sheet) {
-                Sheet.Create -> CreateGoalSheet(state, onCreate = viewModel::createGoal, onEdited = viewModel::clearErrors)
+                Sheet.Create -> CreateGoalSheet(
+                    state,
+                    onCreate = viewModel::createGoal,
+                    onEdited = viewModel::clearErrors,
+                    onPickImage = viewModel::pickDraftImage,
+                    onRemoveImage = { viewModel.discardDraftImage() },
+                )
                 is Sheet.Funds -> state.goals.firstOrNull { it.id == s.goalId }?.let { goal ->
+                    val deposits by remember(goal.id) { viewModel.deposits(goal.id) }.collectAsStateWithLifecycle(emptyList())
                     AddFundsSheet(
                         goal = goal,
                         state = state,
                         onAddFunds = { viewModel.addFunds(goal.id, it) },
-                        onCancelGoal = { viewModel.cancelGoal(goal.id) },
+                        onDeleteGoal = { viewModel.cancelGoal(goal.id) },
+                        deposits = deposits,
                         onEdited = viewModel::clearErrors,
+                        onPickImage = { viewModel.setImage(goal, it) },
+                        onRemoveImage = { viewModel.removeImage(goal) },
                     )
                 }
             }
@@ -126,6 +161,7 @@ fun GoalsContent(
     loading: Boolean = false,
     onAddGoal: (() -> Unit)? = null,
     onAddFunds: ((Goal) -> Unit)? = null,
+    onDelete: ((Goal) -> Unit)? = null,
 ) {
     val hero = goals.firstOrNull()
     val others = goals.drop(1)
@@ -138,7 +174,7 @@ fun GoalsContent(
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                 Text("Target Tabungan", style = appText(20f, 25f, Bold))
                 if (onAddGoal != null) {
-                    LiquidButton(
+                    ItungButton(
                         onClick = onAddGoal,
                         modifier = Modifier.height(36.dp),
                         surfaceColor = Ink.Accent.copy(alpha = 0.2f),
@@ -149,7 +185,7 @@ fun GoalsContent(
                     }
                 }
             }
-            if (hero != null) HeroGoalCard(hero, onAddFunds?.let { { it(hero) } })
+            if (hero != null) HeroGoalCard(hero, onAddFunds?.let { { it(hero) } }, onDelete?.let { { it(hero) } })
             if (hero != null) {
                 Text(
                     "GOAL LAINNYA",
@@ -158,7 +194,7 @@ fun GoalsContent(
                 )
             }
             if (loading) Unit else if (others.isEmpty()) EmptyGoals(hasHero = hero != null) else others.forEach { goal ->
-                ImageGoalCard(goal, onAddFunds = onAddFunds?.let { { it(goal) } })
+                ImageGoalCard(goal, onAddFunds = onAddFunds?.let { { it(goal) } }, onDelete = onDelete?.let { { it(goal) } })
             }
         }
         Spacer(Modifier.height(bottomClearance()))
@@ -166,10 +202,28 @@ fun GoalsContent(
 }
 
 @Composable
-private fun PrimaryButton(label: String, @DrawableRes icon: Int, onClick: () -> Unit) {
-    LiquidButton(onClick = onClick, modifier = Modifier.fillMaxWidth(), tint = Ink.Accent) {
+private fun PrimaryButton(label: String, @DrawableRes icon: Int, onClick: () -> Unit, modifier: Modifier = Modifier.fillMaxWidth()) {
+    ItungButton(onClick = onClick, modifier = modifier, tint = Ink.Accent) {
         Ico(icon)
         Text(label, style = appText(14f, 20f, Bold, Color.White))
+    }
+}
+
+/** Tombol bawah kartu: Tambah Dana, dan Hapus target bila pengguna berubah pikiran (dengan konfirmasi). */
+@Composable
+private fun GoalActions(goal: Goal, onAddFunds: (() -> Unit)?, onDelete: (() -> Unit)?, modifier: Modifier) {
+    if (onAddFunds == null && onDelete == null) return
+    Row(modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp), Alignment.CenterVertically) {
+        if (onAddFunds != null) PrimaryButton("Tambah Dana", R.drawable.ic_plus_fund, onAddFunds, Modifier.weight(1f))
+        if (onDelete != null) {
+            ItungButton(
+                onClick = onDelete,
+                modifier = Modifier.size(48.dp).semantics { contentDescription = "Hapus target ${goal.name}" },
+                contentPadding = 0.dp,
+            ) {
+                Image(painterResource(R.drawable.ic_delete), null, Modifier.size(22.dp), colorFilter = ColorFilter.tint(Ink.Red))
+            }
+        }
     }
 }
 
@@ -188,14 +242,16 @@ private fun AmountLine(goal: Goal, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun HeroGoalCard(goal: Goal, onAddFunds: (() -> Unit)?) {
-    GlassCard(
+private fun HeroGoalCard(goal: Goal, onAddFunds: (() -> Unit)?, onDelete: (() -> Unit)?) {
+    ItungCard(
         Modifier.fillMaxWidth(),
         tint = Brush.verticalGradient(listOf(Ink.Accent.copy(alpha = 0.18f), Color.Transparent)),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(16.dp), Alignment.CenterVertically) {
-            IconCircle(R.drawable.ic_goal_shoe_large, 56.dp, Ink.Accent.copy(alpha = 0.2f))
+            GoalImage(goal.imagePath, "Gambar ${goal.name}", Modifier.size(56.dp).clip(CircleShape)) {
+                IconCircle(R.drawable.ic_goal_shoe_large, 56.dp, Ink.Accent.copy(alpha = 0.2f))
+            }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(goal.name, style = appText(18f, 22.5f, Bold))
                 Box(
@@ -211,16 +267,14 @@ private fun HeroGoalCard(goal: Goal, onAddFunds: (() -> Unit)?) {
             AmountLine(goal)
             planLine(goal)?.let { Text(it, Modifier.fillMaxWidth(), style = appText(12f, 16f, Regular, Ink.Subtle), textAlign = TextAlign.End) }
         }
-        if (onAddFunds != null) {
-            Box(Modifier.padding(top = 4.dp)) { PrimaryButton("Tambah Dana", R.drawable.ic_plus_fund, onAddFunds) }
-        }
+        GoalActions(goal, onAddFunds, onDelete, Modifier.padding(top = 4.dp))
     }
 }
 
 /** Keadaan kosong tanpa tombol sendiri: "Tambah Target" di judul sudah cukup (tidak ada dua tombol yang sama). */
 @Composable
 private fun EmptyGoals(hasHero: Boolean) {
-    GlassCard(
+    ItungCard(
         Modifier.fillMaxWidth(),
         padding = 33.dp,
         dashedBorder = Dash.copy(alpha = 0.4f),
@@ -241,48 +295,42 @@ private fun EmptyGoals(hasHero: Boolean) {
     }
 }
 
-/** Kartu target dengan foto di atas; tanpa foto, area gambar berupa latar gelap dengan ikon target. */
+/** Kartu target dengan foto produk di atas; tanpa foto, area gambar berupa latar gelap dengan ikon target. */
 @Composable
-private fun ImageGoalCard(goal: Goal, image: Painter? = null, onAddFunds: (() -> Unit)?) {
-    GlassSurface(Modifier.fillMaxWidth(), contentPadding = PaddingValues(1.dp)) {
-        Column {
-            Box(Modifier.fillMaxWidth().height(192.dp).background(Ink.EmptyIconBg), contentAlignment = Alignment.Center) {
-                if (image != null) {
-                    Image(image, goal.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                } else {
-                    Ico(R.drawable.ic_goal_shoe_large)
-                }
-                Box(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 12.dp, end = 12.dp)
-                        .clip(CircleShape)
-                        .background(Ink.AccentLight.copy(alpha = 0.2f))
-                        .border(1.dp, Ink.AccentLight.copy(alpha = 0.2f), CircleShape)
-                        .padding(horizontal = 13.dp, vertical = 5.dp)
-                ) { Text("${goal.percent}% Tercapai", style = appText(12f, 16f, Bold, Ink.AccentLight)) }
+private fun ImageGoalCard(goal: Goal, onAddFunds: (() -> Unit)?, onDelete: (() -> Unit)?) {
+    ItungImageCard(
+        Modifier.fillMaxWidth(),
+        image = {
+            GoalImage(goal.imagePath, "Gambar ${goal.name}", Modifier.fillMaxSize()) {
+                Ico(R.drawable.ic_goal_shoe_large)
             }
-            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(goal.name, style = appText(20f, 25f, Bold))
-                        Text("Target: ${formatRupiah(goal.target)}", style = appText(12f, 16f, Regular, Ink.Muted))
-                    }
-                    Text(formatRupiah(goal.saved), style = appText(18f, 27f, Bold, Ink.AccentLight))
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ProgressBar(goal.progress, GoalBrush, 10.dp, Ink.Track)
-                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                        val small = appText(10f, 15f, Medium, Ink.Subtle, tracking = 0.5f)
-                        Text("MULAI", style = small)
-                        Text("SISA RP ${formatRupiah(goal.remaining).removePrefix(RupiahPrefix)}", style = small)
-                    }
-                }
-                if (onAddFunds != null) {
-                    Box(Modifier.padding(top = 8.dp)) { PrimaryButton("Tambah Dana", R.drawable.ic_plus_fund, onAddFunds) }
-                }
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 12.dp, end = 12.dp)
+                    .clip(CircleShape)
+                    .background(Ink.AccentLight.copy(alpha = 0.2f))
+                    .border(1.dp, Ink.AccentLight.copy(alpha = 0.2f), CircleShape)
+                    .padding(horizontal = 13.dp, vertical = 5.dp)
+            ) { Text("${goal.percent}% Tercapai", style = appText(12f, 16f, Bold, Ink.AccentLight)) }
+        },
+    ) {
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(goal.name, style = appText(20f, 25f, Bold))
+                Text("Target: ${formatRupiah(goal.target)}", style = appText(12f, 16f, Regular, Ink.Muted))
+            }
+            Text(formatRupiah(goal.saved), style = appText(18f, 27f, Bold, Ink.AccentLight))
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ProgressBar(goal.progress, GoalBrush, 10.dp, Ink.Track)
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                val small = appText(10f, 15f, Medium, Ink.Subtle, tracking = 0.5f)
+                Text("MULAI", style = small)
+                Text("SISA RP ${formatRupiah(goal.remaining).removePrefix(RupiahPrefix)}", style = small)
             }
         }
+        GoalActions(goal, onAddFunds, onDelete, Modifier.padding(top = 8.dp))
     }
 }
 
@@ -303,7 +351,7 @@ private val PreviewGoals = listOf(
 @Preview(widthDp = 390, heightDp = 1100, showBackground = true, backgroundColor = 0xFF000000)
 @Composable
 private fun GoalsPreview() = ItungEnTheme {
-    GoalsContent(goals = PreviewGoals, onAddGoal = {}, onAddFunds = {})
+    GoalsContent(goals = PreviewGoals, onAddGoal = {}, onAddFunds = {}, onDelete = {})
 }
 
 @Preview(widthDp = 390, heightDp = 600, showBackground = true, backgroundColor = 0xFF000000)

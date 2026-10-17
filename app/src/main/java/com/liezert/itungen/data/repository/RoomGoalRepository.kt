@@ -6,6 +6,7 @@ import com.liezert.itungen.data.local.entity.GoalEntity
 import com.liezert.itungen.data.local.entity.TransactionEntity
 import com.liezert.itungen.data.local.entity.WalletEntity
 import com.liezert.itungen.domain.model.Goal
+import com.liezert.itungen.domain.model.GoalDeposit
 import com.liezert.itungen.domain.model.GoalStatus
 import com.liezert.itungen.domain.model.TransactionType
 import com.liezert.itungen.domain.model.WalletType
@@ -33,11 +34,12 @@ class RoomGoalRepository(
                 targetDate = it.goal.targetDate,
                 plannedMonthly = it.goal.plannedMonthly,
                 status = it.goal.status,
+                imagePath = it.goal.imagePath,
             )
         }
     }
 
-    override suspend fun createGoal(title: String, target: Long, targetDate: LocalDate?, plannedMonthly: Long): Long =
+    override suspend fun createGoal(title: String, target: Long, targetDate: LocalDate?, plannedMonthly: Long, imagePath: String?): Long =
         db.withTransaction {
             val now = Instant.now(clock)
             val walletId = db.walletDao().insert(WalletEntity(name = title, type = WalletType.GOAL, createdAt = now))
@@ -49,6 +51,7 @@ class RoomGoalRepository(
                     targetDate = targetDate,
                     plannedMonthly = plannedMonthly,
                     createdAt = now,
+                    imagePath = imagePath,
                 )
             )
         }
@@ -78,13 +81,21 @@ class RoomGoalRepository(
                     toWallet = mainId,
                     amount = saved,
                     outNote = "Dikembalikan ke saldo",
-                    inNote = "Dari ${goal.title} (dibatalkan)",
+                    inNote = "Dari ${goal.title} (dihapus)",
                 )
             }
             db.goalDao().setStatus(goalId, GoalStatus.CANCELLED)
+            db.goalDao().setImage(goalId, null) // target yang dibatalkan tidak tampil lagi; file-nya dihapus pemanggil
             db.walletDao().archive(goal.walletId)
         }
     }
+
+    override fun observeDeposits(goalId: Long): Flow<List<GoalDeposit>> =
+        db.goalDao().observeDeposits(goalId).map { rows -> rows.map { GoalDeposit(it.amount, it.date) } }
+
+    override suspend fun setImage(goalId: Long, imagePath: String?) = db.goalDao().setImage(goalId, imagePath)
+
+    override suspend fun imagesInUse(): Set<String> = db.goalDao().imagesInUse().toSet()
 
     /** Dua baris berpasangan yang diikat transfer_group_id; bukan pemasukan/pengeluaran (§3.2). */
     private suspend fun transfer(fromWallet: Long, toWallet: Long, amount: Long, outNote: String, inNote: String) {

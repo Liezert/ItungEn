@@ -31,6 +31,8 @@ data class GoalEntity(
     @ColumnInfo(defaultValue = "") val uuid: String = UUID.randomUUID().toString(),
     /** false = perubahan lokal belum terunggah ke akun. */
     @ColumnInfo(defaultValue = "0") val synced: Boolean = false,
+    /** Nama file gambar produk di `filesDir/goal_images` (GoalImageStore); hanya di HP ini, tidak tersinkron. */
+    @ColumnInfo(name = "image_path") val imagePath: String? = null,
 )
 
 data class GoalWithSaved(

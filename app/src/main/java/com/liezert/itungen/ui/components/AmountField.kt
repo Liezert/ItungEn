@@ -26,7 +26,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.liezert.glass.components.GlassSurface
 import com.liezert.itungen.domain.model.MAX_AMOUNT
 import com.liezert.itungen.ui.theme.Bold
 import com.liezert.itungen.ui.theme.Ink
@@ -34,6 +33,8 @@ import com.liezert.itungen.ui.theme.Medium
 import com.liezert.itungen.ui.theme.Regular
 import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
+import com.liezert.itungen.ui.design.ItungSurface
+import com.liezert.itungen.ui.design.SurfaceRole
 
 /** Hanya angka, maksimal 12 digit, tanpa nol di depan (nominal selalu > 0, DESIGN_SPEC §7.1). */
 val AmountInput = InputTransformation.maxLength(MAX_AMOUNT.toString().length).then(
@@ -55,7 +56,7 @@ val ThousandsSeparator = OutputTransformation {
 /** Kolom nominal rupiah ringkas (dipakai di sheet): label di atas, "Rp" + angka besar dengan pemisah ribuan. */
 @Composable
 fun AmountField(state: TextFieldState, label: String, modifier: Modifier = Modifier) {
-    GlassSurface(modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 17.dp, vertical = 13.dp)) {
+    ItungSurface(modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 17.dp, vertical = 13.dp), role = SurfaceRole.FIELD) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(label, style = appText(13f, 18f, Medium, Ink.Gray))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -84,7 +85,7 @@ fun AmountField(state: TextFieldState, label: String, modifier: Modifier = Modif
 
 /** Kolom teks satu baris bergaya kaca. [password] menyamarkan isinya. */
 @Composable
-fun GlassTextField(
+fun ItungTextField(
     state: TextFieldState,
     placeholder: String,
     modifier: Modifier = Modifier,
@@ -99,7 +100,7 @@ fun GlassTextField(
             inner()
         }
     }
-    GlassSurface(modifier.fillMaxWidth(), contentPadding = PaddingValues(17.dp)) {
+    ItungSurface(modifier.fillMaxWidth(), contentPadding = PaddingValues(17.dp), role = SurfaceRole.FIELD) {
         val field = Modifier.fillMaxWidth().semantics { contentDescription = placeholder }
         if (password) {
             BasicSecureTextField(

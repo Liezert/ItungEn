@@ -28,7 +28,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.liezert.glass.components.LiquidButton
 import com.liezert.glass.components.LocalGlassBackdrop
 import com.liezert.itungen.ui.components.AppBackground
 import com.liezert.itungen.ui.components.rememberBackgroundBackdrop
@@ -37,6 +36,7 @@ import com.liezert.itungen.ui.theme.Ink
 import com.liezert.itungen.ui.theme.Regular
 import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
+import com.liezert.itungen.ui.design.ItungButton
 
 /** Sidik jari / wajah, atau PIN/pola HP sebagai cadangan (tanpa library: BiometricPrompt bawaan API 30+). */
 private const val Authenticators = BIOMETRIC_WEAK or DEVICE_CREDENTIAL
@@ -95,7 +95,7 @@ private fun BoxScope.LockContent(prompt: () -> Unit) {
             style = appText(14f, 20f, Regular, Ink.Gray),
             textAlign = TextAlign.Center,
         )
-        LiquidButton(onClick = prompt, modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(52.dp)) {
+        ItungButton(onClick = prompt, modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(52.dp)) {
             Text("Buka kunci", style = appText(16f, 22f, SemiBold))
         }
     }

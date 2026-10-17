@@ -11,6 +11,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.sp
 import com.liezert.itungen.R
+import com.liezert.itungen.ui.design.ActiveTheme
 
 @OptIn(ExperimentalTextApi::class)
 // inter_variable.ttf = subset Inter (Latin + tanda baca yang dipakai UI, sumbu bobot 400–700): 160 KB, bukan 876 KB.
@@ -33,10 +34,11 @@ fun appText(
     color: Color = Ink.White,
     tracking: Float = 0f,
 ) = TextStyle(
-    fontFamily = InterFamily,
-    fontSize = size.sp,
-    lineHeight = line.sp,
-    fontWeight = weight,
+    // Keluarga font dan bobot dari tema aktif (Liquid Glass: Inter, bobot apa adanya).
+    fontFamily = ActiveTheme.spec.type.family,
+    fontSize = (size * ActiveTheme.spec.type.sizeScale).sp,
+    lineHeight = (line * ActiveTheme.spec.type.sizeScale).sp,
+    fontWeight = ActiveTheme.spec.type.weight(weight),
     color = color,
     letterSpacing = tracking.sp,
     lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None),

@@ -7,6 +7,7 @@ import com.liezert.itungen.domain.model.Category
 import com.liezert.itungen.domain.model.CategoryType
 import com.liezert.itungen.domain.model.Transaction
 import com.liezert.itungen.domain.model.TransactionType
+import com.liezert.itungen.domain.model.AmountKind
 import com.liezert.itungen.ui.theme.Ink
 
 /**
@@ -58,12 +59,10 @@ fun Transaction.style(): CategoryStyle =
 val Transaction.categoryLabel: String
     get() = category?.name ?: if (type == TransactionType.INCOME || type == TransactionType.EXPENSE) "Lainnya" else "Transfer"
 
-val Transaction.incoming: Boolean get() = type == TransactionType.INCOME || type == TransactionType.TRANSFER_IN
-
-/** Hijau untuk pemasukan, merah untuk pengeluaran, abu-abu untuk transfer (bukan pemasukan/pengeluaran, §3.2). */
-val Transaction.amountColor: Color
+/** Pemasukan / pengeluaran; transfer goal netral (bukan pemasukan/pengeluaran, §3.2). */
+val Transaction.amountKind: AmountKind
     get() = when (type) {
-        TransactionType.INCOME -> Ink.Green
-        TransactionType.EXPENSE -> Ink.Red
-        else -> Ink.Gray
+        TransactionType.INCOME -> AmountKind.INCOME
+        TransactionType.EXPENSE -> AmountKind.EXPENSE
+        else -> AmountKind.NEUTRAL
     }

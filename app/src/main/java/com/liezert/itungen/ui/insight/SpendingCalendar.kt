@@ -31,9 +31,6 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.liezert.glass.components.GlassCard
-import com.liezert.glass.components.LiquidButton
-import com.liezert.glass.components.LiquidSheet
 import com.liezert.itungen.domain.model.Category
 import com.liezert.itungen.domain.model.formatRupiah
 import com.liezert.itungen.domain.usecase.heatLevel
@@ -53,6 +50,9 @@ import com.liezert.itungen.domain.usecase.dayTone
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import com.liezert.itungen.ui.design.ItungSheet
+import com.liezert.itungen.ui.design.ItungCard
+import com.liezert.itungen.ui.design.ItungButton
 
 private val Id = Locale.forLanguageTag("id-ID")
 private val DayFormat = DateTimeFormatter.ofPattern("EEEE, d MMMM", Id)
@@ -77,7 +77,7 @@ fun SpendingCalendar(
     val month = state.month
     val max = state.daily.values.maxOrNull() ?: 0
     val noSpendThisMonth = state.noSpendDays.count { it.year == month.year && it.month == month.month && (state.daily[it] ?: 0) == 0L }
-    GlassCard(modifier.fillMaxWidth(), padding = 17.dp, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    ItungCard(modifier.fillMaxWidth(), padding = 17.dp, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Text("Kalender", style = appText(15f, 22.5f, SemiBold, Ink.white(0.9f)))
             // Streak adalah keadaan sekarang: di bulan lalu terkesan milik bulan itu.
@@ -175,13 +175,13 @@ private fun DayDetail(day: LocalDate, state: InsightUiState, onToggleNoSpend: (L
                     marked -> "Ditandai tidak jajan"
                     else -> "Tidak ada pengeluaran"
                 },
-                style = appText(13f, 18f, Regular, if (amount > 0) Ink.Red else if (marked) Ink.Green else Ink.Gray),
+                style = appText(13f, 18f, Regular, if (amount > 0) Ink.Expense else if (marked) Ink.Green else Ink.Gray),
             )
         }
         // Hanya hari tanpa pengeluaran yang bisa ditandai, dan hanya hari ini/kemarin (streak tidak bisa digelembungkan
         // dengan menandai hari lama). Tanda yang sudah ada tetap bisa dibatalkan.
         if (amount == 0L && (marked || canMarkNoSpend(day, state.today))) {
-            LiquidButton(onClick = { onToggleNoSpend(day) }, modifier = Modifier.height(40.dp), contentPadding = 14.dp) {
+            ItungButton(onClick = { onToggleNoSpend(day) }, modifier = Modifier.height(40.dp), contentPadding = 14.dp) {
                 Text(if (marked) "Batalkan tanda" else "Tandai tidak jajan", style = appText(13f, 18f, SemiBold, Ink.Green))
             }
         }
@@ -197,7 +197,7 @@ fun CategoryLimitSheet(category: Category?, current: Long?, onSave: (Long?) -> U
     var shown by remember { mutableStateOf(category) }
     if (category != null) shown = category
     val target = shown ?: return
-    LiquidSheet(visible = category != null, onDismiss = onDismiss) {
+    ItungSheet(visible = category != null, onDismiss = onDismiss) {
         key(target.id) {
             val amount = rememberTextFieldState(current?.toString().orEmpty())
             Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -209,11 +209,11 @@ fun CategoryLimitSheet(category: Category?, current: Long?, onSave: (Long?) -> U
                 AmountField(amount, "Batas per bulan")
                 Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(12.dp)) {
                     if (current != null) {
-                        LiquidButton(onClick = { onSave(null) }, modifier = Modifier.weight(1f)) {
+                        ItungButton(onClick = { onSave(null) }, modifier = Modifier.weight(1f)) {
                             Text("Hapus batas", style = appText(15f, 20f, SemiBold, Ink.Red))
                         }
                     }
-                    LiquidButton(
+                    ItungButton(
                         onClick = { onSave(amount.text.toString().toLongOrNull()) },
                         modifier = Modifier.weight(1f),
                         tint = Ink.Blue,

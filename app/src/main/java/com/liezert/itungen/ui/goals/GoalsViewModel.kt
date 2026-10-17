@@ -1,6 +1,9 @@
 package com.liezert.itungen.ui.goals
 
+import android.content.ContentResolver
 import android.database.sqlite.SQLiteException
+import android.net.Uri
+import com.liezert.itungen.data.images.GoalImageStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
@@ -33,6 +36,10 @@ data class GoalFormState(
     val failed: Boolean = false,
     /** Naik setiap aksi berhasil; layar menutup sheet saat nilainya berubah. */
     val doneCount: Int = 0,
+    /** Gambar yang dipilih di Buat Target (sudah disalin ke penyimpanan app), dipakai saat target dibuat. */
+    val draftImage: String? = null,
+    /** Gambar dari Photo Picker tidak bisa dibaca. */
+    val imageFailed: Boolean = false,
 )
 
 data class GoalsUiState(
@@ -47,6 +54,8 @@ class GoalsViewModel(
     private val goals: GoalRepository,
     transactions: TransactionRepository,
     private val clock: Clock,
+    private val images: GoalImageStore,
+    private val resolver: ContentResolver,
 ) : ViewModel() {
     private val form = MutableStateFlow(GoalFormState())
 
@@ -55,7 +64,43 @@ class GoalsViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GoalsUiState(today = LocalDate.now(clock)))
 
     /** Dipanggil saat sheet dibuka agar pesan error lama tidak terbawa. */
-    fun clearErrors() = form.update { it.copy(goalError = null, transferError = null, failed = false) }
+    fun clearErrors() = form.update { it.copy(goalError = null, transferError = null, failed = false, imageFailed = false) }
+
+    /** Buat Target: gambar dipilih sebelum target ada, jadi disalin dulu; pilihan sebelumnya dihapus. */
+    fun pickDraftImage(uri: Uri) = viewModelScope.launch {
+        val name = copyImage(uri) ?: return@launch
+        val previous = form.value.draftImage
+        form.update { it.copy(draftImage = name) }
+        images.delete(previous)
+    }
+
+    /** Hapus gambar draf, atau sheet Buat Target ditutup tanpa menyimpan: file-nya tidak dipakai siapa pun. */
+    fun discardDraftImage() = viewModelScope.launch {
+        val previous = form.value.draftImage ?: return@launch
+        form.update { it.copy(draftImage = null) }
+        images.delete(previous)
+    }
+
+    /** Ganti gambar goal yang sudah ada; file lama dihapus setelah goal memakai file baru. */
+    fun setImage(goal: Goal, uri: Uri) = viewModelScope.launch {
+        val name = copyImage(uri) ?: return@launch
+        goals.setImage(goal.id, name)
+        images.delete(goal.imagePath)
+    }
+
+    fun removeImage(goal: Goal) = viewModelScope.launch {
+        goals.setImage(goal.id, null)
+        images.delete(goal.imagePath)
+    }
+
+    private suspend fun copyImage(uri: Uri): String? = try {
+        images.save(resolver, uri)
+    } catch (e: Exception) {
+        // File rusak / format tidak didukung / penyimpanan penuh: beri tahu, jangan crash.
+        if (e is kotlinx.coroutines.CancellationException) throw e
+        form.update { it.copy(imageFailed = true) }
+        null
+    }
 
     fun createGoal(title: String, target: Long?, targetDate: LocalDate?, plannedMonthly: Long?) {
         val error = validateGoal(title, target, targetDate, LocalDate.now(clock), plannedMonthly)
@@ -63,7 +108,8 @@ class GoalsViewModel(
             form.update { it.copy(goalError = error) }
             return
         }
-        perform { goals.createGoal(title.trim(), target!!, targetDate, plannedMonthly ?: 0) }
+        val image = form.value.draftImage
+        perform { goals.createGoal(title.trim(), target!!, targetDate, plannedMonthly ?: 0, image) }
     }
 
     fun addFunds(goalId: Long, amount: Long?) {
@@ -75,7 +121,15 @@ class GoalsViewModel(
         perform { goals.addFunds(goalId, amount!!) }
     }
 
-    fun cancelGoal(goalId: Long) = perform { goals.cancelGoal(goalId) }
+    fun deposits(goalId: Long) = goals.observeDeposits(goalId)
+
+    fun cancelGoal(goalId: Long) {
+        val image = uiState.value.goals.firstOrNull { it.id == goalId }?.imagePath
+        perform {
+            goals.cancelGoal(goalId)
+            images.delete(image) // target dibatalkan tidak tampil lagi: gambarnya tidak dibutuhkan
+        }
+    }
 
     private fun perform(action: suspend () -> Unit) {
         if (form.value.busy) return
@@ -97,7 +151,7 @@ class GoalsViewModel(
         val Factory = viewModelFactory {
             initializer {
                 val c = (this[APPLICATION_KEY] as ItungEnApp).container
-                GoalsViewModel(c.goalRepository, c.transactionRepository, c.clock)
+                GoalsViewModel(c.goalRepository, c.transactionRepository, c.clock, c.goalImages, c.contentResolver)
             }
         }
     }

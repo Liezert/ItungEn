@@ -28,6 +28,9 @@ import com.liezert.itungen.data.sync.networkAvailable
 import com.liezert.itungen.ui.lock.LockScreen
 import com.liezert.itungen.ui.navigation.AppNav
 import com.liezert.itungen.ui.theme.Ink
+import com.liezert.itungen.ui.design.ActiveTheme
+import com.liezert.itungen.ui.design.Themes
+import com.liezert.itungen.work.QuickIncome
 import com.liezert.itungen.ui.theme.ItungEnTheme
 import kotlinx.coroutines.launch
 
@@ -44,6 +47,8 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null && intent?.action == ACTION_ADD) addRequests++
         val container = (application as ItungEnApp).container
         Ink.dark = container.darkTheme
+        ActiveTheme.context = applicationContext
+        ActiveTheme.spec = Themes.byId(container.themeId)
         locked = container.appLock
         // Kunci aktif = pratinjau di Recents disamarkan, agar saldo tidak terlihat dari daftar aplikasi.
         setRecentsScreenshotEnabled(!container.appLock)
@@ -59,6 +64,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        // Notifikasi catat cepat bisa digeser hilang (Android 14+): pasang lagi tiap app dibuka bila toggle-nya aktif.
+        if (container.quickIncomeEnabled) container.appScope.launch { QuickIncome.show(applicationContext) }
         // Tarik perubahan dari HP lain saat app dibuka/kembali ke depan (bukan tiap menit), dan coba lagi saat
         // jaringan tersambung bila tadi gagal. Langsung selesai bila belum masuk akun.
         lifecycleScope.launch {

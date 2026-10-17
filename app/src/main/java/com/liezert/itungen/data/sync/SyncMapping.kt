@@ -57,7 +57,8 @@ fun PendingGoal.toDoc(): Map<String, Any?> = mapOf(
     "createdAt" to goal.createdAt.toEpochMilli(),
 )
 
-fun goalFromDoc(uuid: String, doc: Map<String, Any?>, walletId: Long, localId: Long = 0) = GoalEntity(
+/** [local] = goal yang sudah ada di HP ini: kolom yang hanya lokal (gambar produk) dipertahankan. */
+fun goalFromDoc(uuid: String, doc: Map<String, Any?>, walletId: Long, localId: Long = 0, local: GoalEntity? = null) = GoalEntity(
     id = localId,
     walletId = walletId,
     title = doc["title"] as String,
@@ -68,6 +69,7 @@ fun goalFromDoc(uuid: String, doc: Map<String, Any?>, walletId: Long, localId: L
     createdAt = Instant.ofEpochMilli((doc["createdAt"] as Number).toLong()),
     uuid = uuid,
     synced = true,
+    imagePath = local?.imagePath,
 )
 
 /** Tanggal disimpan sebagai epoch-day, sama seperti transaksi. */

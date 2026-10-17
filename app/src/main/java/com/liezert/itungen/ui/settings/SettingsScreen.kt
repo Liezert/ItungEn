@@ -5,7 +5,10 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
+import com.liezert.itungen.work.QuickIncome
+import com.liezert.itungen.ui.design.ActiveTheme
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
@@ -35,7 +38,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
@@ -43,12 +49,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.liezert.glass.components.GlassCard
-import com.liezert.glass.components.GlassSurface
-import com.liezert.glass.components.LiquidButton
-import com.liezert.glass.components.LiquidToggle
 import com.liezert.itungen.ItungEnApp
 import com.liezert.itungen.R
+import com.liezert.itungen.data.backup.BackupTooLargeException
 import com.liezert.itungen.data.backup.InvalidBackupException
 import com.liezert.itungen.data.demo.seedDemoData
 import com.liezert.itungen.data.sync.SyncStatus
@@ -60,10 +63,10 @@ import com.liezert.itungen.ui.account.AccountViewModel
 import com.liezert.itungen.ui.account.GoogleSignInButton
 import com.liezert.itungen.ui.budget.dayName
 import com.liezert.itungen.ui.components.ChoiceSheet
-import com.liezert.itungen.ui.components.GlassIconButton
+import com.liezert.itungen.ui.components.ItungIconButton
 import com.liezert.itungen.ui.components.Ico
 import com.liezert.itungen.ui.components.IconCircle
-import com.liezert.itungen.ui.components.LiquidAlertDialog
+import com.liezert.itungen.ui.components.ItungAlertDialog
 import com.liezert.itungen.ui.components.TopBar
 import com.liezert.itungen.ui.components.bottomClearance
 import com.liezert.itungen.ui.components.screenPad
@@ -84,6 +87,10 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import androidx.compose.ui.text.style.TextOverflow
+import com.liezert.itungen.ui.design.ItungSwitch
+import com.liezert.itungen.ui.design.ItungSurface
+import com.liezert.itungen.ui.design.ItungCard
+import com.liezert.itungen.ui.design.ItungButton
 
 private val ClockFormat = DateTimeFormatter.ofPattern("HH.mm")
 
@@ -109,8 +116,11 @@ fun SettingsScreen(
     var pickingHour by rememberSaveable { mutableStateOf(false) }
     var appLock by remember { mutableStateOf(container.appLock) }
     var dataMessage by remember { mutableStateOf<String?>(null) }
+    var dataBusy by remember { mutableStateOf(false) }
     var lockMessage by remember { mutableStateOf<String?>(null) }
     var reminderMessage by remember { mutableStateOf<String?>(null) }
+    var quickIncome by remember { mutableStateOf(container.quickIncomeEnabled) }
+    var quickIncomeMessage by remember { mutableStateOf<String?>(null) }
     val hasTransactions by remember { container.transactionRepository.observeHasTransactions() }.collectAsStateWithLifecycle(true)
     // Izin bisa dicabut dari pengaturan HP kapan saja: dibaca ulang setiap layar kembali tampil.
     var notificationsAllowed by remember { mutableStateOf(true) }
@@ -130,27 +140,52 @@ fun SettingsScreen(
         // Penolakan dihormati: tidak langsung melempar ke pengaturan sistem (lihat notificationAsk).
         reminderMessage = if (granted) null else "Izin notifikasi ditolak, jadi pengingat tidak aktif."
     }
+    /** Minta izin notifikasi lewat [launcher]; setelah ditolak permanen, buka pengaturan notifikasi app. */
+    fun askNotifications(launcher: ManagedActivityResultLauncher<String, Boolean>) {
+        val rationale = (context as? Activity)
+            ?.let { ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.POST_NOTIFICATIONS) } == true
+        when (notificationAsk(container.notificationAsked, rationale)) {
+            NotificationAsk.REQUEST -> {
+                container.notificationAsked = true
+                launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            // Dialog tidak akan muncul lagi: satu-satunya jalan adalah pengaturan notifikasi app.
+            NotificationAsk.OPEN_SETTINGS -> openNotificationSettings(context)
+        }
+    }
+    fun notificationGranted() =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
     fun toggleReminder(on: Boolean) {
-        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        val granted = notificationGranted()
         reminderMessage = null
         when {
-            on && !granted -> {
-                val rationale = (context as? Activity)
-                    ?.let { ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.POST_NOTIFICATIONS) } == true
-                when (notificationAsk(container.notificationAsked, rationale)) {
-                    NotificationAsk.REQUEST -> {
-                        container.notificationAsked = true
-                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
-                    // Dialog tidak akan muncul lagi: satu-satunya jalan adalah pengaturan notifikasi app.
-                    NotificationAsk.OPEN_SETTINGS -> openNotificationSettings(context)
-                }
-            }
+            on && !granted -> askNotifications(notificationPermission)
             on && !notificationsAllowed -> {
                 setReminder(true)
                 openNotificationSettings(context) // izin ada, tetapi notifikasi app dimatikan
             }
             else -> setReminder(on)
+        }
+    }
+    fun setQuickIncome(on: Boolean) {
+        quickIncome = on
+        container.quickIncomeEnabled = on
+        if (on) scope.launch { QuickIncome.show(context.applicationContext) } else QuickIncome.cancel(context)
+    }
+    val quickIncomePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        setQuickIncome(granted)
+        notificationsAllowed = NotificationManagerCompat.from(context).areNotificationsEnabled()
+        quickIncomeMessage = if (granted) null else "Izin notifikasi ditolak, jadi notifikasi catat cepat tidak bisa tampil."
+    }
+    fun toggleQuickIncome(on: Boolean) {
+        quickIncomeMessage = null
+        when {
+            on && !notificationGranted() -> askNotifications(quickIncomePermission)
+            on && !notificationsAllowed -> {
+                setQuickIncome(true)
+                openNotificationSettings(context) // izin ada, tetapi notifikasi app dimatikan
+            }
+            else -> setQuickIncome(on)
         }
     }
     fun toggleAppLock(on: Boolean) {
@@ -171,42 +206,51 @@ fun SettingsScreen(
         container.darkTheme = dark
     }
 
-    // Cadangan: berkas dipilih pengguna lewat pemilih dokumen sistem (tanpa izin penyimpanan).
-    fun runData(action: suspend () -> String) {
+    // Cadangan: berkas dipilih pengguna lewat pemilih dokumen sistem (tanpa izin penyimpanan). [busy] tampil selama
+    // berjalan dan tombol data dinonaktifkan, agar ekspor/impor (bisa beberapa detik bila banyak gambar) tidak dobel.
+    fun runData(busy: String, action: suspend () -> String) {
+        if (dataBusy) return
+        dataBusy = true
+        dataMessage = busy
         scope.launch {
             dataMessage = try {
                 withContext(Dispatchers.IO) { action() }
             } catch (_: InvalidBackupException) {
                 "Berkas ini bukan cadangan ItungEn."
+            } catch (_: BackupTooLargeException) {
+                "Berkas cadangan terlalu besar untuk dipulihkan."
             } catch (_: Exception) {
                 "Gagal membaca/menulis berkas. Coba lagi."
+            } finally {
+                dataBusy = false
             }
         }
     }
-    val exportJson = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri != null) runData {
-            context.contentResolver.openOutputStream(uri)!!.use { container.backup.exportJson(it) }
+    val exportBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri != null) runData("Menyiapkan cadangan…") {
+            context.contentResolver.openOutputStream(uri)!!.use { container.backup.export(it) }
             "Cadangan tersimpan. Simpan berkasnya di tempat aman (mis. Google Drive)."
         }
     }
     val exportCsv = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
-        if (uri != null) runData {
+        if (uri != null) runData("Menyiapkan CSV…") {
             val transactions = container.transactionRepository.allTransactions()
             context.contentResolver.openOutputStream(uri)!!.use { container.backup.exportCsv(transactions, it) }
             "CSV tersimpan (${transactions.size} transaksi)."
         }
     }
-    val importJson = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) runData {
-            val result = context.contentResolver.openInputStream(uri)!!.use { container.backup.importJson(it) }
+    val importBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) runData("Memulihkan cadangan…") {
+            val result = context.contentResolver.openInputStream(uri)!!.use { container.backup.import(it) }
             val rows = if (result.added == 0) "Tidak ada catatan baru: semua isi cadangan sudah ada di HP ini." else "${result.added} catatan dipulihkan."
-            if (result.planRestored) "$rows Anggaran juga dipulihkan." else rows
+            val images = if (result.images > 0) " ${result.images} gambar target ikut dipulihkan." else ""
+            if (result.planRestored) "$rows$images Anggaran juga dipulihkan." else rows + images
         }
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         TopBar(
-            leading = { GlassIconButton(R.drawable.ic_back, onBack, "Kembali") },
+            leading = { ItungIconButton(R.drawable.ic_back, onBack, "Kembali") },
             trailing = { Spacer(Modifier.size(48.dp)) },
         )
         Column(Modifier.screenPad(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -240,6 +284,14 @@ fun SettingsScreen(
                 subtitleColor = if (reminderBlocked) Ink.Orange else Ink.Gray,
             )
             reminderMessage?.let { Text(it, Modifier.padding(horizontal = 4.dp), style = appText(12f, 16f, Regular, Ink.Orange)) }
+            ToggleRow(
+                "Notifikasi catat cepat",
+                "Catat pemasukan dari notifikasi tanpa membuka app: pilih kategori, ketik nominal (mis. 50rb). " +
+                    "Notifikasinya muncul lagi bila diusap; matikan kapan saja lewat toggle ini.",
+                checked = quickIncome && notificationsAllowed,
+                onChange = ::toggleQuickIncome,
+            )
+            quickIncomeMessage?.let { Text(it, Modifier.padding(horizontal = 4.dp), style = appText(12f, 16f, Regular, Ink.Orange)) }
             if (reminder && notificationsAllowed) {
                 NavRow(R.drawable.ic_history, "Jam pengingat", "%02d.00 setiap hari".format(reminderHour)) { pickingHour = true }
                 Text(
@@ -266,8 +318,10 @@ fun SettingsScreen(
             )
 
             SectionLabel("TAMPILAN")
-            ToggleRow("Mode gelap", "Latar hitam, nyaman di malam hari", checked = Ink.dark, onChange = ::setDark)
-            ToggleRow(
+            ThemePicker(ActiveTheme.spec, onSelect = container::setTheme)
+            ToggleRow("Mode gelap", "Latar gelap, nyaman di malam hari", checked = Ink.dark, onChange = ::setDark)
+            // Mode hemat hanya mengatur efek kaca; tema lain tidak punya efek yang bisa dihemat.
+            if (ActiveTheme.spec.capturesScreen) ToggleRow(
                 "Mode hemat",
                 if (container.powerSaveActive && !container.economyMode) "Aktif otomatis: Penghemat Baterai sedang menyala."
                 else "Kaca tanpa blur dan lensa: lebih ringan dan hemat baterai. Aktif otomatis saat Penghemat Baterai menyala.",
@@ -276,32 +330,41 @@ fun SettingsScreen(
             )
 
             SectionLabel("DATA")
-            GlassCard(Modifier.fillMaxWidth(), padding = 17.dp, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            ItungCard(Modifier.fillMaxWidth(), padding = 17.dp, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "Cadangan JSON bisa dipulihkan di HP mana pun; CSV untuk dibuka di spreadsheet.",
+                    "Cadangan (ZIP: data dan gambar target) bisa dipulihkan di HP mana pun, begitu juga berkas JSON dari versi lama. CSV untuk dibuka di spreadsheet.",
                     style = appText(13f, 18f, Regular, Ink.Gray),
                 )
                 val today = LocalDate.now()
-                LiquidButton(onClick = { exportJson.launch("itungen-cadangan-$today.json") }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Ekspor cadangan (JSON)", style = appText(15f, 20f, SemiBold))
+                ItungButton(onClick = { exportBackup.launch("itungen-cadangan-$today.zip") }, modifier = Modifier.fillMaxWidth(), enabled = !dataBusy) {
+                    Text("Ekspor cadangan (ZIP)", style = appText(15f, 20f, SemiBold))
                 }
-                LiquidButton(onClick = { exportCsv.launch("itungen-transaksi-$today.csv") }, modifier = Modifier.fillMaxWidth()) {
+                ItungButton(onClick = { exportCsv.launch("itungen-transaksi-$today.csv") }, modifier = Modifier.fillMaxWidth(), enabled = !dataBusy) {
                     Text("Ekspor transaksi (CSV)", style = appText(15f, 20f, SemiBold))
                 }
-                LiquidButton(onClick = { importJson.launch(arrayOf("application/json", "application/octet-stream")) }, modifier = Modifier.fillMaxWidth()) {
+                ItungButton(
+                    onClick = { importBackup.launch(arrayOf("application/zip", "application/json", "application/octet-stream")) },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !dataBusy,
+                ) {
                     Text("Pulihkan dari cadangan", style = appText(15f, 20f, SemiBold))
                 }
                 if (!hasTransactions) {
-                    LiquidButton(onClick = { runData { seedDemoData(container); "Data contoh ditambahkan. Lihat Beranda." } }, modifier = Modifier.fillMaxWidth()) {
+                    ItungButton(
+                        onClick = { runData("Menambahkan data contoh…") { seedDemoData(container); "Data contoh ditambahkan. Lihat Beranda." } },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !dataBusy,
+                    ) {
                         Text("Isi data contoh", style = appText(15f, 20f, SemiBold))
                     }
                 }
-                dataMessage?.let { Text(it, style = appText(13f, 18f, Medium, Ink.Muted)) }
+                // Dibacakan TalkBack saat berubah (mulai → selesai/galat).
+                dataMessage?.let { Text(it, Modifier.semantics { liveRegion = LiveRegionMode.Polite }, style = appText(13f, 18f, Medium, Ink.Muted)) }
             }
 
             if (account.user != null) {
                 Spacer(Modifier.height(8.dp))
-                LiquidButton(
+                ItungButton(
                     onClick = { confirmSignOut = true },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     enabled = !account.busy,
@@ -327,7 +390,7 @@ fun SettingsScreen(
         ReminderWorker.schedule(context, hour)
     }) { pickingHour = false }
 
-    LiquidAlertDialog(
+    ItungAlertDialog(
         visible = confirmSignOut,
         title = "Keluar dari akun?",
         text = if (account.pending > 0) {
@@ -353,7 +416,7 @@ private fun SectionLabel(text: String) {
 
 @Composable
 private fun NavRow(@DrawableRes icon: Int, title: String, subtitle: String, onClick: () -> Unit) {
-    GlassSurface(Modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp), onClick = onClick) {
+    ItungSurface(Modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp), onClick = onClick) {
         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(12.dp), Alignment.CenterVertically) {
             IconCircle(icon, 32.dp, Ink.white(0.1f))
             Column(Modifier.weight(1f)) {
@@ -389,13 +452,13 @@ private fun ToggleRow(
     onChange: (Boolean) -> Unit,
     subtitleColor: Color = Ink.Gray,
 ) {
-    GlassCard(Modifier.fillMaxWidth(), padding = 17.dp) {
+    ItungCard(Modifier.fillMaxWidth(), padding = 17.dp) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f).toggleable(value = checked, role = Role.Switch, onValueChange = onChange)) {
                 Text(title, style = appText(16f, 22f, SemiBold))
                 Text(subtitle, style = appText(13f, 18f, Regular, subtitleColor))
             }
-            LiquidToggle({ checked }, onChange, modifier = Modifier.clearAndSetSemantics {})
+            ItungSwitch(checked, onChange, modifier = Modifier.clearAndSetSemantics {})
         }
     }
 }
@@ -416,7 +479,7 @@ private fun AccountUiState.syncLabel(): String {
 private fun AccountCard(account: AccountUiState, onSignIn: () -> Unit, onEmailSignIn: () -> Unit, onRetry: () -> Unit) {
     val user = account.user
     val failed = account.sync is SyncStatus.Failed
-    GlassCard(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    ItungCard(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
             IconCircle(R.drawable.ic_cloud_sync, 40.dp, Ink.Cyan.copy(alpha = 0.15f))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -430,11 +493,11 @@ private fun AccountCard(account: AccountUiState, onSignIn: () -> Unit, onEmailSi
         }
         if (user == null) {
             GoogleSignInButton(busy = account.busy, onClick = onSignIn)
-            LiquidButton(onClick = onEmailSignIn, modifier = Modifier.fillMaxWidth(), enabled = !account.busy) {
+            ItungButton(onClick = onEmailSignIn, modifier = Modifier.fillMaxWidth(), enabled = !account.busy) {
                 Text("Masuk dengan email", style = appText(15f, 20f, SemiBold))
             }
         } else if (failed) {
-            LiquidButton(onClick = onRetry, modifier = Modifier.fillMaxWidth(), enabled = account.sync != SyncStatus.Syncing && !account.busy) {
+            ItungButton(onClick = onRetry, modifier = Modifier.fillMaxWidth(), enabled = account.sync != SyncStatus.Syncing && !account.busy) {
                 Text("Coba lagi", style = appText(15f, 20f, SemiBold, Ink.Blue))
             }
         }

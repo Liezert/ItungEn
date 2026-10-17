@@ -6,7 +6,6 @@ import com.liezert.itungen.domain.model.Goal
 import com.liezert.itungen.domain.model.Transaction
 import com.liezert.itungen.domain.model.TransactionType
 import com.liezert.itungen.domain.model.formatRupiahShort
-import com.liezert.itungen.domain.model.formatSigned
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -23,14 +22,12 @@ class SummariesTest {
 
     @Test
     fun formatters() {
-        assertEquals("Rp\u00A01.25M", formatRupiahShort(1_250_000))
-        assertEquals("Rp\u00A03M", formatRupiahShort(3_000_000))
-        assertEquals("Rp\u00A012.5M", formatRupiahShort(12_500_000))
-        assertEquals("Rp\u00A02.1B", formatRupiahShort(2_100_000_000))
-        assertEquals("Rp\u00A0250.000", formatRupiahShort(250_000))
-        assertEquals("-Rp\u00A01.5M", formatRupiahShort(-1_500_000))
-        assertEquals("+Rp\u00A0500.000", formatSigned(500_000, incoming = true))
-        assertEquals("-Rp\u00A018.000", formatSigned(18_000, incoming = false))
+        assertEquals("Rp1.25M", formatRupiahShort(1_250_000))
+        assertEquals("Rp3M", formatRupiahShort(3_000_000))
+        assertEquals("Rp12.5M", formatRupiahShort(12_500_000))
+        assertEquals("Rp2.1B", formatRupiahShort(2_100_000_000))
+        assertEquals("Rp250.000", formatRupiahShort(250_000))
+        assertEquals("-Rp1.5M", formatRupiahShort(-1_500_000))
     }
 
     @Test

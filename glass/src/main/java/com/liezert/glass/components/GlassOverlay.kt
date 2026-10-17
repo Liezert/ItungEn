@@ -2,7 +2,6 @@ package com.liezert.glass.components
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -12,10 +11,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -31,8 +27,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -41,7 +35,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
@@ -50,7 +43,6 @@ import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.shapes.Capsule
 import com.kyant.shapes.RoundedRectangle
-import kotlinx.coroutines.launch
 
 /**
  * Tempat sheet dan dialog kaca digambar: di atas navbar dan DI LUAR layer yang direkam backdrop, sehingga kacanya
@@ -79,7 +71,7 @@ fun GlassOverlay(content: @Composable () -> Unit) {
     }
 }
 
-private val Bouncy = spring<Float>(dampingRatio = 0.82f, stiffness = 380f)
+internal val Bouncy = spring<Float>(dampingRatio = 0.82f, stiffness = 380f)
 
 @Composable
 private fun dimColor() =
@@ -165,7 +157,7 @@ fun LiquidDialog(
 
 /**
  * Sheet kaca melayang ala iOS 26: inset dari tepi layar, sudut besar, pegangan di atas.
- * Tutup dengan tap di luar, tombol back, atau seret pegangan ke bawah.
+ * Tutup dengan tap di luar, tombol back, atau tarik ke bawah ([SheetDragState]).
  */
 @Composable
 fun LiquidSheet(
@@ -182,16 +174,15 @@ fun LiquidSheet(
             enter = slideInVertically(spring(dampingRatio = 0.86f, stiffness = 320f)) { it },
             exit = slideOutVertically(spring(stiffness = 500f)) { it },
         ) {
-            val scope = rememberCoroutineScope()
-            val dragY = remember { Animatable(0f) }
-            val dismissDistance = with(LocalDensity.current) { 120.dp.toPx() }
+            val drag = rememberSheetDragState(visible, onDismiss)
             Column(
                 Modifier
                     .statusBarsPadding()
                     .navigationBarsPadding()
                     .imePadding()
                     .padding(8.dp)
-                    .graphicsLayer { translationY = dragY.value }
+                    .then(drag.modifier)
+                    .graphicsLayer { translationY = drag.offset }
                     .dialogGlass(38f)
                     .fillMaxWidth()
                     .pointerInput(Unit) { detectTapGestures { } },
@@ -199,16 +190,6 @@ fun LiquidSheet(
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .draggable(
-                            rememberDraggableState { delta ->
-                                scope.launch { dragY.snapTo((dragY.value + delta).coerceAtLeast(0f)) }
-                            },
-                            Orientation.Vertical,
-                            onDragStopped = { velocity ->
-                                if (dragY.value > dismissDistance || velocity > 1500f) onDismiss()
-                                else dragY.animateTo(0f, Bouncy)
-                            },
-                        )
                         .padding(top = 8.dp, bottom = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {

@@ -186,4 +186,26 @@ class MigrationTest {
             assertEquals(1, it.getInt(2)) // tidak perlu diunggah ulang
         }
     }
+
+    /** Fase 2: + goals.image_path (gambar produk). Goal lama tetap ada, tanpa gambar, dan tidak perlu diunggah ulang. */
+    @Test
+    fun migrate8To9_keepsGoals_withoutImage() {
+        helper.createDatabase(dbName, 8).apply {
+            execSQL("INSERT INTO wallets (id, name, type, is_archived, created_at, uuid) VALUES (1, 'Saldo ItungEn', 'MAIN', 0, 0, 'main')")
+            execSQL("INSERT INTO wallets (id, name, type, is_archived, created_at, uuid) VALUES (2, 'Laptop', 'GOAL', 0, 0, 'w2')")
+            execSQL(
+                "INSERT INTO goals (wallet_id, title, target_amount, planned_monthly, status, created_at, uuid, synced) " +
+                    "VALUES (2, 'Laptop', 2000000, 500000, 'ACTIVE', 0, 'g1', 1)"
+            )
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(dbName, 9, true)
+        db.query("SELECT title, target_amount, image_path, synced FROM goals WHERE uuid = 'g1'").use {
+            it.moveToFirst()
+            assertEquals("Laptop", it.getString(0))
+            assertEquals(2_000_000L, it.getLong(1))
+            assertEquals(true, it.isNull(2))
+            assertEquals(1, it.getInt(3))
+        }
+    }
 }

@@ -35,10 +35,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.liezert.glass.components.GlassCard
-import com.liezert.glass.components.LiquidButton
 import com.liezert.itungen.R
-import com.liezert.itungen.ui.components.GlassTextField
+import com.liezert.itungen.ui.components.ItungTextField
 import com.liezert.itungen.ui.components.Ico
 import com.liezert.itungen.ui.components.IconCircle
 import com.liezert.itungen.ui.theme.Bold
@@ -47,6 +45,8 @@ import com.liezert.itungen.ui.theme.Medium
 import com.liezert.itungen.ui.theme.Regular
 import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
+import com.liezert.itungen.ui.design.ItungCard
+import com.liezert.itungen.ui.design.ItungButton
 
 /**
  * Layar masuk: Google, email + kata sandi, atau lanjut sebagai tamu (bisa masuk nanti dari Profil).
@@ -85,12 +85,12 @@ fun LoginScreen(
             if (emailMode) {
                 Column(Modifier.padding(top = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(if (creating) "Buat akun baru" else "Masuk dengan email", style = appText(20f, 28f, SemiBold))
-                    GlassTextField(
+                    ItungTextField(
                         email,
                         "Email",
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
                     )
-                    GlassTextField(
+                    ItungTextField(
                         password,
                         "Kata sandi",
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
@@ -98,7 +98,7 @@ fun LoginScreen(
                     )
                 }
             } else {
-                GlassCard(Modifier.fillMaxWidth().padding(top = 32.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                ItungCard(Modifier.fillMaxWidth().padding(top = 32.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                     Feature(R.drawable.ic_wallet, "Catat cepat", "Keypad kalkulator, langsung tersimpan.")
                     Feature(R.drawable.ic_target, "Target tabungan", "Pantau progres setiap goal.")
                     Feature(R.drawable.ic_cloud_sync, "Aman di akunmu", "Masuk agar catatan tersimpan dan tersinkron di semua HP.")
@@ -111,7 +111,7 @@ fun LoginScreen(
             Text(it, Modifier.fillMaxWidth().padding(bottom = 12.dp), style = appText(14f, 20f, Medium, Ink.Red), textAlign = TextAlign.Center)
         }
         if (emailMode) {
-            LiquidButton(
+            ItungButton(
                 onClick = { viewModel.signInWithEmail(email.text.toString(), password.text.toString(), creating) },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 enabled = !state.busy,
@@ -128,13 +128,13 @@ fun LoginScreen(
         } else {
             GoogleSignInButton(busy = state.busy) { viewModel.signIn(context) }
             Spacer(Modifier.height(12.dp))
-            LiquidButton(
+            ItungButton(
                 onClick = { emailMode = true },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 enabled = !state.busy,
             ) { Text("Masuk dengan email", style = appText(16f, 22f, SemiBold)) }
             Spacer(Modifier.height(12.dp))
-            LiquidButton(
+            ItungButton(
                 onClick = {
                     viewModel.continueAsGuest()
                     onDone()
@@ -169,14 +169,15 @@ private fun LinkText(text: String, onClick: () -> Unit) {
 /** Tombol kaca berpermukaan putih + logo G, gaya tombol "Sign in with Google" versi terang. */
 @Composable
 fun GoogleSignInButton(busy: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    LiquidButton(
+    ItungButton(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().height(56.dp),
         surfaceColor = Color.White,
         enabled = !busy,
     ) {
         if (!busy) Ico(R.drawable.ic_google)
-        Text(if (busy) "Menghubungkan…" else "Masuk dengan Google", style = appText(16f, 22f, SemiBold, Ink.Black))
+        // Teks gelap tetap di atas tombol putih (Ink.Black adalah warna latar: di tema terang ikut terang dan hilang).
+        Text(if (busy) "Menghubungkan…" else "Masuk dengan Google", style = appText(16f, 22f, SemiBold, Color.Black))
     }
 }
 
