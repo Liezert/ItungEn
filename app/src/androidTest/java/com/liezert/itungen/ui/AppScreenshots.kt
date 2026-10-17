@@ -10,6 +10,13 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalDensity
@@ -55,6 +62,8 @@ class AppScreenshots {
     private val app = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as ItungEnApp
     private val out = File(app.getExternalFilesDir(null), "shots").apply { mkdirs() }
     private var fontScale by mutableFloatStateOf(1f)
+    /** Lebar layar pura-pura (dp), mis. 320 = HP kecil; 0 = lebar HP ini. */
+    private var widthDp by mutableIntStateOf(0)
 
     @Before
     fun setUp() {
@@ -74,7 +83,9 @@ class AppScreenshots {
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
-                ItungEnTheme { AppNav() }
+                Box(Modifier.fillMaxHeight().then(if (widthDp > 0) Modifier.width(widthDp.dp) else Modifier.fillMaxWidth())) {
+                    ItungEnTheme { AppNav() }
+                }
             }
         }
         compose.waitForIdle()
@@ -117,6 +128,33 @@ class AppScreenshots {
     private val variants = Themes.all.flatMap { theme -> listOf(true, false).map { theme to it } }
 
     private fun ThemeSpec.tag(dark: Boolean) = "${id}_${if (dark) "dark" else "light"}"
+
+    /** Font besar dan layar sempit, di Liquid Glass gelap: [name]_<skala>[_sempit]. */
+    private fun stress(name: String, open: () -> Unit) {
+        use(LiquidGlassTheme, true)
+        for ((scale, width) in listOf(1.3f to 0, 1.5f to 0, 1.3f to 320)) {
+            compose.runOnUiThread {
+                fontScale = scale
+                widthDp = width
+            }
+            compose.waitForIdle()
+            open()
+            shoot("${name}_${(scale * 100).toInt()}${if (width > 0) "_sempit" else ""}")
+        }
+        compose.runOnUiThread {
+            fontScale = 1f
+            widthDp = 0
+        }
+    }
+
+    @Test
+    fun home() {
+        for ((theme, dark) in variants) {
+            use(theme, dark)
+            shoot("home_${theme.tag(dark)}")
+        }
+        stress("home") {}
+    }
 
     @Test
     fun goals() {

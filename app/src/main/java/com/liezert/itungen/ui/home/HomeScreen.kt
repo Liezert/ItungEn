@@ -154,6 +154,8 @@ fun HomeContent(
         )
         Spacer(Modifier.height(8.dp))
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            // Saldo = jawaban pertama saat app dibuka ("uangku berapa?"), lalu jatah hari ini.
+            BalanceCard(state, balanceHidden, onToggleBalance, Modifier.screenPad())
             if (!state.loading) {
                 val budget = state.budget
                 if (budget == null) BudgetSetupCard(onOpenBudget, Modifier.screenPad())
@@ -164,7 +166,6 @@ fun HomeContent(
                 }
             }
             if (state.limitWarnings.isNotEmpty()) LimitWarningCard(state.limitWarnings, balanceHidden, onOpenInsight, Modifier.screenPad())
-            BalanceCard(state, balanceHidden, onToggleBalance, Modifier.screenPad())
             if (state.templates.isNotEmpty()) QuickAddRow(state.templates, balanceHidden, onQuickAdd)
             state.goal?.let { GoalPreviewCard(it, balanceHidden, onOpenGoals, Modifier.screenPad()) }
             RecentCard(state.recent, state, balanceHidden, onSeeAll, onEdit, onOpenGoals, Modifier.screenPad())
@@ -270,9 +271,10 @@ private fun BudgetCard(budget: Budget, hidden: Boolean, onClick: () -> Unit, mod
 
 @Composable
 private fun BudgetStat(label: String, value: String, modifier: Modifier = Modifier, color: Color = Ink.White) {
+    // Dua baris: dua kolom sempit + huruf besar (130–150%) dulu memotong "25 Okt · 8 hari" menjadi "25 Okt · 8 …".
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(label, style = appText(12f, 16f, Medium, Ink.Gray), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(value, style = appText(15f, 20f, SemiBold, color), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, style = appText(12f, 16f, Medium, Ink.Gray), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(value, style = appText(15f, 20f, SemiBold, color), maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -280,7 +282,7 @@ private fun BudgetStat(label: String, value: String, modifier: Modifier = Modifi
 @Composable
 private fun AmountStat(label: String, amount: Long, kind: AmountKind, hidden: Boolean, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(label, style = appText(12f, 16f, Medium, Ink.Gray), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, style = appText(12f, 16f, Medium, Ink.Gray), maxLines = 2, overflow = TextOverflow.Ellipsis)
         AmountText(amount, kind, appText(15f, 20f, SemiBold), hidden = hidden)
     }
 }
@@ -344,10 +346,11 @@ private fun BalanceCard(state: HomeUiState, hidden: Boolean, onToggle: () -> Uni
                 if (hidden) "Tampilkan saldo" else "Sembunyikan saldo",
             )
         }
-        // Saldo boleh negatif tapi ditandai jelas (DESIGN_SPEC §7.1).
+        // Saldo = nominal netral: warna teks biasa (hijau/merah hanya untuk pemasukan/pengeluaran). Saldo negatif tetap
+        // jelas lewat tanda minus ("-Rp50.000", DESIGN_SPEC §7.1), bukan warna.
         Text(
             if (hidden) HiddenAmount else formatRupiah(state.balance),
-            style = appText(24f, 32f, Bold, if (state.balance < 0 && !hidden) Ink.Red else Ink.White),
+            style = appText(30f, 38f, Bold, Ink.White),
         )
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), Arrangement.spacedBy(12.dp)) {
             AmountStat("Masuk bulan ini", state.monthIncome, AmountKind.INCOME, hidden, Modifier.weight(1f))
