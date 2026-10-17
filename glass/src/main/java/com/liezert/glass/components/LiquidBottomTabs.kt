@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -79,11 +80,17 @@ fun LiquidBottomTabs(
         if (LocalLiquidLightTheme.current) Color(0xFF0088FF)
         else Color(0xFF0091FF),
     height: Dp = 64f.dp,
+    /**
+     * Tab yang sedang aktif diketuk lagi. Ketukan itu ditangkap indikator yang bisa diseret (bukan tab di bawahnya),
+     * jadi tanpa ini pemanggil tidak pernah tahu (mis. untuk kembali ke akar tab dari sub-layarnya).
+     */
+    onTabReselected: (index: Int) -> Unit = {},
     content: @Composable RowScope.() -> Unit
 ) {
     val isLightTheme = LocalLiquidLightTheme.current
     // DampedDragAnimation & LaunchedEffect di-remember sekali: selalu panggil callback terbaru.
     val onTabSelected by rememberUpdatedState(onTabSelected)
+    val onTabReselected by rememberUpdatedState(onTabReselected)
     val selectedTabIndex by rememberUpdatedState(selectedTabIndex)
     // Mode hemat: tanpa blur, isi di belakang navbar tembus dan bertabrakan dengan label; permukaan dibuat pekat.
     val surfaceAlpha = if (LocalGlassEconomy.current) 0.92f else 0.4f
@@ -96,7 +103,9 @@ fun LiquidBottomTabs(
     val economy = LocalGlassEconomy.current
 
     BoxWithConstraints(
-        modifier,
+        // Seluruh panel menerima sentuhan: tab berbentuk kapsul, jadi sela dan sudut di antaranya dulu meneruskan
+        // ketukan ke konten di belakang kaca (mis. sel kalender di bawah navbar ikut terbuka).
+        modifier.pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } },
         contentAlignment = Alignment.CenterStart
     ) {
         val density = LocalDensity.current
@@ -130,6 +139,7 @@ fun LiquidBottomTabs(
                 onDragStarted = {},
                 onDragStopped = {
                     val targetIndex = targetValue.fastRoundToInt().fastCoerceIn(0, tabsCount - 1)
+                    if (targetIndex == currentIndex) onTabReselected(targetIndex)
                     currentIndex = targetIndex
                     animateToValue(targetIndex.toFloat())
                     animationScope.launch {

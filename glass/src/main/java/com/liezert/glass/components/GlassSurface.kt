@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,6 +72,13 @@ fun GlassSurface(
         if (onClick != null) InteractiveHighlight(animationScope) else null
     }
 
+    // drawBackdrop tidak menggambar ulang permukaannya saat parameternya berubah: permukaan ada di lapisan yang
+    // diletakkan node bayangan/highlight library, sedangkan pembaruan hanya menggambar ulang lapisan isi. Kartu yang
+    // isinya tidak ikut berubah (mis. kartu DATA di Pengaturan) dulu tetap berwarna tema lama. Nilainya dibaca dari
+    // State di dalam lambda gambar, jadi Compose sendiri membatalkan lapisan yang benar saat tema/latar berubah.
+    val surface = rememberUpdatedState(surfaceColor)
+    val tintState = rememberUpdatedState(tint)
+    val backdropState = rememberUpdatedState(backdrop)
     Box(
         modifier
             .drawBackdrop(
@@ -85,8 +93,9 @@ fun GlassSurface(
                     }
                 },
                 onDrawSurface = {
-                    drawRect(surfaceColor)
-                    if (tint != null) drawRect(tint)
+                    backdropState.value // latar (digambar node dari parameter backdrop) ikut memicu gambar ulang
+                    drawRect(surface.value)
+                    tintState.value?.let { drawRect(it) }
                 },
             )
             .then(if (dashedBorder != null) Modifier.dashedBorder(dashedBorder, shape) else Modifier)

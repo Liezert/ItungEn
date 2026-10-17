@@ -1,28 +1,32 @@
 package com.liezert.glass.components
 
-import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.compositionLocalOf
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.BackdropEffectScope
 import com.kyant.backdrop.backdrops.emptyBackdrop
 
 /**
- * Pengganti `isSystemInDarkTheme()` di komponen repo Kyant0: ItungEn gelap saja (DESIGN_SPEC §6), jadi tidak boleh
- * ikut tema sistem. Cabang warna terang dari repo tetap disimpan untuk tema terang nanti.
+ * Pengganti `isSystemInDarkTheme()` di komponen repo Kyant0: tema mengikuti pilihan di ItungEn, bukan tema sistem.
+ *
+ * Ketiga local di file ini bisa berubah saat app berjalan (Mode gelap, Mode hemat, latar per layar), jadi memakai
+ * `compositionLocalOf` yang melacak pembacanya. Dengan `staticCompositionLocalOf`, kaca yang dilewati rekomposisi
+ * (argumennya tidak berubah, mis. kartu berisi tombol saja) tetap memakai nilai lama: kartu "DATA" di Pengaturan
+ * tertinggal satu tema setelah Mode gelap diganti.
  */
-val LocalLiquidLightTheme = staticCompositionLocalOf { false }
+val LocalLiquidLightTheme = compositionLocalOf { false }
 
 /**
  * Backdrop yang dibiaskan kaca bila tidak diberikan langsung. Di dalam layar = wallpaper;
  * di navbar/sheet/dialog = wallpaper + isi layar.
  */
-val LocalGlassBackdrop = staticCompositionLocalOf<Backdrop> { error("LocalGlassBackdrop belum disediakan") }
+val LocalGlassBackdrop = compositionLocalOf<Backdrop> { error("LocalGlassBackdrop belum disediakan") }
 
 /**
  * Mode hemat (Pengaturan, atau otomatis saat Penghemat Baterai menyala): semua kaca memakai versi ringan —
  * highlight tepi, bayangan, warna permukaan, dan animasi tekan tetap, tetapi latar tidak direkam dan tidak dibiaskan
  * (tanpa blur, lensa, vibrancy). Kartu statis selalu ringan (lihat [GlassSurface]).
  */
-val LocalGlassEconomy = staticCompositionLocalOf { false }
+val LocalGlassEconomy = compositionLocalOf { false }
 
 /**
  * Backdrop berupa latar polos atau gradien halus (bukan isi layar). Blur, lensa, dan vibrancy di atas latar seperti
