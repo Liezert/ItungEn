@@ -33,6 +33,8 @@ class ThemesTest {
             assertTrue("$where: pemasukan ${contrast(c.income, card)}", contrast(c.income, card) >= 3f)
             assertTrue("$where: pengeluaran ${contrast(c.expense, card)}", contrast(c.expense, card) >= 3f)
             assertTrue("$where: pemasukan = pengeluaran", c.income != c.expense)
+            // Chip "Tercapai" di Goals: teks onGreen di atas hijau.
+            assertTrue("$where: chip tercapai ${contrast(c.onGreen, c.green)}", contrast(c.onGreen, c.green) >= 4.5f)
         }
     }
 }

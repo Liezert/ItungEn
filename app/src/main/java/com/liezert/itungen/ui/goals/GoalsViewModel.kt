@@ -123,11 +123,11 @@ class GoalsViewModel(
 
     fun deposits(goalId: Long) = goals.observeDeposits(goalId)
 
-    fun cancelGoal(goalId: Long) {
+    fun deleteGoal(goalId: Long) {
         val image = uiState.value.goals.firstOrNull { it.id == goalId }?.imagePath
         perform {
-            goals.cancelGoal(goalId)
-            images.delete(image) // target dibatalkan tidak tampil lagi: gambarnya tidak dibutuhkan
+            goals.deleteGoal(goalId)
+            images.delete(image) // target yang dihapus tidak tampil lagi: gambarnya tidak dibutuhkan
         }
     }
 

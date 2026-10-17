@@ -31,10 +31,10 @@ class SummariesTest {
     }
 
     @Test
-    fun goal_progressIsClamped() {
+    fun goal_barIsClamped_percentIsNot() {
         assertEquals(56, Goal("Sepatu", 452_000, 800_000).percent)
         assertEquals(348_000L, Goal("Sepatu", 452_000, 800_000).remaining)
-        assertEquals(100, Goal("Sepatu", 900_000, 800_000).percent)
+        assertEquals(112 to 1f, Goal("Sepatu", 900_000, 800_000).let { it.percent to it.progress })
         assertEquals(0L, Goal("Sepatu", 900_000, 800_000).remaining)
         assertEquals(0, Goal("Kosong", 0, 0).percent)
     }

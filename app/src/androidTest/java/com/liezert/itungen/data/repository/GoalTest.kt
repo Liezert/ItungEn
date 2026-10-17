@@ -72,16 +72,30 @@ class GoalTest {
         assertEquals(1, money.allTransactions().size) // hanya gaji
     }
 
+    /**
+     * Hapus goal: setoran dan pasangannya di dompet utama ikut terhapus, jadi saldo utama kembali utuh (tidak ada uang
+     * yang hilang dari total) dan riwayat dompet utama tidak lagi memuat transfer ke goal itu. Goal lain tidak tersentuh.
+     */
     @Test
-    fun cancelGoal_returnsSavedMoneyAndHidesGoal() = runBlocking<Unit> {
-        val id = goals.createGoal("Liburan", 2_000_000, today.plusMonths(6), 300_000)
-        goals.addFunds(id, 400_000)
-        goals.cancelGoal(id)
+    fun deleteGoal_removesItsTransfers_andRestoresMainBalance() = runBlocking<Unit> {
+        val trip = goals.createGoal("Liburan", 2_000_000, today.plusMonths(6), 300_000)
+        val bike = goals.createGoal("Sepeda", 800_000, null, 0)
+        goals.addFunds(trip, 400_000)
+        goals.addFunds(trip, 100_000)
+        goals.addFunds(bike, 50_000)
+        val total = { runBlocking { money.observeMainBalance().first() + goals.observeGoals().first().sumOf { it.saved } } }
+        assertEquals(1_000_000L, total())
 
-        assertEquals(1_000_000L, money.observeMainBalance().first())
-        assertTrue(goals.observeGoals().first().isEmpty())
-        val back = money.allTransactions().first { it.type == TransactionType.TRANSFER_IN }
-        assertEquals(400_000L to "Dari Liburan (dihapus)", back.amount to back.note)
+        goals.deleteGoal(trip)
+
+        assertEquals(950_000L, money.observeMainBalance().first()) // hanya setoran Sepeda yang masih di goal
+        assertEquals(1_000_000L, total())
+        assertEquals(listOf("Sepeda"), goals.observeGoals().first().map { it.name })
+        assertTrue(goals.observeDeposits(trip).first().isEmpty())
+        assertEquals(listOf(50_000L), goals.observeDeposits(bike).first().map { it.amount })
+        // Riwayat utama: gaji + transfer ke Sepeda saja; 4 baris transfer Liburan diberi penanda hapus untuk sinkron.
+        assertEquals(listOf("Gaji", "Ke Sepeda"), money.allTransactions().map { it.note }.sortedBy { it != "Gaji" })
+        assertEquals(4, db.syncDao().deletedUuids().size)
     }
 
     /** Riwayat setoran per target: hanya Tambah Dana ke target itu, terbaru dulu. */
@@ -97,9 +111,9 @@ class GoalTest {
         assertEquals(listOf(GoalDeposit(50_000, today)), goals.observeDeposits(laptop).first())
     }
 
-    /** Fase 2: gambar produk tersimpan di goal; dibatalkan = gambarnya dilepas (file-nya dihapus pemanggil). */
+    /** Gambar produk tersimpan di goal; dihapus = gambarnya dilepas (file-nya dihapus pemanggil). */
     @Test
-    fun image_isSavedReplacedAndClearedOnCancel() = runBlocking<Unit> {
+    fun image_isSavedReplacedAndClearedOnDelete() = runBlocking<Unit> {
         val id = goals.createGoal("Laptop", 2_000_000, null, 0, imagePath = "goal_a.webp")
         assertEquals("goal_a.webp", goals.observeGoals().first().single { it.id == id }.imagePath)
         goals.setImage(id, "goal_b.webp")
@@ -107,7 +121,7 @@ class GoalTest {
         goals.setImage(id, null)
         assertEquals(null, goals.observeGoals().first().single { it.id == id }.imagePath)
         goals.setImage(id, "goal_c.webp")
-        goals.cancelGoal(id)
+        goals.deleteGoal(id)
         assertEquals(null, db.goalDao().get(id).imagePath)
     }
 }

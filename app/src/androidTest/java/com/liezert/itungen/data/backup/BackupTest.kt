@@ -86,9 +86,9 @@ class BackupTest {
     }.toByteArray()
 
     /** Cadangan versi awal (JSON tanpa gambar), dibekukan di sini agar format lama tetap teruji. */
-    private fun legacyJson(vararg goals: String) = """
+    private fun legacyJson(vararg goals: String, transactions: List<String> = emptyList()) = """
         {"app": "ItungEn", "version": 1, "exportedAt": "2026-01-01T00:00:00Z",
-         "goals": [${goals.joinToString()}], "transactions": [], "deleted": [], "settings": {}}
+         "goals": [${goals.joinToString()}], "transactions": [${transactions.joinToString()}], "deleted": [], "settings": {}}
     """.trimIndent()
 
     private fun goalDoc(uuid: String, title: String, image: String? = null) = """
@@ -141,6 +141,40 @@ class BackupTest {
         // Dipulihkan lagi: goal sudah ada, jadi gambarnya tidak disalin ulang (tidak ada file yatim).
         import(export())
         assertEquals(listOf(name), toImages.file("").list()!!.toList())
+    }
+
+    /** Riwayat uang masuk goal = transfer di dompet goal-nya, jadi ikut cadangan bersama goal (urutan tetap). */
+    @Test
+    fun exportImport_keepsGoalDeposits() = runBlocking<Unit> {
+        val money = RoomTransactionRepository(fromDb, clock)
+        val salary = money.observeCategories(CategoryType.INCOME).first().first { it.name == "Gaji" }
+        money.addToMainWallet(TransactionType.INCOME, 1_000_000, salary.id, "Gaji", today)
+        val goals = RoomGoalRepository(fromDb, clock)
+        val bike = goals.createGoal("Sepeda", 800_000, null, 0)
+        goals.addFunds(bike, 100_000)
+        goals.addFunds(bike, 250_000)
+
+        import(export())
+
+        val restored = restoredGoals().single()
+        assertEquals(350_000L, restored.saved)
+        assertEquals(listOf(250_000L, 100_000L), RoomGoalRepository(toDb, clock).observeDeposits(restored.id).first().map { it.amount })
+        assertEquals(650_000L, RoomTransactionRepository(toDb, clock).observeMainBalance().first())
+    }
+
+    /** Cadangan JSON lama juga sudah memuat transfer dompet goal: riwayatnya kembali tanpa format baru. */
+    @Test
+    fun legacyJson_withGoalTransfers_restoresDepositHistory() = runBlocking<Unit> {
+        val deposit = """
+            {"uuid": "t-1", "walletUuid": "w-g-1", "type": "TRANSFER_IN", "amount": 250000, "note": "Tambah dana",
+             "date": 20454, "transferGroupId": "grp-1", "createdAt": 1767225600000}
+        """.trimIndent()
+
+        import(legacyJson(goalDoc("g-1", "Sepeda"), transactions = listOf(deposit)).toByteArray())
+
+        val restored = restoredGoals().single()
+        assertEquals(250_000L, restored.saved)
+        assertEquals(listOf(250_000L), RoomGoalRepository(toDb, clock).observeDeposits(restored.id).first().map { it.amount })
     }
 
     @Test

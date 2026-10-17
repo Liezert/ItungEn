@@ -73,7 +73,7 @@ object BrutalTheme : ThemeSpec {
         muted = Color(0xFF2E2E2E),
         subtle = Color(0xFF555555),
         orange = Color(0xFFE85D04),
-        green = Color(0xFF138A4B),
+        green = Color(0xFF107F46), // ≥ 4,5:1 dengan teks putih (chip Tercapai)
         blue = Color(0xFF2F5BFF),
         red = Color(0xFFD62828),
         cyan = Color(0xFF00869E),

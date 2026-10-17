@@ -2,6 +2,7 @@ package com.liezert.itungen.data.repository
 
 import androidx.room.withTransaction
 import com.liezert.itungen.data.local.AppDatabase
+import com.liezert.itungen.data.local.entity.DeletedTransactionEntity
 import com.liezert.itungen.data.local.entity.GoalEntity
 import com.liezert.itungen.data.local.entity.TransactionEntity
 import com.liezert.itungen.data.local.entity.WalletEntity
@@ -70,22 +71,15 @@ class RoomGoalRepository(
         }
     }
 
-    override suspend fun cancelGoal(goalId: Long) {
+    override suspend fun deleteGoal(goalId: Long) {
         db.withTransaction {
             val goal = db.goalDao().get(goalId)
-            val saved = db.transactionDao().balance(goal.walletId)
-            if (saved > 0) {
-                val mainId = db.walletDao().getMain().id
-                transfer(
-                    fromWallet = goal.walletId,
-                    toWallet = mainId,
-                    amount = saved,
-                    outNote = "Dikembalikan ke saldo",
-                    inNote = "Dari ${goal.title} (dihapus)",
-                )
+            for (row in db.transactionDao().transfersTouching(goal.walletId)) {
+                db.transactionDao().delete(row.id)
+                db.syncDao().insertTombstone(DeletedTransactionEntity(row.uuid))
             }
             db.goalDao().setStatus(goalId, GoalStatus.CANCELLED)
-            db.goalDao().setImage(goalId, null) // target yang dibatalkan tidak tampil lagi; file-nya dihapus pemanggil
+            db.goalDao().setImage(goalId, null)
             db.walletDao().archive(goal.walletId)
         }
     }

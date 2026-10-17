@@ -41,6 +41,15 @@ interface TransactionDao {
 
     /** Seluruh riwayat satu dompet (ekspor CSV); layar memakai kueri berjendela di bawah. */
     @Transaction
+    /** Semua baris transfer yang menyentuh [walletId], termasuk pasangannya di dompet lain (transfer_group_id sama). */
+    @Query(
+        """
+        SELECT * FROM transactions WHERE transfer_group_id IN
+            (SELECT transfer_group_id FROM transactions WHERE wallet_id = :walletId AND transfer_group_id IS NOT NULL)
+        """
+    )
+    suspend fun transfersTouching(walletId: Long): List<TransactionEntity>
+
     @Query("SELECT * FROM transactions WHERE wallet_id = :walletId ORDER BY date DESC, created_at DESC, id DESC")
     suspend fun allForWallet(walletId: Long): List<TransactionWithCategory>
 

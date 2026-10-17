@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.liezert.itungen.ui.design.themes.brutal.BrutalTheme
 import com.liezert.itungen.ui.design.themes.glass.LiquidGlassTheme
 import com.liezert.itungen.ui.design.themes.material.MaterialYouTheme
@@ -107,6 +108,8 @@ data class ItungMetrics(
     val borderWidth: Dp,
     /** Offset bayangan keras (tanpa blur); 0 = tanpa bayangan. */
     val shadowOffset: Dp,
+    /** Sudut gambar (thumbnail goal, dsb.): lebih kecil dari kartu agar tetap terlihat sebagai gambar di dalam kartu. */
+    val imageRadius: Dp = (cardRadius * 0.6f).coerceAtMost(16.dp),
 )
 
 /** Peran permukaan, agar tema bisa membedakan kartu (mis. tepi bergerigi struk) dari kolom input dan panel. */

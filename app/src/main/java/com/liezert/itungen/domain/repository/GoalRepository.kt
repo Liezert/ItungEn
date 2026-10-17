@@ -29,8 +29,10 @@ interface GoalRepository {
     fun observeDeposits(goalId: Long): Flow<List<GoalDeposit>>
 
     /**
-     * Hapus goal (§7.2, di layar "Hapus target"): sisa dananya dikembalikan ke dompet utama, lalu goal dan dompetnya
-     * diarsipkan (status CANCELLED, ikut tersinkron) dan tidak tampil lagi. Riwayat transfernya tetap tercatat.
+     * Hapus goal ("Hapus target" di detail goal). Transfer goal mengikuti goal-nya (§3.2), jadi semua setoran beserta
+     * pasangannya di dompet utama ikut dihapus: saldo utama kembali seperti sebelum target dibuat, tanpa uang yang
+     * hilang. Goal dan dompetnya tetap ada sebagai CANCELLED + diarsipkan (tidak tampil) agar penghapusan ikut
+     * tersinkron; baris transfer yang dihapus diberi penanda hapus (akun & cadangan). File gambarnya dihapus pemanggil.
      */
-    suspend fun cancelGoal(goalId: Long)
+    suspend fun deleteGoal(goalId: Long)
 }

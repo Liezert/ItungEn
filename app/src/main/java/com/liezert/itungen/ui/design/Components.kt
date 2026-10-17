@@ -1,6 +1,13 @@
 package com.liezert.itungen.ui.design
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -148,6 +155,28 @@ fun ItungImageCard(
     image: @Composable BoxScope.() -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) = theme.ImageCard(modifier, imageHeight, image, content)
+
+/**
+ * Bingkai gambar (mis. thumbnail goal) mengikuti tema: sudut [ItungMetrics.imageRadius], tepi setebal
+ * [ItungMetrics.borderWidth] dan bayangan keras [ItungMetrics.shadowOffset] bila tema memakainya. Isinya dipotong
+ * ke bingkai, dengan latar kosong yang rapi selama gambar dimuat atau bila belum ada gambar.
+ */
+@Composable
+fun Modifier.itungImageFrame(): Modifier {
+    val metrics = LocalItungTheme.current.metrics
+    val shape = RoundedCornerShape(metrics.imageRadius)
+    val edge = Ink.Border
+    return this
+        .then(
+            if (metrics.shadowOffset > 0.dp) Modifier.drawBehind {
+                val o = metrics.shadowOffset.toPx()
+                translate(o, o) { drawOutline(shape.createOutline(size, layoutDirection, this), edge) }
+            } else Modifier
+        )
+        .clip(shape)
+        .background(Ink.EmptyIconBg)
+        .then(if (metrics.borderWidth > 0.dp) Modifier.border(metrics.borderWidth, edge, shape) else Modifier)
+}
 
 @Composable
 fun ItungBackground(vignette: Boolean, modifier: Modifier = Modifier) = theme.Background(vignette, modifier)

@@ -74,6 +74,7 @@ import com.liezert.itungen.ui.design.ItungStatusBarCover
 import com.liezert.itungen.ui.design.LocalItungTheme
 import com.liezert.itungen.ui.design.TabsRole
 import com.liezert.itungen.ui.components.rememberBackgroundBackdrop
+import com.liezert.itungen.ui.goals.GoalDetailScreen
 import com.liezert.itungen.ui.goals.GoalsScreen
 import com.liezert.itungen.ui.home.HomeScreen
 import com.liezert.itungen.ui.insight.InsightScreen
@@ -100,6 +101,9 @@ private object Routes {
     const val Login = "login"
     const val Settings = "settings"
     const val Budget = "budget"
+    /** Detail goal, sub-layar tab Goals. */
+    const val Goal = "goal/{id}"
+    fun goal(id: Long) = "goal/$id"
     const val LoginEmail = "login-email"
 }
 
@@ -108,7 +112,7 @@ private val TabRoutes = listOf(Routes.Home, Routes.Insight, Routes.Goals, Routes
 
 // Transisi ala iOS: push geser dari kanan dengan paralaks, modal naik dari bawah, tab cross-fade cepat.
 // Spring teredam kritis (tanpa pantul) seperti UINavigationController. Nilai awal; disetel di HP.
-private val PushRoutes = setOf(Routes.Transactions, Routes.Settings, Routes.Budget)
+private val PushRoutes = setOf(Routes.Transactions, Routes.Settings, Routes.Budget, Routes.Goal)
 private val Slide = spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMediumLow, IntOffset.VisibilityThreshold)
 private val TabIn = fadeIn(tween(220, delayMillis = 60)) + scaleIn(spring(stiffness = Spring.StiffnessMediumLow), 0.97f)
 private val TabOut = fadeOut(tween(120))
@@ -177,7 +181,7 @@ fun AppNav(
     fun tabOf(r: String?) = when (r) {
         Routes.Home, Routes.Transactions -> 0
         Routes.Insight -> 1
-        Routes.Goals -> 2
+        Routes.Goals, Routes.Goal -> 2
         Routes.Profile, Routes.Settings -> 3
         else -> -1
     }
@@ -231,7 +235,10 @@ fun AppNav(
                         }
                         composable(Routes.Budget) { BudgetScreen(onBack = { nav.popBackStack() }) }
                         composable(Routes.Insight) { InsightScreen() }
-                        composable(Routes.Goals) { GoalsScreen() }
+                        composable(Routes.Goals) { GoalsScreen(onOpenGoal = { nav.navigate(Routes.goal(it)) { launchSingleTop = true } }) }
+                        composable(Routes.Goal, arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+                            GoalDetailScreen(entry.arguments!!.getLong("id"), onBack = { nav.popBackStack() })
+                        }
                         composable(Routes.Profile) {
                             ProfileScreen(onOpenSettings = { nav.navigate(Routes.Settings) { launchSingleTop = true } })
                         }

@@ -67,6 +67,8 @@ import java.time.LocalDate
 import androidx.compose.ui.text.style.TextOverflow
 import com.liezert.itungen.ui.design.ItungSurface
 import com.liezert.itungen.ui.design.ItungButton
+import com.liezert.itungen.ui.design.itungImageFrame
+import androidx.compose.foundation.layout.aspectRatio
 
 private const val DayMillis = 86_400_000L
 
@@ -147,36 +149,25 @@ fun CreateGoalSheet(
     )
 }
 
-/**
- * Isi sheet Tambah Dana (§4.2): dari dompet utama ke dompet goal. Sekaligus detail target: gambar, [deposits]
- * (riwayat setoran), dan Hapus target.
- */
+/** Isi sheet Tambah Dana (§4.2), dibuka dari detail goal: dari dompet utama ke dompet goal. */
 @Composable
 fun AddFundsSheet(
     goal: Goal,
     state: GoalsUiState,
     onAddFunds: (amount: Long?) -> Unit,
-    onDeleteGoal: () -> Unit,
-    deposits: List<GoalDeposit> = emptyList(),
     onEdited: () -> Unit = {},
-    onPickImage: (Uri) -> Unit = {},
-    onRemoveImage: () -> Unit = {},
 ) {
     val amount = rememberTextFieldState()
     ClearOnEdit(onEdited) { amount.text.toString() }
-    var confirmDelete by rememberSaveable { mutableStateOf(false) }
 
     SheetBody {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            GoalImage(goal.imagePath, "Gambar ${goal.name}", Modifier.size(48.dp).clip(CircleShape)) {
-                IconCircle(R.drawable.ic_goal_shoe_large, 48.dp, Ink.Accent.copy(alpha = 0.2f))
-            }
+            GoalImage(goal.imagePath, null, Modifier.size(64.dp, 48.dp).itungImageFrame()) { Ico(R.drawable.ic_goal_shoe) }
             Column {
                 Text("Tambah Dana", style = appText(20f, 28f, Bold))
-                Text("${goal.name} · ${goal.percent}% tercapai", style = appText(13f, 18f, Regular, Ink.Gray))
+                Text("${goal.name} · ${goal.percent}% tercapai", style = appText(13f, 18f, Regular, Ink.Gray), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        ProductImagePicker(goal.imagePath, goal.name, onPickImage, onRemoveImage)
         Text(
             "Saldo utama: ${formatRupiah(state.mainBalance)}",
             style = appText(14f, 20f, Medium, if (state.mainBalance > 0) Ink.Muted else Ink.Red),
@@ -194,22 +185,7 @@ fun AddFundsSheet(
         }
         FormMessage(state.form.transferError?.message() ?: formMessage(state.form))
         SheetButton("Tambah Dana", enabled = !state.form.busy) { onAddFunds(amount.text.toString().toLongOrNull()) }
-        DepositHistory(deposits)
-        ItungButton(
-            onClick = { confirmDelete = true },
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-        ) { Text("Hapus target", style = appText(14f, 20f, SemiBold, Ink.Red)) }
     }
-
-    DeleteGoalDialog(
-        goal,
-        visible = confirmDelete,
-        onConfirm = {
-            confirmDelete = false
-            onDeleteGoal()
-        },
-        onDismiss = { confirmDelete = false },
-    )
 }
 
 /** Konfirmasi Hapus target (dari kartu atau sheet): dananya kembali ke saldo utama, jadi tidak ada uang yang hilang. */
@@ -225,33 +201,6 @@ fun DeleteGoalDialog(goal: Goal, visible: Boolean, onConfirm: () -> Unit, onDism
     dismissLabel = "Kembali",
     confirmColor = Ink.Red,
 )
-
-/** Riwayat setoran target ini (Tambah Dana), terbaru dulu. */
-@Composable
-private fun DepositHistory(deposits: List<GoalDeposit>) {
-    Column(Modifier.fillMaxWidth().padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("RIWAYAT SETORAN", style = appText(12f, 18f, Bold, Ink.Subtle, tracking = 1.2f))
-        if (deposits.isEmpty()) {
-            Text("Belum ada setoran. Dana yang ditambahkan tercatat di sini.", style = appText(13f, 18f, Regular, Ink.Gray))
-        }
-        deposits.forEach { deposit ->
-            Row(
-                Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
-                Arrangement.spacedBy(12.dp),
-                Alignment.CenterVertically,
-            ) {
-                Text(
-                    deposit.date.formatId(),
-                    Modifier.weight(1f),
-                    style = appText(14f, 20f, Regular, Ink.Muted),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                AmountText(deposit.amount, AmountKind.NEUTRAL, appText(14f, 20f, SemiBold))
-            }
-        }
-    }
-}
 
 /** Panggil [onEdited] setiap [value] (gabungan isian form) berubah setelah sheet terbuka. */
 @Composable
@@ -327,18 +276,14 @@ private fun ProductImagePicker(imagePath: String?, name: String, onPick: (Uri) -
         OptionRow(label = "Tambah gambar produk (opsional)", trailing = null, onClick = launch, onTrailing = {}, icon = R.drawable.ic_image)
         return
     }
-    ItungSurface(Modifier.fillMaxWidth(), contentPadding = PaddingValues(1.dp)) {
-        Column {
-            GoalImage(
-                imagePath,
-                "Gambar $name",
-                Modifier.fillMaxWidth().height(140.dp).clip(RoundedCornerShape(topStart = 23.dp, topEnd = 23.dp)).background(Ink.EmptyIconBg),
-            ) { Ico(R.drawable.ic_goal_shoe_large) }
-            Row(Modifier.fillMaxWidth().padding(8.dp), Arrangement.spacedBy(8.dp)) {
-                SuggestionChip("Ganti gambar", launch)
-                ItungButton(onClick = onRemove, modifier = Modifier.height(36.dp), contentPadding = 14.dp) {
-                    Text("Hapus gambar", style = appText(13f, 18f, SemiBold, Ink.Red), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        GoalImage(imagePath, "Gambar $name", Modifier.fillMaxWidth().aspectRatio(16f / 9f).itungImageFrame()) {
+            Ico(R.drawable.ic_goal_shoe_large)
+        }
+        Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
+            SuggestionChip("Ganti gambar", launch)
+            ItungButton(onClick = onRemove, modifier = Modifier.height(36.dp), contentPadding = 14.dp) {
+                Text("Hapus gambar", style = appText(13f, 18f, SemiBold, Ink.Red), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
