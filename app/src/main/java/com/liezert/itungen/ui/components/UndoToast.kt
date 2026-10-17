@@ -1,5 +1,7 @@
 package com.liezert.itungen.ui.components
 
+import com.liezert.itungen.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
@@ -64,7 +66,7 @@ fun UndoToast(message: String?, onUndo: () -> Unit, bottomOffset: Dp = AboveNavB
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                         Text(last, Modifier.weight(1f), style = appText(14f, 20f, Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         ItungButton(onClick = onUndo, modifier = Modifier.height(44.dp), contentPadding = 16.dp) {
-                            Text("Urungkan", style = appText(14f, 20f, SemiBold, Ink.Blue))
+                            Text(stringResource(R.string.action_undo), style = appText(14f, 20f, SemiBold, Ink.Blue))
                         }
                     }
                 }

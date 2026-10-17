@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.goals
 
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -47,21 +48,22 @@ fun GoalProgressBar(goal: Goal, height: Dp, modifier: Modifier = Modifier) = Pro
 @Composable
 fun GoalStatusChip(goal: Goal, modifier: Modifier = Modifier) {
     if (goal.achieved) {
+        val reached = stringResource(R.string.goal_reached_a11y)
         Row(
             modifier
                 .clip(CircleShape)
                 .background(Ink.Green)
                 .padding(start = 8.dp, end = 10.dp, top = 3.dp, bottom = 3.dp)
-                .clearAndSetSemantics { contentDescription = "Target tercapai" },
+                .clearAndSetSemantics { contentDescription = reached },
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Image(painterResource(R.drawable.ic_check), null, Modifier.size(14.dp), colorFilter = ColorFilter.tint(Ink.OnGreen))
-            Text("Tercapai", style = appText(12f, 16f, Bold, Ink.OnGreen))
+            Text(stringResource(R.string.goal_reached), style = appText(12f, 16f, Bold, Ink.OnGreen))
         }
     } else {
         Box(modifier.clip(CircleShape).background(Ink.Accent.copy(alpha = 0.2f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
-            Text("${goal.percent}% tercapai", style = appText(12f, 16f, SemiBold, Ink.AccentLight))
+            Text(stringResource(R.string.goal_percent, goal.percent), style = appText(12f, 16f, SemiBold, Ink.AccentLight))
         }
     }
 }

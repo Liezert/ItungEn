@@ -110,7 +110,8 @@ class Converters {
 }
 
 // ponytail: ikon dan warna sementara; samakan dengan Figma saat layar kategori digambar.
-private val DefaultCategories: List<Triple<String, String, CategoryType>> = listOf(
+/** Kategori bawaan (nama tersimpan, ikon, jenis). Nama tersimpan selalu Indonesia; tampilannya diterjemahkan UI. */
+internal val DefaultCategories: List<Triple<String, String, CategoryType>> = listOf(
     Triple("Makanan", "food", EXPENSE),
     Triple("Transportasi", "transport", EXPENSE),
     Triple("Belanja", "shopping", EXPENSE),

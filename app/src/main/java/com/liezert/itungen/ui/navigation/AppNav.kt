@@ -1,5 +1,7 @@
 package com.liezert.itungen.ui.navigation
 
+import androidx.annotation.StringRes
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
@@ -150,13 +152,13 @@ private fun NavHostController.switchTab(index: Int) = navigate(TabRoutes[index])
 }
 
 /** [accent] dibaca saat digambar: warnanya ikut tema dan mode gelap/terang yang aktif. */
-private class Tab(val label: String, @param:DrawableRes val icon: Int, val accent: () -> Color)
+private class Tab(@param:StringRes val label: Int, @param:DrawableRes val icon: Int, val accent: () -> Color)
 
 private val Tabs = listOf(
-    Tab("Beranda", R.drawable.ic_nav_home) { Ink.NavHome },
-    Tab("Insight", R.drawable.ic_nav_category) { Ink.NavInsight },
-    Tab("Goals", R.drawable.ic_nav_goals) { Ink.NavGoals },
-    Tab("Profil", R.drawable.ic_nav_profile) { Ink.NavProfile },
+    Tab(R.string.tab_home, R.drawable.ic_nav_home) { Ink.NavHome },
+    Tab(R.string.tab_insight, R.drawable.ic_nav_category) { Ink.NavInsight },
+    Tab(R.string.tab_goals, R.drawable.ic_nav_goals) { Ink.NavGoals },
+    Tab(R.string.tab_profile, R.drawable.ic_nav_profile) { Ink.NavProfile },
 )
 
 @Composable
@@ -295,9 +297,10 @@ fun AppNav(
                             enter = scaleIn(spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium), 0.3f) + fadeIn(tween(150)),
                             exit = scaleOut(spring(stiffness = Spring.StiffnessMedium), 0.3f) + fadeOut(tween(120)),
                         ) {
+                            val addLabel = stringResource(R.string.add_transaction)
                             ItungButton(
                                 onClick = { nav.navigate("add") { launchSingleTop = true } },
-                                modifier = Modifier.size(56.dp).semantics { contentDescription = "Tambah transaksi" },
+                                modifier = Modifier.size(56.dp).semantics { contentDescription = addLabel },
                                 tint = Ink.Blue,
                                 contentPadding = 0.dp,
                             ) {
@@ -321,7 +324,7 @@ fun AppNav(
                                             .size(28.dp)
                                             .paint(painterResource(tab.icon), colorFilter = ColorFilter.tint(Ink.White))
                                     )
-                                    Text(tab.label, style = appText(11f, 13f, SemiBold, Ink.White), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(stringResource(tab.label), style = appText(11f, 13f, SemiBold, Ink.White), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }

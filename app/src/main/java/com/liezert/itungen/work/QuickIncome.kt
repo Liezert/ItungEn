@@ -1,5 +1,6 @@
 package com.liezert.itungen.work
 
+import com.liezert.itungen.ui.components.displayName
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -45,15 +46,15 @@ object QuickIncome {
     /** Jeda sebelum notifikasi yang diusap muncul lagi, agar tidak terasa langsung melawan usapan pengguna. */
     private const val ReshowMillis = 1_500L
 
-    /** Urutan pilihan bila kategorinya ada; sisanya diisi kategori pemasukan lain. "Kiriman" = uang saku. */
-    private val Preferred = listOf("Gaji", "Kiriman", "Uang saku", "Lainnya")
+    /** Urutan pilihan (ikon kategori bawaan): Gaji, Kiriman (= uang saku), Lainnya; sisanya kategori pemasukan lain. */
+    private val Preferred = listOf("salary", "gift", "other")
 
     fun canNotify(context: Context) =
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
     /** Tiga kategori pemasukan untuk tombol notifikasi. */
     internal fun pick(categories: List<Category>): List<Category> =
-        categories.sortedBy { Preferred.indexOf(it.name).let { i -> if (i < 0) Int.MAX_VALUE else i } }.take(3)
+        categories.sortedBy { Preferred.indexOf(it.icon).let { i -> if (i < 0) Int.MAX_VALUE else i } }.take(3)
 
     /** Tampilkan (atau perbarui) notifikasi dasar. Tidak melakukan apa-apa tanpa izin notifikasi. */
     suspend fun show(context: Context) {
@@ -61,8 +62,8 @@ object QuickIncome {
         val container = (context.applicationContext as ItungEnApp).container
         val categories = pick(container.transactionRepository.observeCategories(CategoryType.INCOME).first())
         val builder = base(context)
-            .setContentTitle("Catat pemasukan")
-            .setContentText("Pilih kategori, lalu ketik nominal (mis. 50rb, 1,5jt)")
+            .setContentTitle(context.getString(R.string.quick_income_title))
+            .setContentText(context.getString(R.string.quick_income_text))
         categories.forEach { builder.addAction(action(context, it)) }
         // Hanya notifikasi dasar: konfirmasi/galat yang diusap tidak memicu apa pun (backToBase tetap memulihkan dasar).
         builder.setDeleteIntent(
@@ -102,7 +103,7 @@ object QuickIncome {
 
     private fun base(context: Context): NotificationCompat.Builder {
         val manager = context.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(CHANNEL, "Catat cepat", NotificationManager.IMPORTANCE_LOW))
+        manager.createNotificationChannel(NotificationChannel(CHANNEL, context.getString(R.string.quick_income_channel), NotificationManager.IMPORTANCE_LOW))
         val open = PendingIntent.getActivity(
             context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
@@ -120,14 +121,14 @@ object QuickIncome {
         val intent = Intent(context, QuickIncomeReceiver::class.java)
             .setAction(QuickIncomeReceiver.ACTION_RECORD)
             .putExtra(QuickIncomeReceiver.EXTRA_CATEGORY, category.id)
-            .putExtra(QuickIncomeReceiver.EXTRA_LABEL, category.name)
+            .putExtra(QuickIncomeReceiver.EXTRA_LABEL, category.displayName(context))
         // FLAG_MUTABLE wajib agar sistem bisa menambahkan teks RemoteInput; intent eksplisit ke receiver sendiri.
         // requestCode berbeda per kategori agar PendingIntent-nya tidak saling menimpa.
         val pending = PendingIntent.getBroadcast(
             context, 3_000 + category.id.toInt(), intent, PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val input = RemoteInput.Builder(KEY_AMOUNT).setLabel("Nominal · ${category.name}").build()
-        return NotificationCompat.Action.Builder(0, category.name, pending)
+        val input = RemoteInput.Builder(KEY_AMOUNT).setLabel(context.getString(R.string.quick_income_input, category.displayName(context))).build()
+        return NotificationCompat.Action.Builder(0, category.displayName(context), pending)
             .addRemoteInput(input)
             .setAllowGeneratedReplies(false)
             .build()
@@ -174,15 +175,15 @@ class QuickIncomeReceiver : BroadcastReceiver() {
             try {
                 val amount = parseRupiah(typed)
                 if (amount == null) {
-                    QuickIncome.showResult(context, "Nominal \"${typed.take(20)}\" tidak dikenali. Contoh: 50000, 50rb, 1,5jt")
+                    QuickIncome.showResult(context, context.getString(R.string.quick_income_invalid, typed.take(20)))
                 } else {
                     container.transactionRepository.addToMainWallet(TransactionType.INCOME, amount, categoryId, null, LocalDate.now(container.clock))
-                    QuickIncome.showResult(context, "✓ ${formatRupiah(amount)} · $label tercatat")
+                    QuickIncome.showResult(context, context.getString(R.string.quick_income_recorded, formatRupiah(amount), label))
                 }
                 QuickIncome.backToBase(context)
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                QuickIncome.showResult(context, "Gagal mencatat. Coba lagi.")
+                QuickIncome.showResult(context, context.getString(R.string.quick_income_failed))
                 QuickIncome.backToBase(context)
             } finally {
                 pending.finish()

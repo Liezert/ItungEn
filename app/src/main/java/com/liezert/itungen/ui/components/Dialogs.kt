@@ -1,5 +1,7 @@
 package com.liezert.itungen.ui.components
 
+import com.liezert.itungen.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -20,7 +22,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import java.util.Locale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.BlendMode
@@ -33,8 +34,6 @@ import com.liezert.itungen.ui.theme.Regular
 import com.liezert.itungen.ui.theme.appText
 import com.liezert.itungen.ui.design.ItungDialog
 import com.liezert.itungen.ui.design.ItungButton
-
-private val Indonesian = Locale.forLanguageTag("id-ID")
 
 /** Aksen dialog tema gelap dari repo Kyant0. */
 private val DialogAccent = Color(0xFF0091FF)
@@ -51,7 +50,7 @@ fun ItungAlertDialog(
     confirmLabel: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
-    dismissLabel: String = "Batal",
+    dismissLabel: String = stringResource(R.string.action_cancel),
     confirmColor: Color = DialogAccent,
 ) {
     ItungDialog(visible, onDismiss) {
@@ -78,17 +77,18 @@ fun ItungAlertDialog(
 private const val DayMillis = 86_400_000L
 
 /**
- * State pemilih tanggal berbahasa Indonesia. Nama bulan dan hari diambil dari locale state saat state dibuat, bukan
+ * State pemilih tanggal dalam bahasa app. Nama bulan dan hari diambil dari locale state saat state dibuat, bukan
  * saat dialog digambar, jadi locale harus diberikan di sini; konfigurasi di [ItungDatePickerDialog] hanya
  * menerjemahkan teks tombol dan judul. [selectable] = tanggal yang boleh dipilih.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun rememberIndonesianDatePickerState(initialSelectedDate: LocalDate, selectable: (LocalDate) -> Boolean): DatePickerState {
+fun rememberAppDatePickerState(initialSelectedDate: LocalDate, selectable: (LocalDate) -> Boolean): DatePickerState {
     val isSelectable by rememberUpdatedState(selectable)
-    return remember {
+    val locale = dateLocale()
+    return remember(locale) {
         DatePickerState(
-            locale = Indonesian,
+            locale = locale,
             initialSelectedDateMillis = initialSelectedDate.toEpochDay() * DayMillis,
             selectableDates = object : SelectableDates {
                 override fun isSelectableDate(utcTimeMillis: Long) = isSelectable(LocalDate.ofEpochDay(utcTimeMillis / DayMillis))
@@ -107,12 +107,13 @@ fun ItungDatePickerDialog(
     onDismiss: () -> Unit,
 ) {
     ItungDialog(visible, onDismiss, Modifier.padding(horizontal = 8.dp, vertical = 16.dp)) {
-        // Bahasa Indonesia apa pun bahasa HP-nya (nama bulan/hari dan teks "Pilih tanggal"), sama seperti seluruh app.
+        // Bahasa app, apa pun bahasa HP-nya (nama bulan/hari dan teks "Pilih tanggal"), sama seperti seluruh app.
         val configuration = LocalConfiguration.current
         val context = LocalContext.current
-        val indonesian = remember(configuration) { Configuration(configuration).apply { setLocale(Indonesian) } }
-        val indonesianContext = remember(context, indonesian) { context.createConfigurationContext(indonesian) }
-        CompositionLocalProvider(LocalConfiguration provides indonesian, LocalContext provides indonesianContext) {
+        val locale = dateLocale()
+        val app = remember(configuration, locale) { Configuration(configuration).apply { setLocale(locale) } }
+        val appContext = remember(context, app) { context.createConfigurationContext(app) }
+        CompositionLocalProvider(LocalConfiguration provides app, LocalContext provides appContext) {
             DatePicker(
                 state,
                 Modifier.padding(top = 8.dp),
@@ -122,10 +123,10 @@ fun ItungDatePickerDialog(
         }
         DialogButtons {
             ItungButton(onDismiss, modifier = Modifier.weight(1f), surfaceColor = CancelSurface) {
-                Text("Batal", style = appText(16f, 22f))
+                Text(stringResource(R.string.action_cancel), style = appText(16f, 22f))
             }
             ItungButton(onConfirm, modifier = Modifier.weight(1f), tint = DialogAccent) {
-                Text("OK", style = appText(16f, 22f, color = Color.White))
+                Text(stringResource(R.string.action_ok), style = appText(16f, 22f, color = Color.White))
             }
         }
     }

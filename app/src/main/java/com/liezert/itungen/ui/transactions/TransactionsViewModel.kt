@@ -1,5 +1,9 @@
 package com.liezert.itungen.ui.transactions
 
+import com.liezert.itungen.ui.components.displayNote
+import com.liezert.itungen.ui.components.displayName
+import android.content.Context
+import com.liezert.itungen.R
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
@@ -56,6 +60,8 @@ class TransactionsViewModel(
     /** Lingkup aplikasi: penghapusan & Urungkan tetap selesai walau layar ditinggalkan. */
     private val appScope: CoroutineScope,
     private val saved: SavedStateHandle,
+    /** Teks pesan Urungkan dalam bahasa app. */
+    private val context: Context,
 ) : ViewModel() {
     /** Langsung terhapus dari database (aman walau app ditutup); Urungkan memulihkan baris yang sama. */
     val undo = UndoStack(viewModelScope, appScope)
@@ -117,7 +123,8 @@ class TransactionsViewModel(
     fun delete(tx: Transaction) {
         appScope.launch {
             val restore = repository.deleteTransaction(tx.id)
-            undo.push("Dihapus: ${tx.note ?: tx.category?.name ?: "Transaksi"}", restore)
+            val label = tx.displayNote(context) ?: tx.category?.displayName(context) ?: context.getString(R.string.transaction)
+            undo.push(context.getString(R.string.undo_deleted, label), restore)
         }
     }
 
@@ -128,7 +135,7 @@ class TransactionsViewModel(
         val Factory = viewModelFactory {
             initializer {
                 val container = (this[APPLICATION_KEY] as ItungEnApp).container
-                TransactionsViewModel(container.transactionRepository, container.clock, container.appScope, createSavedStateHandle())
+                TransactionsViewModel(container.transactionRepository, container.clock, container.appScope, createSavedStateHandle(), this[APPLICATION_KEY] as ItungEnApp)
             }
         }
     }

@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.components
 
+import com.liezert.itungen.domain.model.RupiahPrefix
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,7 +61,7 @@ fun AmountField(state: TextFieldState, label: String, modifier: Modifier = Modif
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(label, style = appText(13f, 18f, Medium, Ink.Gray))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Rp", style = appText(18f, 26f, SemiBold, Ink.Gray))
+                Text(RupiahPrefix, style = appText(18f, 26f, SemiBold, Ink.Gray))
                 val style = appText(24f, 32f, Bold)
                 BasicTextField(
                     state = state,

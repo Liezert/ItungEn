@@ -66,13 +66,13 @@ class Backup(
      * Transaksi dompet utama (yang tampil di Semua Transaksi), satu baris per transaksi. Pemisah titik koma + BOM UTF-8:
      * Excel dengan setelan regional Indonesia memakai titik koma, dan Google Sheets mendeteksinya sendiri.
      */
-    fun exportCsv(transactions: List<Transaction>, out: OutputStream) {
+    fun exportCsv(transactions: List<Transaction>, out: OutputStream, labels: CsvLabels) {
         out.writer().use { w ->
             w.write("\uFEFF")
-            w.write("Tanggal;Jenis;Kategori;Catatan;Nominal\n")
+            w.write(labels.header.joinToString(";") { csv(it) } + "\n")
             for (t in transactions.sortedBy { it.date }) {
                 val signed = if (t.type == TransactionType.INCOME || t.type == TransactionType.TRANSFER_IN) t.amount else -t.amount
-                w.write(listOf(t.date.toString(), t.type.label(), t.category?.name.orEmpty(), t.note.orEmpty(), signed.toString()).joinToString(";") { csv(it) })
+                w.write(listOf(t.date.toString(), labels.type(t.type), labels.category(t), t.note.orEmpty(), signed.toString()).joinToString(";") { csv(it) })
                 w.write("\n")
             }
         }
@@ -200,12 +200,12 @@ private fun Any?.toPlain(): Any? = when (this) {
     else -> this
 }
 
-private fun TransactionType.label() = when (this) {
-    TransactionType.INCOME -> "Pemasukan"
-    TransactionType.EXPENSE -> "Pengeluaran"
-    TransactionType.TRANSFER_OUT -> "Ke target"
-    TransactionType.TRANSFER_IN -> "Dari target"
-}
+/** Teks CSV dari UI (bahasa app): judul kolom, nama jenis, dan nama kategori seperti yang tampil di app. */
+class CsvLabels(
+    val header: List<String>,
+    val type: (TransactionType) -> String,
+    val category: (Transaction) -> String,
+)
 
 /** Kutip bila perlu (pemisah, kutip, baris baru), sesuai RFC 4180. */
 private fun csv(value: String): String =

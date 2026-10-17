@@ -1,5 +1,11 @@
 package com.liezert.itungen.ui.insight
 
+import com.liezert.itungen.R
+import com.liezert.itungen.ui.components.formatIn
+import androidx.annotation.StringRes
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import com.liezert.itungen.ui.components.displayName
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -64,8 +70,6 @@ import com.liezert.itungen.ui.design.ItungSurface
 import com.liezert.itungen.ui.design.ItungCard
 import com.liezert.itungen.ui.design.ItungButton
 
-private val MonthFormat = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("id-ID"))
-private val MonthOnly = DateTimeFormatter.ofPattern("MMMM", Locale.forLanguageTag("id-ID"))
 
 @Composable
 fun InsightScreen(
@@ -80,11 +84,15 @@ fun InsightScreen(
     )
 }
 
-private val Kinds = listOf(CategoryType.EXPENSE to "Pengeluaran", CategoryType.INCOME to "Pemasukan")
+private val Kinds = listOf(CategoryType.EXPENSE to R.string.type_expense, CategoryType.INCOME to R.string.type_income)
 
-/** Kata dan warna yang berbeda untuk pengeluaran (merah, "-") dan pemasukan (hijau, "+"). */
+/** Kata dan warna yang berbeda untuk pengeluaran (merah) dan pemasukan (hijau). */
 private val InsightUiState.income get() = type == CategoryType.INCOME
-private val InsightUiState.noun get() = if (income) "pemasukan" else "pengeluaran"
+
+/** Teks yang berbeda untuk pengeluaran dan pemasukan: kalimat utuh per jenis, bukan kata yang disambung. */
+@Composable
+private fun InsightUiState.text(@StringRes expense: Int, @StringRes income: Int, vararg args: Any) =
+    stringResource(if (this.income) income else expense, *args)
 
 @Composable
 fun InsightContent(
@@ -100,7 +108,7 @@ fun InsightContent(
 ) {
     val total = state.total
     var limitFor by remember { mutableStateOf<Category?>(null) }
-    val lastMonth = state.month.minusMonths(1).format(MonthOnly)
+    val lastMonth = state.month.minusMonths(1).atDay(1).formatIn("MMMM")
     val accent = if (state.income) Ink.Income else Ink.Expense
 
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -111,15 +119,15 @@ fun InsightContent(
         Spacer(Modifier.height(8.dp))
         Row(Modifier.screenPad().fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("Insight", style = appText(20f, 25f, Bold, Ink.White, tracking = -0.5f))
+                Text(stringResource(R.string.tab_insight), style = appText(20f, 25f, Bold, Ink.White, tracking = -0.5f))
                 Text(
-                    "${state.noun.replaceFirstChar { it.uppercase() }} ${state.month.format(MonthFormat)}",
+                    state.text(R.string.insight_subtitle_expense, R.string.insight_subtitle_income, state.month.atDay(1).formatIn("MMMM yyyy")),
                     style = appText(13f, 19.5f, Medium, Ink.Gray),
                 )
             }
-            MonthButton("‹", "Bulan sebelumnya", state.canGoBack, onPrevious)
+            MonthButton("‹", stringResource(R.string.month_previous), state.canGoBack, onPrevious)
             Spacer(Modifier.width(8.dp))
-            MonthButton("›", "Bulan berikutnya", state.canGoForward, onNext)
+            MonthButton("›", stringResource(R.string.month_next), state.canGoForward, onNext)
         }
         Spacer(Modifier.height(16.dp))
         // Segmented control kaca, sama dengan toggle di Tambah Transaksi.
@@ -133,7 +141,7 @@ fun InsightContent(
         ) {
             Kinds.forEach { (type, label) ->
                 ItungTab({ onType(type) }, selected = type == state.type) {
-                    Text(label, style = appText(14f, 20f, SemiBold, if (type == state.type) Ink.White else Ink.Muted))
+                    Text(stringResource(label), style = appText(14f, 20f, SemiBold, if (type == state.type) Ink.White else Ink.Muted))
                 }
             }
         }
@@ -145,12 +153,12 @@ fun InsightContent(
         }
         Spacer(Modifier.height(22.dp))
         Column(Modifier.screenPad(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("Detail Kategori", style = appText(15f, 22.5f, SemiBold, Ink.white(0.9f)))
+            Text(stringResource(R.string.category_details), style = appText(15f, 22.5f, SemiBold, Ink.white(0.9f)))
             if (state.spending.isEmpty() && !state.loading) {
-                Text("Belum ada ${state.noun} di bulan ini.", style = appText(14f, 20f, Regular, Ink.Gray))
+                Text(state.text(R.string.insight_empty_month_expense, R.string.insight_empty_month_income), style = appText(14f, 20f, Regular, Ink.Gray))
             }
             if (!state.income && state.spending.isNotEmpty()) {
-                Text("Ketuk kategori untuk mengatur batas bulanan.", style = appText(12f, 16f, Regular, Ink.Gray))
+                Text(stringResource(R.string.tap_category_for_limit), style = appText(12f, 16f, Regular, Ink.Gray))
             }
             state.spending.forEach {
                 // Batas hanya untuk pengeluaran.
@@ -200,13 +208,19 @@ private fun ComparisonText(
     val down = if (income) Ink.Expense else Ink.Income
     // Persen dari pembanding yang sangat kecil (mis. Rp 1) tidak bermakna; tampilkan nominalnya saja.
     // Selisih kecil dibulatkan ke 0% terbaca "turun (0%)"; tampilkan "<1%".
-    val pct = (kotlin.math.abs(diff) * 100 / maxOf(previous, 1)).takeIf { it <= 999 }?.let { if (it == 0L) " (<1%)" else " ($it%)" }.orEmpty()
+    val pct = (kotlin.math.abs(diff) * 100 / maxOf(previous, 1)).takeIf { it <= 999 }
+        ?.let { " " + if (it == 0L) stringResource(R.string.percent_under_one) else stringResource(R.string.percent_paren, it.toInt()) }.orEmpty()
     val (text, color) = when {
-        previous == 0L -> (if (compact) "Baru bulan ini" else "Belum ada ${if (income) "pemasukan" else "pengeluaran"} di $monthName") to Ink.Gray
-        diff == 0L -> "Sama dengan $monthName" to Ink.Gray
-        compact -> (if (diff > 0) "▲ " else "▼ ") + "${formatRupiah(kotlin.math.abs(diff))} vs $monthName" to (if (diff > 0) up else down)
-        diff > 0 -> "▲ Naik ${formatRupiah(diff)}$pct dibanding $monthName" to up
-        else -> "▼ Turun ${formatRupiah(-diff)}$pct dibanding $monthName" to down
+        previous == 0L -> when {
+            compact -> stringResource(R.string.compare_new)
+            income -> stringResource(R.string.compare_none_income, monthName)
+            else -> stringResource(R.string.compare_none_expense, monthName)
+        } to Ink.Gray
+        diff == 0L -> stringResource(R.string.compare_same, monthName) to Ink.Gray
+        compact -> stringResource(if (diff > 0) R.string.compare_up_short else R.string.compare_down_short, formatRupiah(kotlin.math.abs(diff)), monthName) to
+            (if (diff > 0) up else down)
+        diff > 0 -> stringResource(R.string.compare_up, formatRupiah(diff), pct, monthName) to up
+        else -> stringResource(R.string.compare_down, formatRupiah(-diff), pct, monthName) to down
     }
     Text(text, style = appText(size, size + 5f, Medium, color))
 }
@@ -223,10 +237,10 @@ private fun SummaryCard(state: InsightUiState, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("TOTAL ${state.noun.uppercase()}", style = appText(14f, 20f, SemiBold, Ink.Gray, tracking = 0.7f))
+            Text(state.text(R.string.insight_total_expense, R.string.insight_total_income), style = appText(14f, 20f, SemiBold, Ink.Gray, tracking = 0.7f))
             // Nol tetap warna teks biasa: belum ada pemasukan/pengeluaran untuk diwarnai.
             AmountText(total, if (total > 0) kind else AmountKind.NEUTRAL, appText(28f, 42f, Bold, Ink.White, tracking = -0.7f))
-            ComparisonText(total, state.previousTotal, state.month.minusMonths(1).format(MonthOnly), 13f, state.income)
+            ComparisonText(total, state.previousTotal, state.month.minusMonths(1).atDay(1).formatIn("MMMM"), 13f, state.income)
         }
         // Diagram lingkaran per kategori: jumlah kategori di tengah, legenda (warna, nama, persen) di sampingnya.
         Row(
@@ -241,19 +255,19 @@ private fun SummaryCard(state: InsightUiState, modifier: Modifier = Modifier) {
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(spending.size.toString(), style = appText(22f, 26f, Bold))
-                    Text("kategori", style = appText(11f, 14f, Medium, Ink.Gray))
+                    Text(pluralStringResource(R.plurals.categories_word, spending.size), style = appText(11f, 14f, Medium, Ink.Gray))
                 }
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (spending.isEmpty()) {
-                    Text("Belum ada ${state.noun}.", style = appText(13f, 18f, Regular, Ink.Gray))
+                    Text(state.text(R.string.insight_empty_expense, R.string.insight_empty_income), style = appText(13f, 18f, Regular, Ink.Gray))
                 }
                 // ponytail: 5 teratas + "Lainnya" agar legenda tetap muat di samping diagram.
                 val top = spending.take(5)
                 val rest = spending.drop(5).sumOf { it.total }
                 val percents = roundedPercents(top.map { it.total } + listOfNotNull(rest.takeIf { it > 0 }))
-                top.forEachIndexed { i, it -> LegendRow(it.category.style().color, it.category.name, percents[i]) }
-                if (rest > 0) LegendRow(Ink.Gray, "Lainnya", percents.last())
+                top.forEachIndexed { i, it -> LegendRow(it.category.style().color, it.category.displayName(), percents[i]) }
+                if (rest > 0) LegendRow(Ink.Gray, stringResource(R.string.cat_other), percents.last())
             }
         }
     }
@@ -264,7 +278,7 @@ private fun LegendRow(color: Color, label: String, percent: Int) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(10.dp).clip(CircleShape).background(color))
         Text(label, Modifier.weight(1f), style = appText(13f, 18f, Medium, Ink.Muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text("$percent%", style = appText(13f, 18f, SemiBold))
+        Text(stringResource(R.string.percent_value, percent), style = appText(13f, 18f, SemiBold))
     }
 }
 
@@ -299,14 +313,14 @@ private fun BreakdownItem(
             ) {
                 IconCircle(style.bigIcon, 48.dp, style.color.copy(alpha = 0.15f))
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text(item.category.name, style = appText(16f, 24f, SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("${item.count} transaksi", style = appText(13f, 19.5f, Regular, Ink.Gray))
+                    Text(item.category.displayName(), style = appText(16f, 24f, SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(pluralStringResource(R.plurals.transactions_count, item.count, item.count), style = appText(13f, 19.5f, Regular, Ink.Gray))
                     ComparisonText(item.total, previous, lastMonth, 12f, income, compact = true)
                     if (limit != null) {
                         Text(
                             when (level) {
-                                LimitLevel.OVER -> "Lewat batas ${formatRupiah(limit)}"
-                                else -> "${item.total * 100 / limit}% dari batas ${formatRupiah(limit)}"
+                                LimitLevel.OVER -> stringResource(R.string.limit_over_short, formatRupiah(limit))
+                                else -> stringResource(R.string.limit_percent_of, (item.total * 100 / limit).toInt(), formatRupiah(limit))
                             },
                             style = appText(12f, 16f, SemiBold, if (level == LimitLevel.OK) Ink.Gray else limitColor),
                         )

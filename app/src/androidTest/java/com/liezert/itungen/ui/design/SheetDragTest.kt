@@ -46,7 +46,7 @@ class SheetDragTest(@Suppress("unused") private val name: String, private val th
     companion object {
         @JvmStatic
         @Parameterized.Parameters(name = "{0}")
-        fun themes() = Themes.all.map { arrayOf(it.name, it) }
+        fun themes() = Themes.all.map { arrayOf(it.id, it) }
     }
 
     @get:Rule

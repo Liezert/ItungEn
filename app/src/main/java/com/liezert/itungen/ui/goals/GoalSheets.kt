@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.goals
 
+import androidx.compose.ui.res.stringResource
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -55,14 +56,14 @@ import com.liezert.itungen.ui.components.Ico
 import com.liezert.itungen.ui.components.IconCircle
 import com.liezert.itungen.ui.components.ItungAlertDialog
 import com.liezert.itungen.ui.components.ItungDatePickerDialog
-import com.liezert.itungen.ui.components.rememberIndonesianDatePickerState
+import com.liezert.itungen.ui.components.rememberAppDatePickerState
 import com.liezert.itungen.ui.theme.Bold
 import com.liezert.itungen.ui.theme.Ink
 import com.liezert.itungen.ui.theme.Medium
 import com.liezert.itungen.ui.theme.Regular
 import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
-import com.liezert.itungen.ui.theme.formatId
+import com.liezert.itungen.ui.theme.formatDay
 import java.time.LocalDate
 import androidx.compose.ui.text.style.TextOverflow
 import com.liezert.itungen.ui.design.ItungSurface
@@ -72,18 +73,24 @@ import androidx.compose.foundation.layout.aspectRatio
 
 private const val DayMillis = 86_400_000L
 
-private fun GoalError.message() = when (this) {
-    GoalError.TITLE_REQUIRED -> "Isi nama target."
-    GoalError.TARGET_REQUIRED -> "Isi nominal target lebih dari 0."
-    GoalError.TARGET_TOO_LARGE -> "Nominal target terlalu besar."
-    GoalError.DATE_IN_PAST -> "Tanggal target tidak boleh di masa lalu."
-    GoalError.PLAN_ABOVE_TARGET -> "Setoran bulanan tidak boleh melebihi target dana."
-}
+@Composable
+private fun GoalError.message() = stringResource(
+    when (this) {
+        GoalError.TITLE_REQUIRED -> R.string.goal_error_title
+        GoalError.TARGET_REQUIRED -> R.string.goal_error_target
+        GoalError.TARGET_TOO_LARGE -> R.string.goal_error_too_large
+        GoalError.DATE_IN_PAST -> R.string.goal_error_past_date
+        GoalError.PLAN_ABOVE_TARGET -> R.string.goal_error_plan_above
+    }
+)
 
-private fun TransferError.message() = when (this) {
-    TransferError.AMOUNT_REQUIRED -> "Isi nominal lebih dari 0."
-    TransferError.INSUFFICIENT_BALANCE -> "Saldo utama tidak cukup."
-}
+@Composable
+private fun TransferError.message() = stringResource(
+    when (this) {
+        TransferError.AMOUNT_REQUIRED -> R.string.transfer_error_amount
+        TransferError.INSUFFICIENT_BALANCE -> R.string.transfer_error_balance
+    }
+)
 
 /**
  * Isi sheet Buat Target (DESIGN_SPEC §6.6): nama, target, tanggal (opsional), setoran bulanan + nilai saran.
@@ -109,25 +116,25 @@ fun CreateGoalSheet(
     val suggestion = suggestedMonthly(target.text.toString().toLongOrNull() ?: 0, 0, targetDate, state.today)
 
     SheetBody {
-        Text("Buat Target", style = appText(20f, 28f, Bold))
-        ItungTextField(title, "Nama target, mis. Sepatu Lari", maxLength = MAX_TITLE)
-        ProductImagePicker(state.form.draftImage, title.text.toString().ifBlank { "target" }, onPickImage, onRemoveImage)
-        AmountField(target, "Target dana")
+        Text(stringResource(R.string.create_goal), style = appText(20f, 28f, Bold))
+        ItungTextField(title, stringResource(R.string.goal_name_hint), maxLength = MAX_TITLE)
+        ProductImagePicker(state.form.draftImage, title.text.toString(), onPickImage, onRemoveImage)
+        AmountField(target, stringResource(R.string.goal_target_amount))
         OptionRow(
-            label = targetDate?.formatId() ?: "Tanggal target (opsional)",
-            trailing = if (targetDate != null) "Hapus" else null,
+            label = targetDate?.formatDay() ?: stringResource(R.string.goal_target_date),
+            trailing = if (targetDate != null) stringResource(R.string.action_remove) else null,
             onClick = { picking = true },
             onTrailing = { targetDay = null },
         )
-        AmountField(planned, "Setoran bulanan (rencana)")
+        AmountField(planned, stringResource(R.string.goal_planned_monthly))
         if (suggestion != null && suggestion > 0) {
             // Nilai saran §5.1: bisa diterima atau diubah.
-            SuggestionChip("Saran ${formatRupiah(suggestion)}/bulan · Pakai") {
+            SuggestionChip(stringResource(R.string.goal_suggestion, formatRupiah(suggestion))) {
                 planned.setTextAndPlaceCursorAtEnd(suggestion.toString())
             }
         }
         FormMessage(state.form.goalError?.message() ?: formMessage(state.form))
-        SheetButton("Buat Target", enabled = !state.form.busy) {
+        SheetButton(stringResource(R.string.create_goal), enabled = !state.form.busy) {
             onCreate(
                 title.text.toString(),
                 target.text.toString().toLongOrNull(),
@@ -137,7 +144,7 @@ fun CreateGoalSheet(
         }
     }
 
-    val picker = rememberIndonesianDatePickerState(targetDate ?: state.today.plusMonths(3)) { it >= state.today }
+    val picker = rememberAppDatePickerState(targetDate ?: state.today.plusMonths(3)) { it >= state.today }
     ItungDatePickerDialog(
         visible = picking,
         state = picker,
@@ -164,27 +171,27 @@ fun AddFundsSheet(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             GoalImage(goal.imagePath, null, Modifier.size(64.dp, 48.dp).itungImageFrame()) { Ico(R.drawable.ic_goal_shoe) }
             Column {
-                Text("Tambah Dana", style = appText(20f, 28f, Bold))
-                Text("${goal.name} · ${goal.percent}% tercapai", style = appText(13f, 18f, Regular, Ink.Gray), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.add_funds), style = appText(20f, 28f, Bold))
+                Text(stringResource(R.string.goal_name_percent, goal.name, goal.percent), style = appText(13f, 18f, Regular, Ink.Gray), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         Text(
-            "Saldo utama: ${formatRupiah(state.mainBalance)}",
+            stringResource(R.string.main_balance_is, formatRupiah(state.mainBalance)),
             style = appText(14f, 20f, Medium, if (state.mainBalance > 0) Ink.Muted else Ink.Red),
         )
-        AmountField(amount, "Nominal dari saldo utama")
+        AmountField(amount, stringResource(R.string.amount_from_main))
         // Saran hanya nominal yang bisa langsung dipakai: tidak melebihi sisa target maupun saldo utama.
         val plan = minOf(goal.plannedMonthly, goal.remaining)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (plan in 1..state.mainBalance && plan != goal.remaining) {
-                SuggestionChip("Rencana ${formatRupiah(plan)}") { amount.setTextAndPlaceCursorAtEnd(plan.toString()) }
+                SuggestionChip(stringResource(R.string.chip_plan, formatRupiah(plan))) { amount.setTextAndPlaceCursorAtEnd(plan.toString()) }
             }
             if (goal.remaining in 1..state.mainBalance) {
-                SuggestionChip("Sisa ${formatRupiah(goal.remaining)}") { amount.setTextAndPlaceCursorAtEnd(goal.remaining.toString()) }
+                SuggestionChip(stringResource(R.string.chip_remaining, formatRupiah(goal.remaining))) { amount.setTextAndPlaceCursorAtEnd(goal.remaining.toString()) }
             }
         }
         FormMessage(state.form.transferError?.message() ?: formMessage(state.form))
-        SheetButton("Tambah Dana", enabled = !state.form.busy) { onAddFunds(amount.text.toString().toLongOrNull()) }
+        SheetButton(stringResource(R.string.add_funds), enabled = !state.form.busy) { onAddFunds(amount.text.toString().toLongOrNull()) }
     }
 }
 
@@ -192,13 +199,14 @@ fun AddFundsSheet(
 @Composable
 fun DeleteGoalDialog(goal: Goal, visible: Boolean, onConfirm: () -> Unit, onDismiss: () -> Unit) = ItungAlertDialog(
     visible = visible,
-    title = "Hapus \"${goal.name}\"?",
-    text = if (goal.saved > 0) "Dana ${formatRupiah(goal.saved)} dikembalikan ke saldo utama. Riwayat transfernya tetap ada di Semua Transaksi."
-    else "Target ini dihapus dari daftar.",
-    confirmLabel = "Hapus",
+    title = stringResource(R.string.delete_goal_title, goal.name),
+    // Sejak Fase 1 hapus goal juga menghapus riwayat transfernya (uangnya kembali utuh ke saldo utama).
+    text = if (goal.saved > 0) stringResource(R.string.delete_goal_body_funds, formatRupiah(goal.saved))
+    else stringResource(R.string.delete_goal_body),
+    confirmLabel = stringResource(R.string.action_delete),
     onConfirm = onConfirm,
     onDismiss = onDismiss,
-    dismissLabel = "Kembali",
+    dismissLabel = stringResource(R.string.action_back),
     confirmColor = Ink.Red,
 )
 
@@ -258,9 +266,10 @@ private fun SuggestionChip(label: String, onClick: () -> Unit) {
     ) { Text(label, style = appText(13f, 18f, SemiBold, Ink.AccentLight), maxLines = 1, overflow = TextOverflow.Ellipsis) }
 }
 
+@Composable
 private fun formMessage(form: GoalFormState) = when {
-    form.imageFailed -> "Gambar tidak bisa dibuka. Coba gambar lain."
-    form.failed -> "Gagal menyimpan. Coba lagi."
+    form.imageFailed -> stringResource(R.string.image_failed)
+    form.failed -> stringResource(R.string.save_failed)
     else -> null
 }
 
@@ -273,17 +282,17 @@ private fun ProductImagePicker(imagePath: String?, name: String, onPick: (Uri) -
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(onPick) }
     val launch = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
     if (imagePath == null) {
-        OptionRow(label = "Tambah gambar produk (opsional)", trailing = null, onClick = launch, onTrailing = {}, icon = R.drawable.ic_image)
+        OptionRow(label = stringResource(R.string.add_product_image), trailing = null, onClick = launch, onTrailing = {}, icon = R.drawable.ic_image)
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        GoalImage(imagePath, "Gambar $name", Modifier.fillMaxWidth().aspectRatio(16f / 9f).itungImageFrame()) {
+        GoalImage(imagePath, if (name.isBlank()) stringResource(R.string.product_image) else stringResource(R.string.goal_image_of, name), Modifier.fillMaxWidth().aspectRatio(16f / 9f).itungImageFrame()) {
             Ico(R.drawable.ic_goal_shoe_large)
         }
         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
-            SuggestionChip("Ganti gambar", launch)
+            SuggestionChip(stringResource(R.string.change_image), launch)
             ItungButton(onClick = onRemove, modifier = Modifier.height(36.dp), contentPadding = 14.dp) {
-                Text("Hapus gambar", style = appText(13f, 18f, SemiBold, Ink.Red), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.remove_image), style = appText(13f, 18f, SemiBold, Ink.Red), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

@@ -1,5 +1,7 @@
 package com.liezert.itungen.data.sync
 
+import androidx.annotation.StringRes
+import com.liezert.itungen.R
 import android.content.SharedPreferences
 import android.os.SystemClock
 import android.util.Log
@@ -38,7 +40,8 @@ sealed interface SyncStatus {
     data object Syncing : SyncStatus
     data class Synced(val at: Instant) : SyncStatus
     /** [reason] = penyebab yang bisa dipahami pengguna, mis. "Tidak ada koneksi internet." */
-    data class Failed(val reason: String) : SyncStatus
+    /** [reason] = resource teks alasan; [code] = kode galat server bila ada (disisipkan ke teksnya). */
+    data class Failed(@StringRes val reason: Int, val code: String? = null) : SyncStatus
 }
 
 /**
@@ -103,11 +106,11 @@ class SyncManager(
             true
         } catch (e: CancellationException) {
             if (e !is TimeoutCancellationException) throw e
-            _status.value = SyncStatus.Failed("Tidak ada koneksi internet atau server lambat merespons.")
+            _status.value = SyncStatus.Failed(R.string.sync_error_timeout)
             false
         } catch (e: Exception) {
             Log.w("ItungEn", "Sinkron gagal", e)
-            _status.value = SyncStatus.Failed(failureReason(e))
+            _status.value = failureReason(e)
             false
         }
     }
@@ -253,18 +256,17 @@ class SyncManager(
 
     private suspend fun applyTransaction(uuid: String, doc: Map<String, Any?>): Boolean = applyRemoteTransaction(dao, uuid, doc)
 
-    private fun failureReason(e: Exception): String {
+    private fun failureReason(e: Exception): SyncStatus.Failed {
         val firestoreError = e as? FirebaseFirestoreException
         return when {
-            firestoreError == null -> "Terjadi kesalahan tak terduga."
+            firestoreError == null -> SyncStatus.Failed(R.string.sync_error_unexpected)
             // Pesan server saat project Firebase belum punya database Firestore.
             firestoreError.message.orEmpty().let { "has not been used" in it || "does not exist" in it || "disabled" in it } ->
-                "Database Firestore belum dibuat di Firebase Console."
-            firestoreError.code == FirebaseFirestoreException.Code.PERMISSION_DENIED ->
-                "Akses ditolak oleh server. Periksa Rules Firestore."
-            firestoreError.code == FirebaseFirestoreException.Code.UNAVAILABLE -> "Tidak ada koneksi internet."
-            firestoreError.code == FirebaseFirestoreException.Code.UNAUTHENTICATED -> "Sesi akun berakhir. Keluar lalu masuk lagi."
-            else -> "Server menolak (${firestoreError.code.name})."
+                SyncStatus.Failed(R.string.sync_error_no_database)
+            firestoreError.code == FirebaseFirestoreException.Code.PERMISSION_DENIED -> SyncStatus.Failed(R.string.sync_error_denied)
+            firestoreError.code == FirebaseFirestoreException.Code.UNAVAILABLE -> SyncStatus.Failed(R.string.sync_error_offline)
+            firestoreError.code == FirebaseFirestoreException.Code.UNAUTHENTICATED -> SyncStatus.Failed(R.string.sync_error_session)
+            else -> SyncStatus.Failed(R.string.sync_error_rejected, firestoreError.code.name)
         }
     }
 

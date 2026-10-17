@@ -1,5 +1,7 @@
 package com.liezert.itungen.ui.goals
 
+import com.liezert.itungen.ui.components.formatIn
+import androidx.compose.ui.res.stringResource
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -60,7 +62,7 @@ import com.liezert.itungen.ui.theme.Medium
 import com.liezert.itungen.ui.theme.Regular
 import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
-import com.liezert.itungen.ui.theme.formatId
+import com.liezert.itungen.ui.theme.formatDay
 
 /** Detail goal (dibuka dari kartu di tab Goals): Tambah Dana, ganti gambar, riwayat uang masuk, dan Hapus target. */
 @Composable
@@ -133,7 +135,7 @@ fun GoalDetailContent(
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         TopBar(
-            leading = { ItungIconButton(R.drawable.ic_back, onBack, "Kembali") },
+            leading = { ItungIconButton(R.drawable.ic_back, onBack, stringResource(R.string.action_back)) },
             trailing = { Spacer(Modifier.size(48.dp)) },
         )
         Column(Modifier.screenPad(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -143,32 +145,32 @@ fun GoalDetailContent(
                     Modifier.fillMaxWidth(),
                     imageHeight = maxWidth * 9f / 16f,
                     image = {
-                        GoalImage(goal.imagePath, "Gambar ${goal.name}", Modifier.fillMaxSize()) { Ico(R.drawable.ic_goal_shoe_large) }
+                        GoalImage(goal.imagePath, stringResource(R.string.goal_image_of, goal.name), Modifier.fillMaxSize()) { Ico(R.drawable.ic_goal_shoe_large) }
                     },
                 ) {
                     GoalStatusChip(goal)
                     GoalProgressBar(goal, 10.dp)
                     Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(12.dp)) {
-                        Stat("Terkumpul", goal.saved, Modifier.weight(1f))
-                        Stat("Target", goal.target, Modifier.weight(1f))
+                        Stat(stringResource(R.string.goal_saved), goal.saved, Modifier.weight(1f))
+                        Stat(stringResource(R.string.goal_target), goal.target, Modifier.weight(1f))
                     }
                     detailLine(goal)?.let { Text(it, style = appText(13f, 18f, Regular, Ink.Muted)) }
                     Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
-                        SmallButton(if (goal.imagePath == null) "Tambah gambar" else "Ganti gambar", Ink.AccentLight, pick)
-                        if (goal.imagePath != null) SmallButton("Hapus gambar", Ink.Red, onRemoveImage)
+                        SmallButton(stringResource(if (goal.imagePath == null) R.string.add_image else R.string.change_image), Ink.AccentLight, pick)
+                        if (goal.imagePath != null) SmallButton(stringResource(R.string.remove_image), Ink.Red, onRemoveImage)
                     }
                     if (onAddFunds != null) {
                         ItungButton(onClick = onAddFunds, modifier = Modifier.fillMaxWidth().height(52.dp), tint = Ink.Accent) {
                             // Putih eksplisit: Ico mewarnai ulang ikon untuk latar terang, padahal tombol ini selalu berwarna aksen.
                             Image(painterResource(R.drawable.ic_plus_fund), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(Color.White))
-                            Text("Tambah Dana", style = appText(16f, 24f, Bold, Color.White))
+                            Text(stringResource(R.string.add_funds), style = appText(16f, 24f, Bold, Color.White))
                         }
                     }
                 }
             }
 
             Text(
-                "RIWAYAT UANG MASUK",
+                stringResource(R.string.deposit_history),
                 Modifier.padding(top = 8.dp).semantics { heading() },
                 style = appText(12f, 18f, Bold, Ink.Subtle, tracking = 1.2f),
             )
@@ -176,7 +178,7 @@ fun GoalDetailContent(
 
             if (onDelete != null) {
                 ItungButton(onClick = onDelete, modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)) {
-                    Text("Hapus target", style = appText(14f, 20f, SemiBold, Ink.Red))
+                    Text(stringResource(R.string.delete_goal), style = appText(14f, 20f, SemiBold, Ink.Red))
                 }
             }
         }
@@ -205,7 +207,7 @@ private fun DepositHistory(deposits: List<GoalDeposit>) {
     ItungCard(Modifier.fillMaxWidth(), padding = 17.dp, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (deposits.isEmpty()) {
             Text(
-                "Belum ada uang masuk. Setiap Tambah Dana tercatat di sini.",
+                stringResource(R.string.deposit_history_empty),
                 style = appText(14f, 20f, Regular, Ink.Muted),
             )
         }
@@ -217,7 +219,7 @@ private fun DepositHistory(deposits: List<GoalDeposit>) {
                 Alignment.CenterVertically,
             ) {
                 Text(
-                    deposit.date.formatId(),
+                    deposit.date.formatDay(),
                     Modifier.weight(1f),
                     style = appText(14f, 20f, Regular, Ink.Muted),
                     maxLines = 1,
@@ -230,10 +232,9 @@ private fun DepositHistory(deposits: List<GoalDeposit>) {
 }
 
 /** "Sisa Rp… · rencana Rp…/bulan · target 31 Des 2026"; null bila tidak ada yang perlu disebut. */
+@Composable
 private fun detailLine(goal: Goal): String? = listOfNotNull(
-    goal.remaining.takeIf { it > 0 }?.let { "Sisa ${formatRupiah(it)}" },
-    goal.plannedMonthly.takeIf { it > 0 && !goal.achieved }?.let { "rencana ${formatRupiah(it)}/bulan" },
-    goal.targetDate?.let { "target ${it.format(TargetDate)}" },
-).joinToString(" · ").ifEmpty { null }?.replaceFirstChar { it.uppercase() }
-
-private val TargetDate = java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.forLanguageTag("id-ID"))
+    goal.remaining.takeIf { it > 0 }?.let { stringResource(R.string.detail_remaining, formatRupiah(it)) },
+    goal.plannedMonthly.takeIf { it > 0 && !goal.achieved }?.let { stringResource(R.string.detail_plan, formatRupiah(it)) },
+    goal.targetDate?.let { stringResource(R.string.detail_target_date, it.formatIn("d MMM yyyy")) },
+).joinToString(" · ").ifEmpty { null }

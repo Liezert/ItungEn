@@ -1,5 +1,11 @@
 package com.liezert.itungen.ui.insight
 
+import com.liezert.itungen.R
+import com.liezert.itungen.ui.components.displayName
+import com.liezert.itungen.ui.components.dateLocale
+import com.liezert.itungen.ui.components.formatIn
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -54,9 +60,6 @@ import com.liezert.itungen.ui.design.ItungSheet
 import com.liezert.itungen.ui.design.ItungCard
 import com.liezert.itungen.ui.design.ItungButton
 
-private val Id = Locale.forLanguageTag("id-ID")
-private val DayFormat = DateTimeFormatter.ofPattern("EEEE, d MMMM", Id)
-private val Weekdays = DayOfWeek.entries.map { it.getDisplayName(TextStyle.SHORT, Id) }
 
 /** Pekat warna netral per tingkat 1–4 (tanpa anggaran). */
 private val HeatAlpha = listOf(0f, 0.18f, 0.32f, 0.5f, 0.72f)
@@ -79,23 +82,26 @@ fun SpendingCalendar(
     val noSpendThisMonth = state.noSpendDays.count { it.year == month.year && it.month == month.month && (state.daily[it] ?: 0) == 0L }
     ItungCard(modifier.fillMaxWidth(), padding = 17.dp, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Text("Kalender", style = appText(15f, 22.5f, SemiBold, Ink.white(0.9f)))
+            Text(stringResource(R.string.calendar), style = appText(15f, 22.5f, SemiBold, Ink.white(0.9f)))
             // Streak adalah keadaan sekarang: di bulan lalu terkesan milik bulan itu.
             if (month == YearMonth.from(state.today)) {
                 Text(
-                    if (state.streak > 0) "Tercatat ${state.streak} hari berturut-turut" else "Belum ada streak",
+                    if (state.streak > 0) pluralStringResource(R.plurals.streak, state.streak, state.streak) else stringResource(R.string.streak_none),
                     style = appText(13f, 18f, SemiBold, if (state.streak > 0) Ink.Green else Ink.Gray),
                 )
             }
         }
         Text(
-            "$noSpendThisMonth hari tanpa jajan bulan ini. " +
-                (state.dailyAllowance?.let { "Merah = lewat jatah harian ${formatRupiah(it)}. " } ?: "") +
-                "Ketuk hari untuk detail.",
+            listOfNotNull(
+                pluralStringResource(R.plurals.no_spend_days, noSpendThisMonth, noSpendThisMonth),
+                state.dailyAllowance?.let { stringResource(R.string.calendar_red_means, formatRupiah(it)) },
+                stringResource(R.string.calendar_tap_day),
+            ).joinToString(" "),
             style = appText(12f, 16f, Regular, Ink.Gray),
         )
         Row(Modifier.fillMaxWidth()) {
-            Weekdays.forEach {
+            val locale = dateLocale()
+            remember(locale) { DayOfWeek.entries.map { it.getDisplayName(TextStyle.SHORT, locale) } }.forEach {
                 Text(it, Modifier.weight(1f), style = appText(11f, 14f, Medium, Ink.Gray), textAlign = TextAlign.Center)
             }
         }
@@ -129,12 +135,16 @@ private fun DayCell(day: LocalDate, state: InsightUiState, max: Long, modifier: 
         DayTone.NEUTRAL -> Ink.white(HeatAlpha[heatLevel(amount, max)])
     }
     val selected = day == state.selectedDay
-    val description = day.format(DayFormat) + ", " + when {
-        future -> "belum terjadi"
-        amount > 0 -> formatRupiah(amount)
-        noSpend -> "tidak jajan"
-        else -> "tidak ada pengeluaran"
-    }
+    val description = stringResource(
+        R.string.day_and_status,
+        day.formatIn("EEEE, d MMMM"),
+        when {
+            future -> stringResource(R.string.day_future)
+            amount > 0 -> formatRupiah(amount)
+            noSpend -> stringResource(R.string.day_no_spend)
+            else -> stringResource(R.string.day_no_expense)
+        },
+    )
     Box(
         modifier
             .aspectRatio(1f)
@@ -168,12 +178,12 @@ private fun DayDetail(day: LocalDate, state: InsightUiState, onToggleNoSpend: (L
     val marked = day in state.noSpendDays
     Row(Modifier.fillMaxWidth().padding(top = 4.dp), Arrangement.spacedBy(12.dp), Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(day.format(DayFormat), style = appText(14f, 20f, SemiBold))
+            Text(day.formatIn("EEEE, d MMMM"), style = appText(14f, 20f, SemiBold))
             Text(
                 when {
-                    amount > 0 -> "Pengeluaran ${formatRupiah(amount)}"
-                    marked -> "Ditandai tidak jajan"
-                    else -> "Tidak ada pengeluaran"
+                    amount > 0 -> stringResource(R.string.amount_expense, formatRupiah(amount))
+                    marked -> stringResource(R.string.marked_no_spend)
+                    else -> stringResource(R.string.no_expense)
                 },
                 style = appText(13f, 18f, Regular, if (amount > 0) Ink.Expense else if (marked) Ink.Green else Ink.Gray),
             )
@@ -182,7 +192,7 @@ private fun DayDetail(day: LocalDate, state: InsightUiState, onToggleNoSpend: (L
         // dengan menandai hari lama). Tanda yang sudah ada tetap bisa dibatalkan.
         if (amount == 0L && (marked || canMarkNoSpend(day, state.today))) {
             ItungButton(onClick = { onToggleNoSpend(day) }, modifier = Modifier.height(40.dp), contentPadding = 14.dp) {
-                Text(if (marked) "Batalkan tanda" else "Tandai tidak jajan", style = appText(13f, 18f, SemiBold, Ink.Green))
+                Text(stringResource(if (marked) R.string.unmark_no_spend else R.string.mark_no_spend), style = appText(13f, 18f, SemiBold, Ink.Green))
             }
         }
     }
@@ -201,23 +211,23 @@ fun CategoryLimitSheet(category: Category?, current: Long?, onSave: (Long?) -> U
         key(target.id) {
             val amount = rememberTextFieldState(current?.toString().orEmpty())
             Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Batas ${target.name} per bulan", style = appText(18f, 24f, Bold))
+                Text(stringResource(R.string.limit_sheet_title, target.displayName()), style = appText(18f, 24f, Bold))
                 Text(
-                    "Peringatan muncul di Beranda dan Insight saat pengeluaran kategori ini mencapai 80% dan 100% batas.",
+                    stringResource(R.string.limit_sheet_body),
                     style = appText(13f, 18f, Regular, Ink.Gray),
                 )
-                AmountField(amount, "Batas per bulan")
+                AmountField(amount, stringResource(R.string.limit_per_month))
                 Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(12.dp)) {
                     if (current != null) {
                         ItungButton(onClick = { onSave(null) }, modifier = Modifier.weight(1f)) {
-                            Text("Hapus batas", style = appText(15f, 20f, SemiBold, Ink.Red))
+                            Text(stringResource(R.string.remove_limit), style = appText(15f, 20f, SemiBold, Ink.Red))
                         }
                     }
                     ItungButton(
                         onClick = { onSave(amount.text.toString().toLongOrNull()) },
                         modifier = Modifier.weight(1f),
                         tint = Ink.Blue,
-                    ) { Text("Simpan", style = appText(15f, 20f, SemiBold, Color.White)) }
+                    ) { Text(stringResource(R.string.action_save), style = appText(15f, 20f, SemiBold, Color.White)) }
                 }
             }
         }

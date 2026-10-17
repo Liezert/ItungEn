@@ -1,5 +1,10 @@
 package com.liezert.itungen.ui.transactions
 
+import com.liezert.itungen.ui.components.displayNote
+import com.liezert.itungen.ui.components.displayName
+import com.liezert.itungen.ui.components.categoryNameLabel
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
@@ -54,7 +59,7 @@ import com.kyant.shapes.Capsule
 import com.liezert.itungen.R
 import com.liezert.itungen.domain.model.Transaction
 import com.liezert.itungen.domain.model.TransactionType
-import com.liezert.itungen.domain.model.amountDescription
+import com.liezert.itungen.ui.components.amountDescription
 import com.liezert.itungen.ui.components.AmountText
 import com.liezert.itungen.ui.components.amountKind
 import com.liezert.itungen.ui.components.ItungIconButton
@@ -127,18 +132,21 @@ fun TransactionsContent(
 
     Column(modifier.fillMaxSize()) {
         TopBar(
-            leading = { ItungIconButton(R.drawable.ic_back, onBack, "Kembali") },
+            leading = { ItungIconButton(R.drawable.ic_back, onBack, stringResource(R.string.action_back)) },
             trailing = { Spacer(Modifier.size(48.dp)) },
         )
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(24.dp)) {
             Column(Modifier.screenPad(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Semua Transaksi", style = appText(20f, 28f, Bold, Ink.White, tracking = -0.5f))
+                Text(stringResource(R.string.all_transactions_title), style = appText(20f, 28f, Bold, Ink.White, tracking = -0.5f))
                 // Saat mencari/memfilter, jumlah yang relevan adalah hasilnya (dulu tetap "N transaksi bulan ini").
                 val filtering = state.query.isNotBlank() || state.category != null
-                val count = if (filtering) "${state.transactions.size}${if (state.canLoadMore) "+" else ""} transaksi cocok"
-                else "${state.monthCount} transaksi bulan ini"
+                val count = when {
+                    !filtering -> pluralStringResource(R.plurals.tx_this_month, state.monthCount, state.monthCount)
+                    state.canLoadMore -> stringResource(R.string.tx_matches_more, state.transactions.size)
+                    else -> pluralStringResource(R.plurals.tx_matches, state.transactions.size, state.transactions.size)
+                }
                 Text(
-                    "$count · ketuk untuk mengubah, geser ke kiri atau tekan lama untuk menghapus",
+                    stringResource(R.string.tx_list_hint, count),
                     style = appText(14f, 20f, Medium, Ink.Muted),
                 )
             }
@@ -150,7 +158,7 @@ fun TransactionsContent(
             ) {
                 items(labels) { label ->
                     PillChip(
-                        label = label ?: "Semua",
+                        label = label?.let { categoryNameLabel(it) } ?: stringResource(R.string.filter_all),
                         selected = label == state.category,
                         onClick = { onFilter(label) },
                         selectedText = appText(14f, 20f, SemiBold, Ink.Black),
@@ -167,9 +175,11 @@ fun TransactionsContent(
     val pending = confirmDelete
     ItungAlertDialog(
         visible = pending != null,
-        title = "Hapus transaksi?",
-        text = pending?.let { "${it.note ?: it.category?.name ?: "Transaksi"} · ${amountDescription(it.amount, it.amountKind)}" }.orEmpty(),
-        confirmLabel = "Hapus",
+        title = stringResource(R.string.delete_tx_title),
+        text = pending?.let {
+            stringResource(R.string.delete_tx_body, it.displayNote() ?: it.category?.displayName() ?: stringResource(R.string.transaction), amountDescription(it.amount, it.amountKind))
+        }.orEmpty(),
+        confirmLabel = stringResource(R.string.action_delete),
         onConfirm = {
             pending?.let(onDelete)
             confirmDelete = null
@@ -181,6 +191,7 @@ fun TransactionsContent(
 
 @Composable
 private fun SearchPill(query: String, onChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    val searchLabel = stringResource(R.string.search_transactions)
     // Teks yang diketik dipegang di sini (sinkron dengan keyboard). Bila nilainya menunggu putaran ViewModel yang
     // asinkron, huruf yang diketik cepat hilang ("ojek" jadi "e"); ViewModel cukup menerima salinannya untuk kueri.
     var text by rememberSaveable { mutableStateOf(query) }
@@ -204,10 +215,10 @@ private fun SearchPill(query: String, onChange: (String) -> Unit, modifier: Modi
                 singleLine = true,
                 textStyle = appText(14f, 20f, Regular, Ink.White),
                 cursorBrush = SolidColor(Ink.White),
-                modifier = Modifier.weight(1f).semantics { contentDescription = "Cari transaksi" },
+                modifier = Modifier.weight(1f).semantics { contentDescription = searchLabel },
                 decorationBox = { inner ->
                     Box(Modifier.height(20.dp), contentAlignment = Alignment.CenterStart) {
-                        if (text.isEmpty()) Text("Cari transaksi...", style = appText(14f, 20f, Regular, Ink.NavInactive))
+                        if (text.isEmpty()) Text(stringResource(R.string.search_hint), style = appText(14f, 20f, Regular, Ink.NavInactive))
                         inner()
                     }
                 },
@@ -252,7 +263,7 @@ private fun TransactionListCard(
         if (groups.isEmpty()) {
             if (state.loading) return@ItungSurface
             Text(
-                if (state.hasAny) "Tidak ada transaksi yang cocok." else "Belum ada transaksi. Tekan + untuk mencatat.",
+                stringResource(if (state.hasAny) R.string.tx_no_match else R.string.recent_empty),
                 Modifier.padding(24.dp),
                 style = appText(14f, 20f, Regular, Ink.Muted),
             )
@@ -284,14 +295,14 @@ private fun TransactionListCard(
 @Composable
 private fun TxRow(item: Transaction, state: TransactionsUiState) {
     val style = item.style()
-    val categoryName = item.categoryLabel
+    val categoryName = item.categoryLabel()
     val clock = item.clockLabel(state.zone)
     ItungTransactionRow(
         icon = { IconCircle(style.rowIcon, 40.dp, if (item.type == TransactionType.INCOME) Ink.Income.copy(alpha = 0.2f) else Ink.white(0.1f)) },
-        title = { Text(item.note ?: categoryName, style = appText(14f, 20f, SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        title = { Text(item.displayNote() ?: categoryName, style = appText(14f, 20f, SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis) },
         subtitle = {
             Text(
-                if (clock != null) "$clock • $categoryName" else categoryName,
+                if (clock != null) stringResource(R.string.time_and_category, clock, categoryName) else categoryName,
                 style = appText(12f, 16f, Regular, Ink.Muted),
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
@@ -316,9 +327,10 @@ private fun SwipeToDelete(
     onOpenGoals: () -> Unit,
     content: @Composable () -> Unit,
 ) {
+    val deleteLabel = stringResource(R.string.action_delete)
     // Transfer target tidak bisa diubah/dihapus di sini; ketukan membuka Goals (dulu tidak bereaksi sama sekali).
     if (item.type != TransactionType.INCOME && item.type != TransactionType.EXPENSE) {
-        Box(Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClickLabel = "Buka Goals", role = Role.Button, onClick = onOpenGoals)) {
+        Box(Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClickLabel = stringResource(R.string.open_goals), role = Role.Button, onClick = onOpenGoals)) {
             content()
         }
         return
@@ -342,7 +354,7 @@ private fun SwipeToDelete(
         enableDismissFromStartToEnd = false,
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
-            .semantics { customActions = listOf(CustomAccessibilityAction("Hapus") { onDelete(item); true }) },
+            .semantics { customActions = listOf(CustomAccessibilityAction(deleteLabel) { onDelete(item); true }) },
         backgroundContent = {
             if (state.dismissDirection != SwipeToDismissBoxValue.EndToStart) return@SwipeToDismissBox
             Row(
@@ -351,7 +363,7 @@ private fun SwipeToDelete(
                 Alignment.CenterVertically,
             ) {
                 Image(painterResource(R.drawable.ic_delete), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(Color.White))
-                Text("Hapus", Modifier.padding(start = 8.dp), style = appText(14f, 20f, SemiBold, Color.White))
+                Text(deleteLabel, Modifier.padding(start = 8.dp), style = appText(14f, 20f, SemiBold, Color.White))
             }
         },
     ) {
@@ -361,8 +373,8 @@ private fun SwipeToDelete(
             Modifier
                 .background(if (swiping) Ink.Black else Color.Transparent)
                 .combinedClickable(
-                    onClickLabel = "Ubah",
-                    onLongClickLabel = "Hapus",
+                    onClickLabel = stringResource(R.string.action_edit),
+                    onLongClickLabel = deleteLabel,
                     onLongClick = { onLongPress(item) },
                     onClick = { onEdit(item) },
                 ),

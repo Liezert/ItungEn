@@ -1,5 +1,6 @@
 package com.liezert.itungen.work
 
+import com.liezert.itungen.ui.components.displayName
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -72,28 +73,29 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
         private fun notify(context: Context, template: QuickTemplate?) {
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
             val manager = context.getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(NotificationChannel(CHANNEL, "Pengingat harian", NotificationManager.IMPORTANCE_DEFAULT))
+            manager.createNotificationChannel(NotificationChannel(CHANNEL, context.getString(R.string.daily_reminder), NotificationManager.IMPORTANCE_DEFAULT))
             val open = PendingIntent.getActivity(
                 context, 0, MainActivity.addTransactionIntent(context),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
             val builder = NotificationCompat.Builder(context, CHANNEL)
                 .setSmallIcon(R.drawable.ic_add)
-                .setContentTitle("Sudah catat pengeluaran hari ini?")
-                .setContentText("Ketuk untuk mencatat. Cukup beberapa detik.")
+                .setContentTitle(context.getString(R.string.reminder_title))
+                .setContentText(context.getString(R.string.reminder_text))
                 .setContentIntent(open)
                 .setAutoCancel(true)
             if (template != null) {
+                val label = template.note ?: template.category.displayName(context)
                 val add = Intent(context, ReminderReceiver::class.java)
                     .setAction(ReminderReceiver.ACTION_QUICK_ADD)
                     .putExtra(ReminderReceiver.EXTRA_CATEGORY, template.categoryId)
                     .putExtra(ReminderReceiver.EXTRA_AMOUNT, template.amount)
                     .putExtra(ReminderReceiver.EXTRA_NOTE, template.note)
-                    .putExtra(ReminderReceiver.EXTRA_LABEL, template.label)
-                builder.addAction(0, "Catat ${template.label} ${formatRupiah(template.amount)}", broadcast(context, 1, add))
+                    .putExtra(ReminderReceiver.EXTRA_LABEL, label)
+                builder.addAction(0, context.getString(R.string.reminder_quick_add, label, formatRupiah(template.amount)), broadcast(context, 1, add))
             }
             val noSpend = Intent(context, ReminderReceiver::class.java).setAction(ReminderReceiver.ACTION_NO_SPEND)
-            builder.addAction(0, "Hari ini tidak jajan", broadcast(context, 2, noSpend))
+            builder.addAction(0, context.getString(R.string.reminder_no_spend), broadcast(context, 2, noSpend))
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, builder.build())
         }
 
@@ -122,7 +124,7 @@ class ReminderReceiver : BroadcastReceiver() {
         when (intent.action) {
             ACTION_NO_SPEND -> {
                 container.settings.setNoSpendDay(today, marked = true)
-                ReminderWorker.confirm(context, "Oke, hari ini tercatat tanpa jajan")
+                ReminderWorker.confirm(context, context.getString(R.string.reminder_no_spend_done))
             }
             ACTION_QUICK_ADD -> {
                 val pending = goAsync()
@@ -135,7 +137,7 @@ class ReminderReceiver : BroadcastReceiver() {
                             intent.getStringExtra(EXTRA_NOTE),
                             today,
                         )
-                        ReminderWorker.confirm(context, "Tercatat: ${intent.getStringExtra(EXTRA_LABEL)}")
+                        ReminderWorker.confirm(context, context.getString(R.string.undo_recorded, intent.getStringExtra(EXTRA_LABEL).orEmpty()))
                     } finally {
                         pending.finish()
                     }

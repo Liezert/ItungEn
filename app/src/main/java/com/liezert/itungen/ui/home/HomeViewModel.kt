@@ -1,5 +1,8 @@
 package com.liezert.itungen.ui.home
 
+import com.liezert.itungen.ui.components.displayName
+import android.content.Context
+import com.liezert.itungen.R
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
@@ -69,6 +72,8 @@ class HomeViewModel(
     private val clock: Clock,
     /** Lingkup aplikasi: Urungkan tetap bekerja walau layar ditinggalkan. */
     private val appScope: CoroutineScope,
+    /** Teks pesan Urungkan dalam bahasa app. */
+    private val context: Context,
 ) : ViewModel() {
     // Tidak memuat seluruh riwayat: total bulan ini dari SQL, plus satu jendela tanggal (siklus anggaran dan
     // 60 hari terakhir untuk catat cepat) yang dihitung di Dispatchers.Default.
@@ -122,7 +127,8 @@ class HomeViewModel(
         lastQuickAddAt = now
         appScope.launch {
             val id = repository.addToMainWallet(template.type, template.amount, template.categoryId, template.note, LocalDate.now(clock))
-            undo.push("Tercatat: ${template.label}") { repository.deleteTransaction(id) }
+            val label = template.note ?: template.category.displayName(context)
+            undo.push(context.getString(R.string.undo_recorded, label)) { repository.deleteTransaction(id) }
         }
     }
 
@@ -130,7 +136,7 @@ class HomeViewModel(
         val Factory = viewModelFactory {
             initializer {
                 val c = (this[APPLICATION_KEY] as ItungEnApp).container
-                HomeViewModel(c.transactionRepository, c.goalRepository, c.budgetPlan, c.settings.categoryLimits, c.clock, c.appScope)
+                HomeViewModel(c.transactionRepository, c.goalRepository, c.budgetPlan, c.settings.categoryLimits, c.clock, c.appScope, this[APPLICATION_KEY] as ItungEnApp)
             }
         }
     }

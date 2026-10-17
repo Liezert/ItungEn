@@ -42,6 +42,8 @@ class ItungEnApp : Application() {
 
 /** DI manual (§11.7): satu tempat yang merakit dependensi aplikasi. */
 class AppContainer(context: Context) {
+    /** Untuk teks di luar layar (data contoh, notifikasi): mengikuti bahasa app. */
+    val appContext: Context = context.applicationContext
     val clock: Clock = Clock.systemDefaultZone()
     /** Untuk kerja yang harus selesai walau layar ditutup (mis. hapus dengan Urungkan). */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.design
 
+import androidx.annotation.StringRes
 import android.content.Context
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.ColumnScope
@@ -37,7 +38,8 @@ import com.liezert.itungen.ui.theme.Ink
 interface ThemeSpec {
     /** Disimpan di pengaturan; jangan diubah setelah rilis. */
     val id: String
-    val name: String
+    /** Nama di pemilih tema (Pengaturan). */
+    @get:StringRes val nameRes: Int
 
     /** Token warna mode gelap/terang. [context] hanya untuk tema yang mengambil warna sistem (Material You). */
     fun colors(dark: Boolean, context: Context?): ItungColors

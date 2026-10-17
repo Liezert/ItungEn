@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.components
 
+import androidx.compose.ui.res.stringResource
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -179,7 +180,7 @@ fun TopBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         leading()
-        ItungTopBarTitle("ItungEn")
+        ItungTopBarTitle(stringResource(R.string.app_name))
         trailing()
     }
 }

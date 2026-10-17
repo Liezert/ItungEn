@@ -1,5 +1,7 @@
 package com.liezert.itungen.ui.components
 
+import android.content.Context
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -19,7 +21,6 @@ import androidx.compose.ui.unit.dp
 import com.liezert.itungen.R
 import com.liezert.itungen.domain.model.AmountKind
 import com.liezert.itungen.domain.model.RupiahPrefix
-import com.liezert.itungen.domain.model.amountDescription
 import com.liezert.itungen.domain.model.amountText
 import com.liezert.itungen.domain.model.formatRupiah
 import com.liezert.itungen.domain.model.formatRupiahShort
@@ -59,9 +60,9 @@ fun AmountText(
     }
     val description = if (hidden) {
         when (kind) {
-            AmountKind.INCOME -> "Pemasukan disembunyikan"
-            AmountKind.EXPENSE -> "Pengeluaran disembunyikan"
-            AmountKind.NEUTRAL -> "Nominal disembunyikan"
+            AmountKind.INCOME -> stringResource(R.string.amount_income_hidden)
+            AmountKind.EXPENSE -> stringResource(R.string.amount_expense_hidden)
+            AmountKind.NEUTRAL -> stringResource(R.string.amount_hidden)
         }
     } else {
         amountDescription(amount, kind)
@@ -77,4 +78,19 @@ fun AmountText(
         }
         Text(text, style = style.copy(color = color), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
+}
+
+/** Untuk TalkBack: "Pengeluaran Rp50.000" / "Expense Rp50.000"; nominal netral apa adanya (saldo minus bertanda). */
+@Composable
+fun amountDescription(amount: Long, kind: AmountKind): String = when (kind) {
+    AmountKind.INCOME -> stringResource(R.string.amount_income, amountText(amount))
+    AmountKind.EXPENSE -> stringResource(R.string.amount_expense, amountText(amount))
+    AmountKind.NEUTRAL -> formatRupiah(amount)
+}
+
+/** [amountDescription] di luar komposisi (pesan, notifikasi). */
+fun Context.amountDescription(amount: Long, kind: AmountKind): String = when (kind) {
+    AmountKind.INCOME -> getString(R.string.amount_income, amountText(amount))
+    AmountKind.EXPENSE -> getString(R.string.amount_expense, amountText(amount))
+    AmountKind.NEUTRAL -> formatRupiah(amount)
 }

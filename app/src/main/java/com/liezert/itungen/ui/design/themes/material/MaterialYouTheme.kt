@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.design.themes.material
 
+import com.liezert.itungen.R
 import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -62,7 +63,7 @@ import com.liezert.itungen.ui.theme.appText
  */
 object MaterialYouTheme : ThemeSpec {
     override val id = "material_you"
-    override val name = "Material You"
+    override val nameRes = R.string.theme_material_you
 
     override fun materialScheme(dark: Boolean, context: Context): ColorScheme =
         if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)

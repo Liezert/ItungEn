@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.goals
 
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -112,7 +113,7 @@ fun GoalsContent(
         )
         Column(Modifier.screenPad(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Text("Target Tabungan", style = appText(20f, 25f, Bold))
+                Text(stringResource(R.string.savings_goals), style = appText(20f, 25f, Bold))
                 if (onAddGoal != null) {
                     ItungButton(
                         onClick = onAddGoal,
@@ -121,7 +122,7 @@ fun GoalsContent(
                         contentPadding = 13.dp,
                     ) {
                         Ico(R.drawable.ic_plus_small)
-                        Text("Tambah Target", style = appText(14f, 20f, SemiBold, Ink.AccentLight))
+                        Text(stringResource(R.string.add_goal), style = appText(14f, 20f, SemiBold, Ink.AccentLight))
                     }
                 }
             }
@@ -146,7 +147,7 @@ private fun GoalCard(goal: Goal, onClick: (() -> Unit)?) {
                 GoalStatusChip(goal)
                 GoalProgressBar(goal, 8.dp)
                 Text(
-                    "${formatRupiah(goal.saved)} dari ${formatRupiah(goal.target)}",
+                    stringResource(R.string.amount_of_amount, formatRupiah(goal.saved), formatRupiah(goal.target)),
                     style = appText(12f, 16f, Medium, Ink.Muted),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -172,7 +173,7 @@ private fun EmptyGoals() {
             }
         }
         Text(
-            "Belum ada target. Ketuk Tambah Target di atas untuk mulai menabung.",
+            stringResource(R.string.goals_empty),
             Modifier.padding(horizontal = 37.dp),
             style = appText(14f, 20f, Regular, Ink.Muted),
             textAlign = TextAlign.Center,

@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.design.themes.brutal
 
+import com.liezert.itungen.R
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -63,7 +64,7 @@ import com.liezert.itungen.ui.theme.appText
  */
 object BrutalTheme : ThemeSpec {
     override val id = "neo_brutalism"
-    override val name = "Neo-brutalism"
+    override val nameRes = R.string.theme_brutal
 
     private val Light = ItungColors(
         background = Color(0xFFFFF1C9),

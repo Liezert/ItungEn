@@ -51,8 +51,12 @@ android {
         compose = true
     }
     androidResources {
-        // UI hanya bahasa Indonesia; teks bawaan library cukup Indonesia + Inggris (cadangan).
+        // UI: Indonesia (values/, bawaan) dan Inggris (values-en/); resource library lain dibuang dari APK.
         localeFilters += listOf("in", "en")
+    }
+    lint {
+        // Setiap string harus punya terjemahan Inggris; lupa menerjemahkan = build lint gagal.
+        error += "MissingTranslation"
     }
 }
 

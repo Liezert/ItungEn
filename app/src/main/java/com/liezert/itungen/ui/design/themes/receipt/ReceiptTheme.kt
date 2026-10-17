@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.design.themes.receipt
 
+import com.liezert.itungen.R
 import android.content.Context
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -64,7 +65,7 @@ import com.liezert.itungen.ui.theme.appText
  */
 object ReceiptTheme : ThemeSpec {
     override val id = "receipt"
-    override val name = "Struk"
+    override val nameRes = R.string.theme_receipt
 
     private val Paper = ItungColors(
         background = Color(0xFFEDE7DB),

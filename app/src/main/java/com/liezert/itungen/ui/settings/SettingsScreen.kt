@@ -1,5 +1,17 @@
 package com.liezert.itungen.ui.settings
 
+import com.liezert.itungen.ui.components.displayName
+import com.liezert.itungen.domain.model.TransactionType
+import com.liezert.itungen.data.backup.CsvLabels
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.Image
+import com.liezert.itungen.ui.components.formatIn
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import android.Manifest
 import android.app.Activity
 import android.content.Context
@@ -37,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -107,6 +120,8 @@ fun SettingsScreen(
 ) {
     val account by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    // Teks untuk pesan di callback: LocalResources ikut berganti saat bahasa app berganti (lint LocalContextGetResourceValueCall).
+    val resources = LocalResources.current
     val container = (context.applicationContext as ItungEnApp).container
     val plan by container.budgetPlan.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
@@ -117,6 +132,7 @@ fun SettingsScreen(
     var appLock by remember { mutableStateOf(container.appLock) }
     var dataMessage by remember { mutableStateOf<String?>(null) }
     var dataBusy by remember { mutableStateOf(false) }
+    var language by remember { mutableStateOf(AppLanguages.current(context)) }
     var lockMessage by remember { mutableStateOf<String?>(null) }
     var reminderMessage by remember { mutableStateOf<String?>(null) }
     var quickIncome by remember { mutableStateOf(container.quickIncomeEnabled) }
@@ -138,7 +154,7 @@ fun SettingsScreen(
         setReminder(granted)
         notificationsAllowed = NotificationManagerCompat.from(context).areNotificationsEnabled()
         // Penolakan dihormati: tidak langsung melempar ke pengaturan sistem (lihat notificationAsk).
-        reminderMessage = if (granted) null else "Izin notifikasi ditolak, jadi pengingat tidak aktif."
+        reminderMessage = if (granted) null else resources.getString(R.string.reminder_denied)
     }
     /** Minta izin notifikasi lewat [launcher]; setelah ditolak permanen, buka pengaturan notifikasi app. */
     fun askNotifications(launcher: ManagedActivityResultLauncher<String, Boolean>) {
@@ -175,7 +191,7 @@ fun SettingsScreen(
     val quickIncomePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         setQuickIncome(granted)
         notificationsAllowed = NotificationManagerCompat.from(context).areNotificationsEnabled()
-        quickIncomeMessage = if (granted) null else "Izin notifikasi ditolak, jadi notifikasi catat cepat tidak bisa tampil."
+        quickIncomeMessage = if (granted) null else resources.getString(R.string.quick_income_denied)
     }
     fun toggleQuickIncome(on: Boolean) {
         quickIncomeMessage = null
@@ -190,11 +206,11 @@ fun SettingsScreen(
     }
     fun toggleAppLock(on: Boolean) {
         if (on && !AppLock.available(context)) {
-            lockMessage = "Atur kunci layar HP (sidik jari atau PIN) dulu agar ItungEn bisa dikunci."
+            lockMessage = resources.getString(R.string.lock_unavailable)
             return
         }
         // Mematikan juga perlu verifikasi, agar orang lain yang memegang HP tidak bisa membuka kunci dari sini.
-        AppLock.authenticate(context, if (on) "Aktifkan kunci ItungEn" else "Matikan kunci ItungEn") { ok ->
+        AppLock.authenticate(context, resources.getString(if (on) R.string.lock_enable_prompt else R.string.lock_disable_prompt)) { ok ->
             if (!ok) return@authenticate
             appLock = on
             container.appLock = on
@@ -216,47 +232,64 @@ fun SettingsScreen(
             dataMessage = try {
                 withContext(Dispatchers.IO) { action() }
             } catch (_: InvalidBackupException) {
-                "Berkas ini bukan cadangan ItungEn."
+                resources.getString(R.string.backup_invalid)
             } catch (_: BackupTooLargeException) {
-                "Berkas cadangan terlalu besar untuk dipulihkan."
+                resources.getString(R.string.backup_too_large)
             } catch (_: Exception) {
-                "Gagal membaca/menulis berkas. Coba lagi."
+                resources.getString(R.string.backup_io_failed)
             } finally {
                 dataBusy = false
             }
         }
     }
     val exportBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-        if (uri != null) runData("Menyiapkan cadangan…") {
+        if (uri != null) runData(resources.getString(R.string.backup_exporting)) {
             context.contentResolver.openOutputStream(uri)!!.use { container.backup.export(it) }
-            "Cadangan tersimpan. Simpan berkasnya di tempat aman (mis. Google Drive)."
+            resources.getString(R.string.backup_exported)
         }
     }
     val exportCsv = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
-        if (uri != null) runData("Menyiapkan CSV…") {
+        if (uri != null) runData(resources.getString(R.string.csv_exporting)) {
             val transactions = container.transactionRepository.allTransactions()
-            context.contentResolver.openOutputStream(uri)!!.use { container.backup.exportCsv(transactions, it) }
-            "CSV tersimpan (${transactions.size} transaksi)."
+            val labels = CsvLabels(
+                header = listOf(R.string.csv_date, R.string.csv_type, R.string.csv_category, R.string.csv_note, R.string.csv_amount).map(resources::getString),
+                type = { type ->
+                    resources.getString(
+                        when (type) {
+                            TransactionType.INCOME -> R.string.type_income
+                            TransactionType.EXPENSE -> R.string.type_expense
+                            TransactionType.TRANSFER_OUT -> R.string.csv_to_goal
+                            TransactionType.TRANSFER_IN -> R.string.csv_from_goal
+                        }
+                    )
+                },
+                category = { tx -> tx.category?.displayName(context).orEmpty() },
+            )
+            context.contentResolver.openOutputStream(uri)!!.use { container.backup.exportCsv(transactions, it, labels) }
+            resources.getQuantityString(R.plurals.csv_exported, transactions.size, transactions.size)
         }
     }
     val importBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) runData("Memulihkan cadangan…") {
+        if (uri != null) runData(resources.getString(R.string.backup_importing)) {
             val result = context.contentResolver.openInputStream(uri)!!.use { container.backup.import(it) }
-            val rows = if (result.added == 0) "Tidak ada catatan baru: semua isi cadangan sudah ada di HP ini." else "${result.added} catatan dipulihkan."
-            val images = if (result.images > 0) " ${result.images} gambar target ikut dipulihkan." else ""
-            if (result.planRestored) "$rows$images Anggaran juga dipulihkan." else rows + images
+            val res = resources
+            listOfNotNull(
+                if (result.added == 0) res.getString(R.string.backup_nothing_new) else res.getQuantityString(R.plurals.backup_restored_rows, result.added, result.added),
+                result.images.takeIf { it > 0 }?.let { res.getQuantityString(R.plurals.backup_restored_images, it, it) },
+                res.getString(R.string.backup_restored_plan).takeIf { result.planRestored },
+            ).joinToString(" ")
         }
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         TopBar(
-            leading = { ItungIconButton(R.drawable.ic_back, onBack, "Kembali") },
+            leading = { ItungIconButton(R.drawable.ic_back, onBack, stringResource(R.string.action_back)) },
             trailing = { Spacer(Modifier.size(48.dp)) },
         )
         Column(Modifier.screenPad(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Pengaturan", Modifier.padding(bottom = 8.dp), style = appText(20f, 28f, Bold, tracking = -0.5f))
+            Text(stringResource(R.string.settings), Modifier.padding(bottom = 8.dp), style = appText(20f, 28f, Bold, tracking = -0.5f))
 
-            SectionLabel("AKUN & SINKRONISASI")
+            SectionLabel(stringResource(R.string.section_account))
             AccountCard(
                 account,
                 onSignIn = { viewModel.signIn(context) },
@@ -264,98 +297,100 @@ fun SettingsScreen(
                 onRetry = viewModel::retrySync,
             )
 
-            SectionLabel("ANGGARAN")
+            SectionLabel(stringResource(R.string.section_budget))
             val currentPlan = plan
             NavRow(
                 R.drawable.ic_wallet,
-                "Rencana anggaran",
-                if (currentPlan == null) "Belum diatur: isi berapa uang masuk dan kapan" else currentPlan.summary(),
+                stringResource(R.string.budget_plan),
+                if (currentPlan == null) stringResource(R.string.budget_plan_unset) else currentPlan.summary(),
                 onOpenBudget,
             )
 
-            SectionLabel("PENGINGAT")
+            SectionLabel(stringResource(R.string.section_reminders))
             val reminderBlocked = reminder && !notificationsAllowed
             ToggleRow(
-                "Pengingat harian",
-                if (reminderBlocked) "Izin notifikasi dicabut, jadi pengingat tidak tampil. Aktifkan lagi untuk mengizinkan."
-                else "Muncul hanya bila hari itu belum ada catatan. Bisa langsung mencatat dari notifikasinya.",
+                stringResource(R.string.daily_reminder),
+                stringResource(if (reminderBlocked) R.string.daily_reminder_blocked else R.string.daily_reminder_body),
                 checked = reminder && notificationsAllowed,
                 onChange = ::toggleReminder,
                 subtitleColor = if (reminderBlocked) Ink.Orange else Ink.Gray,
             )
             reminderMessage?.let { Text(it, Modifier.padding(horizontal = 4.dp), style = appText(12f, 16f, Regular, Ink.Orange)) }
             ToggleRow(
-                "Notifikasi catat cepat",
-                "Catat pemasukan dari notifikasi tanpa membuka app: pilih kategori, ketik nominal (mis. 50rb). " +
-                    "Notifikasinya muncul lagi bila diusap; matikan kapan saja lewat toggle ini.",
+                stringResource(R.string.quick_income_setting),
+                stringResource(R.string.quick_income_setting_body),
                 checked = quickIncome && notificationsAllowed,
                 onChange = ::toggleQuickIncome,
             )
             quickIncomeMessage?.let { Text(it, Modifier.padding(horizontal = 4.dp), style = appText(12f, 16f, Regular, Ink.Orange)) }
             if (reminder && notificationsAllowed) {
-                NavRow(R.drawable.ic_history, "Jam pengingat", "%02d.00 setiap hari".format(reminderHour)) { pickingHour = true }
+                NavRow(R.drawable.ic_history, stringResource(R.string.reminder_time), stringResource(R.string.reminder_time_daily, reminderHour)) { pickingHour = true }
                 Text(
-                    "Di beberapa HP (mis. Realme, Oppo, Xiaomi), penghemat baterai bisa menunda pengingat. " +
-                        "Bila tidak muncul, izinkan ItungEn berjalan di latar belakang di pengaturan baterai.",
+                    stringResource(R.string.reminder_battery_hint),
                     Modifier.padding(horizontal = 4.dp),
                     style = appText(12f, 16f, Regular, Ink.Gray),
                 )
             }
 
-            SectionLabel("PRIVASI")
+            SectionLabel(stringResource(R.string.section_privacy))
             ToggleRow(
-                "Kunci aplikasi",
-                "Sidik jari, wajah, atau PIN HP saat membuka ItungEn",
+                stringResource(R.string.app_lock),
+                stringResource(R.string.app_lock_body),
                 checked = appLock,
                 onChange = ::toggleAppLock,
             )
             lockMessage?.let { Text(it, Modifier.padding(horizontal = 4.dp), style = appText(12f, 16f, Regular, Ink.Orange)) }
             ToggleRow(
-                "Sembunyikan saldo",
-                "Nominal di Beranda dan Profil diganti titik; ketuk ikon mata untuk melihat",
+                stringResource(R.string.balance_hide),
+                stringResource(R.string.balance_hide_body),
                 checked = container.hideBalance,
                 onChange = container::setBalanceHidden,
             )
 
-            SectionLabel("TAMPILAN")
+            SectionLabel(stringResource(R.string.section_display))
             ThemePicker(ActiveTheme.spec, onSelect = container::setTheme)
-            ToggleRow("Mode gelap", "Latar gelap, nyaman di malam hari", checked = Ink.dark, onChange = ::setDark)
+            ToggleRow(stringResource(R.string.dark_mode), stringResource(R.string.dark_mode_body), checked = Ink.dark, onChange = ::setDark)
             // Mode hemat hanya mengatur efek kaca; tema lain tidak punya efek yang bisa dihemat.
             if (ActiveTheme.spec.capturesScreen) ToggleRow(
-                "Mode hemat",
-                if (container.powerSaveActive && !container.economyMode) "Aktif otomatis: Penghemat Baterai sedang menyala."
-                else "Kaca tanpa blur dan lensa: lebih ringan dan hemat baterai. Aktif otomatis saat Penghemat Baterai menyala.",
+                stringResource(R.string.economy_mode),
+                stringResource(if (container.powerSaveActive && !container.economyMode) R.string.economy_mode_auto else R.string.economy_mode_body),
                 checked = container.glassEconomy,
                 onChange = container::setEconomy,
             )
 
-            SectionLabel("DATA")
+            SectionLabel(stringResource(R.string.section_language))
+            LanguagePicker(language, onSelect = {
+                language = it
+                AppLanguages.set(context, it)
+            })
+
+            SectionLabel(stringResource(R.string.section_data))
             ItungCard(Modifier.fillMaxWidth(), padding = 17.dp, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "Cadangan (ZIP: data dan gambar target) bisa dipulihkan di HP mana pun, begitu juga berkas JSON dari versi lama. CSV untuk dibuka di spreadsheet.",
+                    stringResource(R.string.data_body),
                     style = appText(13f, 18f, Regular, Ink.Gray),
                 )
                 val today = LocalDate.now()
-                ItungButton(onClick = { exportBackup.launch("itungen-cadangan-$today.zip") }, modifier = Modifier.fillMaxWidth(), enabled = !dataBusy) {
-                    Text("Ekspor cadangan (ZIP)", style = appText(15f, 20f, SemiBold))
+                ItungButton(onClick = { exportBackup.launch(resources.getString(R.string.backup_file_name, today.toString())) }, modifier = Modifier.fillMaxWidth(), enabled = !dataBusy) {
+                    Text(stringResource(R.string.backup_export), style = appText(15f, 20f, SemiBold))
                 }
-                ItungButton(onClick = { exportCsv.launch("itungen-transaksi-$today.csv") }, modifier = Modifier.fillMaxWidth(), enabled = !dataBusy) {
-                    Text("Ekspor transaksi (CSV)", style = appText(15f, 20f, SemiBold))
+                ItungButton(onClick = { exportCsv.launch(resources.getString(R.string.csv_file_name, today.toString())) }, modifier = Modifier.fillMaxWidth(), enabled = !dataBusy) {
+                    Text(stringResource(R.string.csv_export), style = appText(15f, 20f, SemiBold))
                 }
                 ItungButton(
                     onClick = { importBackup.launch(arrayOf("application/zip", "application/json", "application/octet-stream")) },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !dataBusy,
                 ) {
-                    Text("Pulihkan dari cadangan", style = appText(15f, 20f, SemiBold))
+                    Text(stringResource(R.string.backup_import), style = appText(15f, 20f, SemiBold))
                 }
                 if (!hasTransactions) {
                     ItungButton(
-                        onClick = { runData("Menambahkan data contoh…") { seedDemoData(container); "Data contoh ditambahkan. Lihat Beranda." } },
+                        onClick = { runData(resources.getString(R.string.demo_adding)) { seedDemoData(container); resources.getString(R.string.demo_added) } },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !dataBusy,
                     ) {
-                        Text("Isi data contoh", style = appText(15f, 20f, SemiBold))
+                        Text(stringResource(R.string.demo_add), style = appText(15f, 20f, SemiBold))
                     }
                 }
                 // Dibacakan TalkBack saat berubah (mulai → selesai/galat).
@@ -368,22 +403,21 @@ fun SettingsScreen(
                     onClick = { confirmSignOut = true },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     enabled = !account.busy,
-                ) { Text("Keluar dari akun", style = appText(16f, 22f, SemiBold, Ink.Red)) }
+                ) { Text(stringResource(R.string.sign_out), style = appText(16f, 22f, SemiBold, Ink.Red)) }
                 if (account.pending > 0) {
                     Text(
-                        "${account.pending} perubahan belum terunggah. Keluar baru bisa setelah semuanya terunggah, " +
-                            "agar tidak ada catatan yang hilang.",
+                        pluralStringResource(R.plurals.sign_out_pending, account.pending, account.pending),
                         Modifier.padding(horizontal = 4.dp),
                         style = appText(12f, 16f, Regular, Ink.Orange),
                     )
                 }
             }
-            account.message?.let { Text(it, style = appText(13f, 18f, Medium, Ink.Red)) }
+            account.message?.let { Text(stringResource(it), style = appText(13f, 18f, Medium, Ink.Red)) }
         }
         Spacer(Modifier.height(bottomClearance()))
     }
 
-    ChoiceSheet("Jam pengingat", ReminderHours.map { it to "%02d.00".format(it) }, 4, reminderHour, pickingHour, { hour ->
+    ChoiceSheet(stringResource(R.string.reminder_time), ReminderHours.map { it to "%02d.00".format(it) }, 4, reminderHour, pickingHour, { hour ->
         pickingHour = false
         reminderHour = hour
         container.reminderHour = hour
@@ -392,14 +426,10 @@ fun SettingsScreen(
 
     ItungAlertDialog(
         visible = confirmSignOut,
-        title = "Keluar dari akun?",
-        text = if (account.pending > 0) {
-            "${account.pending} perubahan belum terunggah. ItungEn akan mencoba mengunggahnya dulu; " +
-                "bila gagal, kamu tetap masuk agar tidak ada yang hilang."
-        } else {
-            "Catatan di HP ini akan dihapus. Semuanya tetap aman di akunmu dan kembali saat kamu masuk lagi."
-        },
-        confirmLabel = "Keluar",
+        title = stringResource(R.string.sign_out_confirm_title),
+        text = if (account.pending > 0) pluralStringResource(R.plurals.sign_out_confirm_pending, account.pending, account.pending)
+        else stringResource(R.string.sign_out_confirm_body),
+        confirmLabel = stringResource(R.string.sign_out_action),
         onConfirm = {
             confirmSignOut = false
             viewModel.signOut()
@@ -435,12 +465,43 @@ private fun openNotificationSettings(context: Context) {
     )
 }
 
-private val LongDate = DateTimeFormatter.ofPattern("d MMMM", Locale.forLanguageTag("id-ID"))
-
+@Composable
 private fun BudgetPlan.summary(): String = when (period) {
-    BudgetPeriod.MONTHLY -> "${formatRupiah(income)}/bulan · uang masuk tanggal $cycleStartDay"
-    BudgetPeriod.WEEKLY -> "${formatRupiah(income)}/minggu · setiap ${dayName(cycleStartDay)}"
-    BudgetPeriod.UNTIL_DATE -> "${formatRupiah(income)} sampai ${nextIncomeOn?.format(LongDate) ?: "kiriman berikutnya"}"
+    BudgetPeriod.MONTHLY -> stringResource(R.string.plan_summary_monthly, formatRupiah(income), cycleStartDay)
+    BudgetPeriod.WEEKLY -> stringResource(R.string.plan_summary_weekly, formatRupiah(income), dayName(cycleStartDay))
+    BudgetPeriod.UNTIL_DATE -> stringResource(R.string.plan_summary_until, formatRupiah(income), nextIncomeOn?.formatIn("d MMMM") ?: stringResource(R.string.next_transfer))
+}
+
+/** Ikuti sistem / Bahasa Indonesia / English; nama bahasa ditulis dalam bahasanya sendiri (tidak diterjemahkan). */
+@Composable
+private fun LanguagePicker(selected: AppLanguage, onSelect: (AppLanguage) -> Unit) {
+    ItungCard(Modifier.fillMaxWidth().selectableGroup(), padding = 6.dp) {
+        AppLanguage.entries.forEach { language ->
+            val on = language == selected
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .selectable(on, role = Role.RadioButton) { onSelect(language) }
+                    .padding(horizontal = 11.dp, vertical = 12.dp),
+                Arrangement.spacedBy(12.dp),
+                Alignment.CenterVertically,
+            ) {
+                Text(
+                    stringResource(
+                        when (language) {
+                            AppLanguage.SYSTEM -> R.string.language_system
+                            AppLanguage.INDONESIAN -> R.string.language_indonesian
+                            AppLanguage.ENGLISH -> R.string.language_english
+                        }
+                    ),
+                    Modifier.weight(1f),
+                    style = appText(16f, 22f, if (on) SemiBold else Regular),
+                )
+                if (on) Image(painterResource(R.drawable.ic_check), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(Ink.Blue))
+            }
+        }
+    }
 }
 
 /** Label = target sentuh + semantik switch; LiquidToggle punya gestur seret sendiri. */
@@ -463,15 +524,19 @@ private fun ToggleRow(
     }
 }
 
+@Composable
 private fun AccountUiState.syncLabel(): String {
     val s = sync
     return when {
-        user == null -> "Catatan hanya tersimpan di HP ini. Masuk agar tersimpan di akun dan tersinkron otomatis di semua HP."
-        s == SyncStatus.Syncing -> "Menyinkronkan…"
-        s is SyncStatus.Failed -> "Gagal sinkron: ${s.reason}" + if (pending > 0) " $pending perubahan menunggu." else ""
-        pending > 0 -> "$pending perubahan menunggu diunggah"
-        s is SyncStatus.Synced -> "Tersinkron otomatis · terakhir " + s.at.atZone(ZoneId.systemDefault()).format(ClockFormat)
-        else -> "Tersinkron otomatis setiap ada perubahan"
+        user == null -> stringResource(R.string.sync_local_only)
+        s == SyncStatus.Syncing -> stringResource(R.string.sync_syncing)
+        s is SyncStatus.Failed -> listOfNotNull(
+            stringResource(R.string.sync_failed, stringResource(s.reason, s.code.orEmpty())),
+            pending.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.sync_pending_short, it, it) },
+        ).joinToString(" ")
+        pending > 0 -> pluralStringResource(R.plurals.sync_pending, pending, pending)
+        s is SyncStatus.Synced -> stringResource(R.string.sync_synced_at, s.at.atZone(ZoneId.systemDefault()).format(ClockFormat))
+        else -> stringResource(R.string.sync_auto)
     }
 }
 
@@ -484,7 +549,7 @@ private fun AccountCard(account: AccountUiState, onSignIn: () -> Unit, onEmailSi
             IconCircle(R.drawable.ic_cloud_sync, 40.dp, Ink.Cyan.copy(alpha = 0.15f))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    if (user == null) "Simpan ke akun" else user.email ?: user.name ?: "Akun ItungEn",
+                    if (user == null) stringResource(R.string.save_to_account) else user.email ?: user.name ?: stringResource(R.string.itungen_account),
                     style = appText(16f, 22f, SemiBold),
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
@@ -494,11 +559,11 @@ private fun AccountCard(account: AccountUiState, onSignIn: () -> Unit, onEmailSi
         if (user == null) {
             GoogleSignInButton(busy = account.busy, onClick = onSignIn)
             ItungButton(onClick = onEmailSignIn, modifier = Modifier.fillMaxWidth(), enabled = !account.busy) {
-                Text("Masuk dengan email", style = appText(15f, 20f, SemiBold))
+                Text(stringResource(R.string.sign_in_email), style = appText(15f, 20f, SemiBold))
             }
         } else if (failed) {
             ItungButton(onClick = onRetry, modifier = Modifier.fillMaxWidth(), enabled = account.sync != SyncStatus.Syncing && !account.busy) {
-                Text("Coba lagi", style = appText(15f, 20f, SemiBold, Ink.Blue))
+                Text(stringResource(R.string.action_retry), style = appText(15f, 20f, SemiBold, Ink.Blue))
             }
         }
     }

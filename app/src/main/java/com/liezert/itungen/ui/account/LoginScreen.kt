@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.account
 
+import androidx.compose.ui.res.stringResource
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -76,51 +77,56 @@ fun LoginScreen(
             .padding(horizontal = 24.dp),
     ) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.Center) {
-            Text("ItungEn", style = appText(44f, 52f, Bold, tracking = -1f))
+            Text(stringResource(R.string.app_name), style = appText(44f, 52f, Bold, tracking = -1f))
             Text(
-                "Catat uang masuk dan keluar,\nkejar target tabunganmu.",
+                stringResource(R.string.login_tagline),
                 Modifier.padding(top = 8.dp),
                 style = appText(17f, 24f, Regular, Ink.Muted),
             )
             if (emailMode) {
                 Column(Modifier.padding(top = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(if (creating) "Buat akun baru" else "Masuk dengan email", style = appText(20f, 28f, SemiBold))
+                    Text(stringResource(if (creating) R.string.create_account else R.string.sign_in_email), style = appText(20f, 28f, SemiBold))
                     ItungTextField(
                         email,
-                        "Email",
+                        stringResource(R.string.email),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
                     )
                     ItungTextField(
                         password,
-                        "Kata sandi",
+                        stringResource(R.string.password),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                         password = true,
                     )
                 }
             } else {
                 ItungCard(Modifier.fillMaxWidth().padding(top = 32.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                    Feature(R.drawable.ic_wallet, "Catat cepat", "Keypad kalkulator, langsung tersimpan.")
-                    Feature(R.drawable.ic_target, "Target tabungan", "Pantau progres setiap goal.")
-                    Feature(R.drawable.ic_cloud_sync, "Aman di akunmu", "Masuk agar catatan tersimpan dan tersinkron di semua HP.")
+                    Feature(R.drawable.ic_wallet, stringResource(R.string.login_feature_fast), stringResource(R.string.login_feature_fast_body))
+                    Feature(R.drawable.ic_target, stringResource(R.string.login_feature_goals), stringResource(R.string.login_feature_goals_body))
+                    Feature(R.drawable.ic_cloud_sync, stringResource(R.string.login_feature_safe), stringResource(R.string.login_feature_safe_body))
                 }
             }
         }
         Spacer(Modifier.height(16.dp))
 
         state.message?.let {
-            Text(it, Modifier.fillMaxWidth().padding(bottom = 12.dp), style = appText(14f, 20f, Medium, Ink.Red), textAlign = TextAlign.Center)
+            Text(stringResource(it), Modifier.fillMaxWidth().padding(bottom = 12.dp), style = appText(14f, 20f, Medium, Ink.Red), textAlign = TextAlign.Center)
         }
         if (emailMode) {
             ItungButton(
                 onClick = { viewModel.signInWithEmail(email.text.toString(), password.text.toString(), creating) },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 enabled = !state.busy,
-            ) { Text(if (state.busy) "Menghubungkan…" else if (creating) "Daftar" else "Masuk", style = appText(16f, 22f, SemiBold)) }
-            LinkText(if (creating) "Sudah punya akun? Masuk" else "Belum punya akun? Daftar") {
+            ) {
+                Text(
+                    stringResource(if (state.busy) R.string.connecting else if (creating) R.string.sign_up else R.string.sign_in),
+                    style = appText(16f, 22f, SemiBold),
+                )
+            }
+            LinkText(stringResource(if (creating) R.string.have_account else R.string.no_account)) {
                 creating = !creating
                 viewModel.clearMessage()
             }
-            LinkText("Kembali") {
+            LinkText(stringResource(R.string.action_back)) {
                 emailMode = false
                 creating = false
                 viewModel.clearMessage()
@@ -132,7 +138,7 @@ fun LoginScreen(
                 onClick = { emailMode = true },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 enabled = !state.busy,
-            ) { Text("Masuk dengan email", style = appText(16f, 22f, SemiBold)) }
+            ) { Text(stringResource(R.string.sign_in_email), style = appText(16f, 22f, SemiBold)) }
             Spacer(Modifier.height(12.dp))
             ItungButton(
                 onClick = {
@@ -141,14 +147,14 @@ fun LoginScreen(
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 enabled = !state.busy,
-            ) { Text("Lanjutkan sebagai tamu", style = appText(16f, 22f, SemiBold)) }
+            ) { Text(stringResource(R.string.continue_as_guest), style = appText(16f, 22f, SemiBold)) }
             Text(
-                "Sebagai tamu, catatan hanya tersimpan di HP ini. Kamu bisa masuk kapan saja dari Profil.",
+                stringResource(R.string.guest_note),
                 Modifier.fillMaxWidth().padding(top = 12.dp),
                 style = appText(13f, 18f, Regular, Ink.Gray),
                 textAlign = TextAlign.Center,
             )
-            LinkText("Coba dengan data contoh") {
+            LinkText(stringResource(R.string.try_with_demo)) {
                 viewModel.continueWithDemo()
                 onDone()
             }
@@ -177,7 +183,7 @@ fun GoogleSignInButton(busy: Boolean, modifier: Modifier = Modifier, onClick: ()
     ) {
         if (!busy) Ico(R.drawable.ic_google)
         // Teks gelap tetap di atas tombol putih (Ink.Black adalah warna latar: di tema terang ikut terang dan hilang).
-        Text(if (busy) "Menghubungkan…" else "Masuk dengan Google", style = appText(16f, 22f, SemiBold, Color.Black))
+        Text(stringResource(if (busy) R.string.connecting else R.string.sign_in_google), style = appText(16f, 22f, SemiBold, Color.Black))
     }
 }
 

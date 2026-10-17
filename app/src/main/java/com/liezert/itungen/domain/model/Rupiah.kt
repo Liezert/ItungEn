@@ -23,18 +23,11 @@ fun formatRupiah(amount: Long): String =
 enum class AmountKind { INCOME, EXPENSE, NEUTRAL }
 
 /**
- * Teks nominal pemasukan/pengeluaran: tanpa tanda +/- (arahnya ditunjukkan warna, ikon, dan [amountDescription]).
+ * Teks nominal pemasukan/pengeluaran: tanpa tanda +/- (arahnya ditunjukkan warna, ikon, dan deskripsi TalkBack).
  * [short] = ringkas untuk ruang sempit ("Rp1.25M").
  */
 fun amountText(amount: Long, short: Boolean = false): String =
     if (short) formatRupiahShort(amount.absoluteValue) else formatRupiah(amount.absoluteValue)
-
-/** Untuk TalkBack: "Pengeluaran Rp50.000" / "Pemasukan Rp50.000"; nominal netral apa adanya (saldo minus tetap bertanda). */
-fun amountDescription(amount: Long, kind: AmountKind): String = when (kind) {
-    AmountKind.INCOME -> "Pemasukan " + amountText(amount)
-    AmountKind.EXPENSE -> "Pengeluaran " + amountText(amount)
-    AmountKind.NEUTRAL -> formatRupiah(amount)
-}
 
 /** Ringkas untuk ruang sempit: 1250000 → "Rp1.25M", 3000000 → "Rp3M", 250000 → "Rp250.000". */
 fun formatRupiahShort(amount: Long): String {

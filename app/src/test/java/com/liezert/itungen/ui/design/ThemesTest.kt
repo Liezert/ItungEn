@@ -27,7 +27,7 @@ class ThemesTest {
         for (spec in Themes.all) for (dark in listOf(true, false)) {
             val c = spec.colors(dark, null)
             val card = c.surface.compositeOver(c.background)
-            val where = "${spec.name} ${if (dark) "gelap" else "terang"}"
+            val where = "${spec.id} ${if (dark) "gelap" else "terang"}"
             assertTrue("$where: teks ${contrast(c.text, c.background)}", contrast(c.text, c.background) >= 4.5f)
             assertTrue("$where: teks di kartu ${contrast(c.text, card)}", contrast(c.text, card) >= 4.5f)
             assertTrue("$where: pemasukan ${contrast(c.income, card)}", contrast(c.income, card) >= 3f)

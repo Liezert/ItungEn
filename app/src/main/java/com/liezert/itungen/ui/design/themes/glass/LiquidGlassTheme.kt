@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.design.themes.glass
 
+import com.liezert.itungen.R
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -55,7 +56,7 @@ import com.liezert.itungen.ui.theme.appText
  */
 object LiquidGlassTheme : ThemeSpec {
     override val id = "liquid_glass"
-    override val name = "Liquid Glass"
+    override val nameRes = R.string.theme_liquid_glass
     override val capturesScreen = true
 
     // Token Figma (DESIGN_SPEC §6.1) untuk tema gelap; tema terang memakai warna sistem iOS.

@@ -1,5 +1,7 @@
 package com.liezert.itungen.ui.account
 
+import androidx.annotation.StringRes
+import com.liezert.itungen.R
 import android.content.Context
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.NoCredentialException
@@ -34,7 +36,8 @@ data class AccountUiState(
     /** Perubahan lokal yang belum terunggah. */
     val pending: Int = 0,
     val busy: Boolean = false,
-    val message: String? = null,
+    /** Pesan galat/aksi akun (resource); null = tidak ada. */
+    @StringRes val message: Int? = null,
 )
 
 /** Dipakai layar Masuk dan kartu akun di Profil. */
@@ -59,41 +62,41 @@ class AccountViewModel(private val container: AppContainer) : ViewModel() {
         } catch (_: GetCredentialCancellationException) {
             null // pengguna menutup pemilih akun
         } catch (_: NoCredentialException) {
-            "Belum ada akun Google di HP ini. Tambahkan lewat Pengaturan."
+            R.string.login_no_google_account
         } catch (_: AccountUnavailableException) {
-            "Login Google belum dikonfigurasi di aplikasi ini."
+            R.string.login_google_unconfigured
         } catch (_: Exception) {
-            "Gagal masuk. Periksa koneksi internet lalu coba lagi."
+            R.string.login_failed_network
         }
     }
 
     /** [create] true = daftar akun baru. */
     fun signInWithEmail(email: String, password: String, create: Boolean) = run {
         val address = email.trim()
-        if (address.isEmpty() || password.isEmpty()) return@run "Isi email dan kata sandi."
+        if (address.isEmpty() || password.isEmpty()) return@run R.string.login_fill_fields
         try {
             container.account.signInWithEmail(address, password, create)
             onSignedIn()
         } catch (e: CancellationException) {
             throw e
         } catch (_: AccountUnavailableException) {
-            "Login belum dikonfigurasi di aplikasi ini."
+            R.string.login_unconfigured
         } catch (_: FirebaseAuthWeakPasswordException) {
-            "Kata sandi terlalu lemah. Gunakan minimal 6 karakter."
+            R.string.login_weak_password
         } catch (_: FirebaseAuthUserCollisionException) {
-            "Email ini sudah terdaftar. Silakan masuk."
+            R.string.login_email_taken
         } catch (_: FirebaseAuthInvalidCredentialsException) {
-            if (create) "Format email tidak valid." else "Email atau kata sandi salah."
+            if (create) R.string.login_bad_email else R.string.login_wrong_credentials
         } catch (_: FirebaseAuthInvalidUserException) {
-            "Email atau kata sandi salah."
+            R.string.login_wrong_credentials
         } catch (_: FirebaseNetworkException) {
-            "Tidak ada koneksi internet. Coba lagi."
+            R.string.login_offline
         } catch (_: Exception) {
-            "Gagal masuk. Coba lagi nanti."
+            R.string.login_failed_later
         }
     }
 
-    private fun onSignedIn(): String? {
+    private fun onSignedIn(): Int? {
         container.onboarded = true
         // Data tamu di HP ini ikut terunggah, lalu data dari HP lain ditarik. Di scope aplikasi:
         // layar Masuk langsung ditutup setelah login, jadi viewModelScope-nya ikut dibatalkan.
@@ -119,13 +122,13 @@ class AccountViewModel(private val container: AppContainer) : ViewModel() {
 
     fun signOut() = run {
         if (container.sync.signOut()) null
-        else "Masih ada catatan yang belum terunggah. Sambungkan internet dulu agar tidak hilang."
+        else R.string.sign_out_blocked
     }
 
     fun clearMessage() = local.update { it.copy(message = null) }
 
-    /** Menjalankan aksi akun satu per satu; teks yang dikembalikan tampil sebagai pesan. */
-    private fun run(action: suspend () -> String?) {
+    /** Menjalankan aksi akun satu per satu; resource teks yang dikembalikan tampil sebagai pesan. */
+    private fun run(action: suspend () -> Int?) {
         if (local.value.busy) return
         viewModelScope.launch {
             local.update { it.copy(busy = true, message = null) }

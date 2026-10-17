@@ -1,5 +1,7 @@
 package com.liezert.itungen.ui.settings
 
+import com.liezert.itungen.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -76,11 +78,11 @@ private fun ThemeTile(spec: ThemeSpec, selected: Boolean, onClick: () -> Unit) {
                 val sample = TextStyle(fontFamily = font, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = spec.type.weight(FontWeight.SemiBold))
                 Text(formatRupiah(50_000), style = sample.copy(color = colors.income), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(formatRupiah(20_000), style = sample.copy(color = colors.expense), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("Saldo", style = sample.copy(color = colors.text, fontWeight = spec.type.weight(FontWeight.Normal)), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.balance_sample), style = sample.copy(color = colors.text, fontWeight = spec.type.weight(FontWeight.Normal)), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         Text(
-            spec.name,
+            stringResource(spec.nameRes),
             Modifier.padding(horizontal = 4.dp),
             style = appText(13f, 18f, Medium, if (selected) Ink.White else Ink.Muted),
             maxLines = 1,

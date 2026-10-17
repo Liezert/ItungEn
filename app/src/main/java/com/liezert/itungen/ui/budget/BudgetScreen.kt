@@ -1,5 +1,10 @@
 package com.liezert.itungen.ui.budget
 
+import com.liezert.itungen.ui.components.formatIn
+import androidx.annotation.StringRes
+import androidx.compose.ui.res.stringResource
+import com.liezert.itungen.ui.components.dateLocale
+import com.liezert.itungen.ui.components.displayName
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -52,7 +57,7 @@ import com.liezert.itungen.ui.components.Ico
 import com.liezert.itungen.ui.components.ItungAlertDialog
 import com.liezert.itungen.ui.components.ItungDatePickerDialog
 import androidx.activity.compose.BackHandler
-import com.liezert.itungen.ui.components.rememberIndonesianDatePickerState
+import com.liezert.itungen.ui.components.rememberAppDatePickerState
 import com.liezert.itungen.ui.components.TopBar
 import com.liezert.itungen.ui.components.bottomClearance
 import com.liezert.itungen.ui.components.screenPad
@@ -72,24 +77,28 @@ import com.liezert.itungen.ui.design.ItungTab
 import com.liezert.itungen.ui.design.ItungCard
 import com.liezert.itungen.ui.design.ItungButton
 
-private val Id = Locale.forLanguageTag("id-ID")
-private val LongDate = DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Id)
 private const val DayMillis = 86_400_000L
 
 private val Periods = listOf(
-    BudgetPeriod.MONTHLY to "Bulanan",
-    BudgetPeriod.WEEKLY to "Mingguan",
-    BudgetPeriod.UNTIL_DATE to "Tak tentu",
+    BudgetPeriod.MONTHLY to R.string.period_monthly,
+    BudgetPeriod.WEEKLY to R.string.period_weekly,
+    BudgetPeriod.UNTIL_DATE to R.string.period_until,
 )
 
-/** "per bulan" / "per minggu" / "sampai kiriman berikutnya". */
-private fun BudgetPeriod.per() = when (this) {
-    BudgetPeriod.MONTHLY -> "per bulan"
-    BudgetPeriod.WEEKLY -> "per minggu"
-    BudgetPeriod.UNTIL_DATE -> "sampai kiriman berikutnya"
-}
+/** Teks per periode: (bulanan, mingguan, tak tentu). */
+@Composable
+private fun BudgetPeriod.pick(@StringRes monthly: Int, @StringRes weekly: Int, @StringRes until: Int, vararg args: Any) =
+    stringResource(
+        when (this) {
+            BudgetPeriod.MONTHLY -> monthly
+            BudgetPeriod.WEEKLY -> weekly
+            BudgetPeriod.UNTIL_DATE -> until
+        },
+        *args,
+    )
 
-fun dayName(day: Int): String = DayOfWeek.of(day.coerceIn(1, 7)).getDisplayName(TextStyle.FULL, Id)
+@Composable
+fun dayName(day: Int): String = DayOfWeek.of(day.coerceIn(1, 7)).getDisplayName(TextStyle.FULL, dateLocale())
 
 /**
  * Setup sekali untuk Jatah hari ini (DESIGN_SPEC §5): kapan uang masuk (bulanan, mingguan, atau tak tentu),
@@ -170,16 +179,16 @@ fun BudgetScreen(onBack: () -> Unit) {
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding()) {
         TopBar(
-            leading = { ItungIconButton(R.drawable.ic_back, back, "Kembali") },
+            leading = { ItungIconButton(R.drawable.ic_back, back, stringResource(R.string.action_back)) },
             trailing = { Spacer(Modifier.size(48.dp)) },
         )
         Column(Modifier.screenPad(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("Anggaran", style = appText(20f, 28f, Bold, tracking = -0.5f))
+            Text(stringResource(R.string.budget_title), style = appText(20f, 28f, Bold, tracking = -0.5f))
             Text(
-                "Diisi sekali. ItungEn membagi sisa uangmu per hari sampai uang masuk berikutnya.",
+                stringResource(R.string.budget_intro),
                 style = appText(14f, 20f, Regular, Ink.Gray),
             )
-            Text("Uang masuk kapan?", Modifier.padding(start = 4.dp, top = 4.dp), style = appText(13f, 18f, Medium, Ink.Gray))
+            Text(stringResource(R.string.income_when), Modifier.padding(start = 4.dp, top = 4.dp), style = appText(13f, 18f, Medium, Ink.Gray))
             ItungTabs(
                 selectedTabIndex = { Periods.indexOfFirst { it.first == period } },
                 onTabSelected = { switchPeriod(Periods[it].first) },
@@ -190,52 +199,44 @@ fun BudgetScreen(onBack: () -> Unit) {
             ) {
                 Periods.forEach { (value, label) ->
                     ItungTab({ switchPeriod(value) }, selected = value == period) {
-                        Text(label, style = appText(14f, 20f, SemiBold, if (value == period) Ink.White else Ink.Muted))
+                        Text(stringResource(label), style = appText(14f, 20f, SemiBold, if (value == period) Ink.White else Ink.Muted))
                     }
                 }
             }
             if (converted) {
                 Text(
-                    "Nominal disesuaikan ke ${period.per()}. Periksa lagi sebelum menyimpan.",
+                    period.pick(R.string.converted_monthly, R.string.converted_weekly, R.string.converted_until),
                     Modifier.padding(horizontal = 4.dp),
                     style = appText(12f, 16f, Medium, Ink.Orange),
                 )
             }
             DateRow(
-                title = when (period) {
-                    BudgetPeriod.MONTHLY -> "Tanggal gajian / kiriman"
-                    BudgetPeriod.WEEKLY -> "Hari uang saku"
-                    BudgetPeriod.UNTIL_DATE -> "Kiriman berikutnya"
-                },
+                title = period.pick(R.string.payday_title, R.string.allowance_day_title, R.string.next_transfer_title),
                 value = when (period) {
-                    BudgetPeriod.MONTHLY -> "Tanggal $monthDay setiap bulan"
-                    BudgetPeriod.WEEKLY -> "Setiap ${dayName(weekDay)}"
-                    BudgetPeriod.UNTIL_DATE -> nextDate.format(LongDate)
+                    BudgetPeriod.MONTHLY -> stringResource(R.string.payday_value, monthDay)
+                    BudgetPeriod.WEEKLY -> stringResource(R.string.allowance_day_value, dayName(weekDay))
+                    BudgetPeriod.UNTIL_DATE -> nextDate.formatIn("EEEE, d MMMM yyyy")
                 },
                 onClick = { picking = true },
             )
             AmountField(
                 income,
-                when (period) {
-                    BudgetPeriod.MONTHLY -> "Uang masuk per bulan (gaji, uang saku)"
-                    BudgetPeriod.WEEKLY -> "Uang saku per minggu"
-                    BudgetPeriod.UNTIL_DATE -> "Uang yang ada sampai kiriman berikutnya"
-                },
+                period.pick(R.string.income_monthly, R.string.income_weekly, R.string.income_until),
             )
-            AmountField(bills, "Tagihan tetap ${period.per()} (kos, listrik, cicilan)")
+            AmountField(bills, period.pick(R.string.bills_monthly, R.string.bills_weekly, R.string.bills_until))
             Text(
-                "Catat pembayaran tagihan dengan kategori Tagihan agar tidak mengurangi jatah harian.",
+                stringResource(R.string.bills_hint),
                 Modifier.padding(horizontal = 4.dp),
                 style = appText(12f, 16f, Regular, Ink.Gray),
             )
-            AmountField(savings, "Target tabungan ${period.per()}")
+            AmountField(savings, period.pick(R.string.savings_monthly, R.string.savings_weekly, R.string.savings_until))
 
             ItungCard(Modifier.fillMaxWidth(), padding = 17.dp, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Jatah hari ini", style = appText(13f, 18f, Medium, Ink.Gray))
+                Text(stringResource(R.string.today_allowance), style = appText(13f, 18f, Medium, Ink.Gray))
                 Text(
                     when {
                         incomeValue == 0L -> "—"
-                        preview.unrealistic -> "Belum realistis"
+                        preview.unrealistic -> stringResource(R.string.not_realistic)
                         else -> formatRupiah(preview.todayAllowance)
                     },
                     style = appText(22f, 28f, Bold, if (incomeValue > 0 && preview.unrealistic) Ink.Red else Ink.White),
@@ -244,10 +245,12 @@ fun BudgetScreen(onBack: () -> Unit) {
                     if (incomeValue > 0 && preview.unrealistic) {
                         unrealisticMessage(preview)
                     } else {
-                        "Sama dengan Beranda: sudah memperhitungkan catatan siklus ini" +
-                            (if (goalsMonthly > 0) " dan setoran target ${formatRupiah(goalsMonthly)}/bulan." else ".") +
+                        listOfNotNull(
+                            if (goalsMonthly > 0) stringResource(R.string.preview_same_with_goals, formatRupiah(goalsMonthly))
+                            else stringResource(R.string.preview_same),
                             // Rencana baru di tengah siklus: uangnya diprorata sampai uang masuk berikutnya.
-                            (if (preview.cycleStart > cycleStart) " Siklus pertama dihitung mulai hari ini." else "")
+                            stringResource(R.string.preview_first_cycle).takeIf { preview.cycleStart > cycleStart },
+                        ).joinToString(" ")
                     },
                     style = appText(13f, 18f, Regular, Ink.Gray),
                 )
@@ -261,20 +264,20 @@ fun BudgetScreen(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 tint = Ink.Blue.copy(alpha = if (incomeValue > 0) 1f else 0.5f),
                 enabled = incomeValue > 0,
-            ) { Text("Simpan anggaran", style = appText(16f, 22f, Bold, Color.White)) }
+            ) { Text(stringResource(R.string.save_budget), style = appText(16f, 22f, Bold, Color.White)) }
 
             // Batas per kategori tersimpan langsung (tidak menunggu "Simpan anggaran").
-            Text("Batas per kategori (opsional)", Modifier.padding(start = 4.dp, top = 12.dp), style = appText(15f, 22f, SemiBold))
+            Text(stringResource(R.string.category_limits_title), Modifier.padding(start = 4.dp, top = 12.dp), style = appText(15f, 22f, SemiBold))
             Text(
-                "Diingatkan di Beranda dan Insight saat pengeluaran kategori mencapai 80% dan 100% batas bulan ini.",
+                stringResource(R.string.category_limits_body),
                 Modifier.padding(horizontal = 4.dp),
                 style = appText(12f, 16f, Regular, Ink.Gray),
             )
             expenseCategories.forEach { category ->
                 val limit = limits[category.uuid]
                 DateRow(
-                    title = category.name,
-                    value = if (limit != null) "${formatRupiah(limit)} / bulan" else "Tanpa batas",
+                    title = category.displayName(),
+                    value = if (limit != null) stringResource(R.string.per_month, formatRupiah(limit)) else stringResource(R.string.no_limit),
                     onClick = { limitFor = category },
                 )
             }
@@ -284,9 +287,9 @@ fun BudgetScreen(onBack: () -> Unit) {
 
     ItungAlertDialog(
         visible = confirmBack,
-        title = "Simpan perubahan anggaran?",
-        text = "Perubahan rencana belum disimpan.",
-        confirmLabel = "Simpan",
+        title = stringResource(R.string.save_budget_title),
+        text = stringResource(R.string.save_budget_body),
+        confirmLabel = stringResource(R.string.action_save),
         onConfirm = {
             confirmBack = false
             if (incomeValue > 0) container.saveBudgetPlan(draft)
@@ -296,7 +299,7 @@ fun BudgetScreen(onBack: () -> Unit) {
             confirmBack = false
             onBack()
         },
-        dismissLabel = "Buang",
+        dismissLabel = stringResource(R.string.discard_action),
         confirmColor = Ink.Blue,
     )
 
@@ -306,16 +309,16 @@ fun BudgetScreen(onBack: () -> Unit) {
     }) { limitFor = null }
 
     when (period) {
-        BudgetPeriod.MONTHLY -> ChoiceSheet("Tanggal gajian / kiriman", (1..28).map { it to it.toString() }, 7, monthDay, picking, {
+        BudgetPeriod.MONTHLY -> ChoiceSheet(stringResource(R.string.payday_title), (1..28).map { it to it.toString() }, 7, monthDay, picking, {
             monthDay = it
             picking = false
         }) { picking = false }
-        BudgetPeriod.WEEKLY -> ChoiceSheet("Hari uang saku", (1..7).map { it to dayName(it).take(3) }, 7, weekDay, picking, {
+        BudgetPeriod.WEEKLY -> ChoiceSheet(stringResource(R.string.allowance_day_title), (1..7).map { it to dayName(it).take(3) }, 7, weekDay, picking, {
             weekDay = it
             picking = false
         }) { picking = false }
         BudgetPeriod.UNTIL_DATE -> {
-            val pickerState = rememberIndonesianDatePickerState(nextDate) { it > today }
+            val pickerState = rememberAppDatePickerState(nextDate) { it > today }
             ItungDatePickerDialog(
                 visible = picking,
                 state = pickerState,

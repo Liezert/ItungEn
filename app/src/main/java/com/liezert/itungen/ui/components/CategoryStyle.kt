@@ -1,5 +1,10 @@
 package com.liezert.itungen.ui.components
 
+import com.liezert.itungen.data.local.defaultCategoryUuid
+import com.liezert.itungen.data.local.DefaultCategories
+import android.content.Context
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import androidx.annotation.DrawableRes
 import androidx.compose.ui.graphics.Color
 import com.liezert.itungen.R
@@ -55,9 +60,66 @@ fun Category.style(): CategoryStyle =
 fun Transaction.style(): CategoryStyle =
     category?.style() ?: if (type == TransactionType.TRANSFER_OUT) TransferOutStyle else TransferStyle
 
+private val DefaultNames = mapOf(
+    (CategoryType.EXPENSE to "food") to R.string.cat_food,
+    (CategoryType.EXPENSE to "transport") to R.string.cat_transport,
+    (CategoryType.EXPENSE to "shopping") to R.string.cat_shopping,
+    (CategoryType.EXPENSE to "bill") to R.string.cat_bill,
+    (CategoryType.EXPENSE to "entertainment") to R.string.cat_entertainment,
+    (CategoryType.EXPENSE to "health") to R.string.cat_health,
+    (CategoryType.EXPENSE to "education") to R.string.cat_education,
+    (CategoryType.EXPENSE to "other") to R.string.cat_other,
+    (CategoryType.INCOME to "salary") to R.string.cat_salary,
+    (CategoryType.INCOME to "gift") to R.string.cat_gift,
+    (CategoryType.INCOME to "bonus") to R.string.cat_bonus,
+    (CategoryType.INCOME to "other") to R.string.cat_other,
+)
+
+/**
+ * Kategori bawaan yang namanya belum diubah → nama dalam bahasa app. Data di database tidak berubah (tetap nama
+ * Indonesia); kategori buatan pengguna atau yang sudah diganti namanya tampil apa adanya.
+ */
+private fun Category.defaultNameRes(): Int? {
+    if (uuid != defaultCategoryUuid(icon, type)) return null
+    if (DefaultCategories.none { (seed, seedIcon, seedType) -> seed == name && seedIcon == icon && seedType == type }) return null
+    return DefaultNames[type to icon]
+}
+
+@Composable
+fun Category.displayName(): String = defaultNameRes()?.let { stringResource(it) } ?: name
+
+/** Nama tersimpan (mis. kunci filter "Makanan") → nama tampilan; nama bawaan diterjemahkan, lainnya apa adanya. */
+@Composable
+fun categoryNameLabel(storedName: String): String =
+    DefaultCategories.firstOrNull { it.first == storedName }?.let { (_, icon, type) -> DefaultNames[type to icon] }
+        ?.let { stringResource(it) } ?: storedName
+
+fun Category.displayName(context: Context): String = defaultNameRes()?.let(context::getString) ?: name
+
+private val TransferBack = Regex("Dari (.+) \\((?:dibatalkan|dihapus)\\)")
+
+/**
+ * Catatan untuk ditampilkan. Catatan transfer goal dibuat app dalam bahasa Indonesia ("Ke Sepatu lari", "Dari … (dihapus)")
+ * dan tersimpan begitu (ikut sinkron & cadangan), jadi diterjemahkan saat tampil; catatan pengguna apa adanya.
+ */
+@Composable
+fun Transaction.displayNote(): String? = transferNoteRes()?.let { (res, name) -> stringResource(res, name) } ?: note
+
+fun Transaction.displayNote(context: Context): String? = transferNoteRes()?.let { (res, name) -> context.getString(res, name) } ?: note
+
+private fun Transaction.transferNoteRes(): Pair<Int, String>? {
+    val text = note ?: return null
+    return when {
+        type == TransactionType.TRANSFER_OUT && text.startsWith("Ke ") -> R.string.transfer_to to text.removePrefix("Ke ")
+        type == TransactionType.TRANSFER_IN -> TransferBack.matchEntire(text)?.let { R.string.transfer_back_from to it.groupValues[1] }
+        else -> null
+    }
+}
+
 /** Nama kategori; "Transfer" hanya untuk transfer goal, bukan untuk pemasukan/pengeluaran yang kategorinya hilang. */
-val Transaction.categoryLabel: String
-    get() = category?.name ?: if (type == TransactionType.INCOME || type == TransactionType.EXPENSE) "Lainnya" else "Transfer"
+@Composable
+fun Transaction.categoryLabel(): String = category?.displayName()
+    ?: stringResource(if (type == TransactionType.INCOME || type == TransactionType.EXPENSE) R.string.cat_other else R.string.category_transfer)
 
 /** Pemasukan / pengeluaran; transfer goal netral (bukan pemasukan/pengeluaran, §3.2). */
 val Transaction.amountKind: AmountKind

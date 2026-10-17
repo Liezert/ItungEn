@@ -1,5 +1,7 @@
 package com.liezert.itungen.ui.lock
 
+import com.liezert.itungen.R
+import androidx.compose.ui.res.stringResource
 import android.content.Context
 import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK
@@ -67,7 +69,8 @@ object AppLock {
 fun LockScreen(onUnlock: () -> Unit) {
     val context = LocalContext.current
     val activity = LocalActivity.current
-    val prompt = { AppLock.authenticate(context, "Buka ItungEn") { if (it) onUnlock() } }
+    val title = stringResource(R.string.unlock_prompt)
+    val prompt = { AppLock.authenticate(context, title) { if (it) onUnlock() } }
     LaunchedEffect(Unit) { prompt() }
     BackHandler { activity?.moveTaskToBack(true) }
     val backdrop = rememberBackgroundBackdrop(vignette = true)
@@ -89,14 +92,14 @@ private fun BoxScope.LockContent(prompt: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("ItungEn terkunci", style = appText(22f, 28f, Bold))
+        Text(stringResource(R.string.locked_title), style = appText(22f, 28f, Bold))
         Text(
-            "Gunakan sidik jari, wajah, atau PIN HP untuk membuka.",
+            stringResource(R.string.locked_body),
             style = appText(14f, 20f, Regular, Ink.Gray),
             textAlign = TextAlign.Center,
         )
         ItungButton(onClick = prompt, modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(52.dp)) {
-            Text("Buka kunci", style = appText(16f, 22f, SemiBold))
+            Text(stringResource(R.string.unlock), style = appText(16f, 22f, SemiBold))
         }
     }
 }

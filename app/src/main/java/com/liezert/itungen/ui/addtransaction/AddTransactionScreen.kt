@@ -1,5 +1,8 @@
 package com.liezert.itungen.ui.addtransaction
 
+import com.liezert.itungen.domain.model.RupiahPrefix
+import androidx.compose.ui.res.stringResource
+import com.liezert.itungen.ui.components.displayName
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -85,7 +88,7 @@ import com.liezert.itungen.ui.components.IconCircle
 import com.liezert.itungen.ui.components.ItungAlertDialog
 import com.liezert.itungen.ui.components.ItungDatePickerDialog
 import androidx.activity.compose.BackHandler
-import com.liezert.itungen.ui.components.rememberIndonesianDatePickerState
+import com.liezert.itungen.ui.components.rememberAppDatePickerState
 import com.liezert.itungen.ui.components.relativeDay
 import com.liezert.itungen.ui.components.screenPad
 import com.liezert.itungen.ui.components.style
@@ -95,7 +98,7 @@ import com.liezert.itungen.ui.theme.Medium
 import com.liezert.itungen.ui.theme.Regular
 import com.liezert.itungen.ui.theme.SemiBold
 import com.liezert.itungen.ui.theme.appText
-import com.liezert.itungen.ui.theme.formatId
+import com.liezert.itungen.ui.theme.formatDay
 import java.time.LocalDate
 import com.liezert.itungen.ui.design.ItungTabs
 import com.liezert.itungen.ui.design.ItungTab
@@ -153,7 +156,7 @@ fun AddTransactionContent(
     }
     var showPicker by rememberSaveable { mutableStateOf(false) }
     // Tanggal di masa depan tidak boleh dipilih (DESIGN_SPEC §7.1).
-    val pickerState = rememberIndonesianDatePickerState(state.date) { it <= state.today }
+    val pickerState = rememberAppDatePickerState(state.date) { it <= state.today }
     LaunchedEffect(state.date) { pickerState.selectedDateMillis = state.date.toEpochDay() * DayMillis }
     val focus = LocalFocusManager.current
 
@@ -163,9 +166,9 @@ fun AddTransactionContent(
     // Nominal divalidasi dari isian saat ini (bukan disimpan sebagai galat), jadi pesannya hilang begitu isian benar.
     val amountMessage = when {
         amount.isEmpty() -> null
-        hasOperator(amount) && result == null -> "Tidak bisa dibagi 0"
+        hasOperator(amount) && result == null -> stringResource(R.string.keypad_divide_zero)
         result != null && result > MAX_AMOUNT -> TransactionError.AMOUNT_TOO_LARGE.message()
-        result != null && result <= 0 -> "Hasilnya harus lebih dari 0"
+        result != null && result <= 0 -> stringResource(R.string.keypad_result_positive)
         else -> null
     } ?: state.error?.message()
     LaunchedEffect(note) { snapshotFlow { note.text.toString() }.drop(1).collect { onEdited() } }
@@ -196,8 +199,8 @@ fun AddTransactionContent(
             Arrangement.SpaceBetween,
             Alignment.CenterVertically,
         ) {
-            ItungIconButton(R.drawable.ic_close, close, "Tutup")
-            Text(if (state.editing) "Ubah Transaksi" else "Tambah Transaksi", style = appText(16f, 24f, Bold))
+            ItungIconButton(R.drawable.ic_close, close, stringResource(R.string.action_close))
+            Text(stringResource(if (state.editing) R.string.edit_transaction_title else R.string.add_transaction_title), style = appText(16f, 24f, Bold))
             Spacer(Modifier.size(48.dp))
         }
 
@@ -249,12 +252,14 @@ fun AddTransactionContent(
                 enabled = enabled,
             ) {
                 Text(
-                    when {
-                        state.categoryId == null -> "Pilih kategori dulu"
-                        state.saveFailed -> "Gagal menyimpan, coba lagi"
-                        state.editing -> "Simpan Perubahan"
-                        else -> "Simpan Transaksi"
-                    },
+                    stringResource(
+                        when {
+                            state.categoryId == null -> R.string.pick_category_first
+                            state.saveFailed -> R.string.save_failed_retry
+                            state.editing -> R.string.save_changes
+                            else -> R.string.save_transaction
+                        }
+                    ),
                     style = appText(16f, 24f, Bold, Color.White),
                 )
             }
@@ -263,15 +268,15 @@ fun AddTransactionContent(
 
     ItungAlertDialog(
         visible = confirmClose,
-        title = "Buang isian?",
-        text = "Nominal dan catatan yang belum disimpan akan hilang.",
-        confirmLabel = "Buang",
+        title = stringResource(R.string.discard_title),
+        text = stringResource(R.string.discard_body),
+        confirmLabel = stringResource(R.string.discard_action),
         onConfirm = {
             confirmClose = false
             onClose()
         },
         onDismiss = { confirmClose = false },
-        dismissLabel = "Lanjut isi",
+        dismissLabel = stringResource(R.string.keep_editing),
         confirmColor = Ink.Red,
     )
 
@@ -286,14 +291,17 @@ fun AddTransactionContent(
     )
 }
 
-private fun TransactionError.message() = when (this) {
-    TransactionError.AMOUNT_REQUIRED -> "Isi nominal lebih dari 0."
-    TransactionError.AMOUNT_TOO_LARGE -> "Nominal terlalu besar."
-    TransactionError.CATEGORY_REQUIRED -> "Pilih kategori."
-    TransactionError.DATE_IN_FUTURE -> "Tanggal tidak boleh di masa depan."
-}
+@Composable
+private fun TransactionError.message() = stringResource(
+    when (this) {
+        TransactionError.AMOUNT_REQUIRED -> R.string.transfer_error_amount
+        TransactionError.AMOUNT_TOO_LARGE -> R.string.tx_error_too_large
+        TransactionError.CATEGORY_REQUIRED -> R.string.tx_error_category
+        TransactionError.DATE_IN_FUTURE -> R.string.tx_error_future
+    }
+)
 
-private val Types = listOf(CategoryType.EXPENSE to "Pengeluaran", CategoryType.INCOME to "Pemasukan")
+private val Types = listOf(CategoryType.EXPENSE to R.string.type_expense, CategoryType.INCOME to R.string.type_income)
 
 /** Segmented control iOS 26: panel kaca LiquidBottomTabs dengan indikator yang bisa diseret. */
 @Composable
@@ -309,7 +317,7 @@ private fun TypeToggle(type: CategoryType, tint: Color, modifier: Modifier = Mod
     ) {
         Types.forEach { (t, label) ->
             ItungTab({ onChange(t) }, selected = t == type) {
-                Text(label, style = appText(14f, 20f, SemiBold, if (t == type) Ink.White else Ink.Muted))
+                Text(stringResource(label), style = appText(14f, 20f, SemiBold, if (t == type) Ink.White else Ink.Muted))
             }
         }
     }
@@ -329,6 +337,8 @@ private fun AmountCard(
     modifier: Modifier = Modifier,
     onAmountClick: () -> Unit,
 ) {
+    val amountLabel = result?.let { stringResource(R.string.amount_a11y, formatRupiah(it)) } ?: stringResource(R.string.amount_a11y_empty)
+    val noteLabel = stringResource(R.string.note)
     ItungSurface(modifier.fillMaxWidth()) {
         Column {
             Column(
@@ -337,12 +347,12 @@ private fun AmountCard(
                     .clickable(interactionSource = null, indication = null, onClick = onAmountClick)
                     .padding(horizontal = 24.dp, vertical = 18.dp)
                     .semantics(mergeDescendants = true) {
-                        contentDescription = "Nominal " + (result?.let(::formatRupiah) ?: "kosong")
+                        contentDescription = amountLabel
                     },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Rp", style = appText(24f, 32f, SemiBold, Ink.Gray))
+                    Text(RupiahPrefix, style = appText(24f, 32f, SemiBold, Ink.Gray))
                     BasicText(
                         if (expr.isEmpty()) "0" else formatKeypad(expr),
                         style = appText(40f, 49f, Bold, if (expr.isEmpty()) Ink.white(0.3f) else Ink.White),
@@ -353,7 +363,7 @@ private fun AmountCard(
                 when {
                     message != null -> Text(message, Modifier.padding(top = 2.dp), style = appText(15f, 20f, Medium, Ink.Red))
                     hasOperator(expr) && result != null -> Text(
-                        "= " + formatRupiah(result) + if (keypadRounds(expr)) " (dibulatkan)" else "",
+                        stringResource(if (keypadRounds(expr)) R.string.keypad_result_rounded else R.string.keypad_result, formatRupiah(result)),
                         Modifier.padding(top = 2.dp),
                         style = appText(15f, 20f, Medium, Ink.Muted),
                     )
@@ -368,7 +378,7 @@ private fun AmountCard(
                 Ico(R.drawable.ic_add_note)
                 BasicTextField(
                     state = note,
-                    modifier = Modifier.weight(1f).semantics { contentDescription = "Catatan" },
+                    modifier = Modifier.weight(1f).semantics { contentDescription = noteLabel },
                     inputTransformation = InputTransformation.maxLength(MAX_NOTE),
                     textStyle = appText(15f, 20f, Regular, Ink.White),
                     cursorBrush = SolidColor(Ink.White),
@@ -376,7 +386,7 @@ private fun AmountCard(
                     decorator = TextFieldDecorator { inner ->
                         Box(contentAlignment = Alignment.CenterStart) {
                             if (note.text.isEmpty()) {
-                                Text("Ada catatan? (opsional)", style = appText(15f, 20f, Regular, Ink.Muted.copy(alpha = 0.5f)))
+                                Text(stringResource(R.string.note_hint), style = appText(15f, 20f, Regular, Ink.Muted.copy(alpha = 0.5f)))
                             }
                             inner()
                         }
@@ -394,7 +404,7 @@ private val KeypadRows = listOf(
     listOf("000", "0", "<", "+"),
 )
 
-private val OperatorNames = mapOf("÷" to "bagi", "×" to "kali", "-" to "kurang", "+" to "tambah")
+private val OperatorNames = mapOf("÷" to R.string.key_divide, "×" to R.string.key_times, "-" to R.string.key_minus, "+" to R.string.key_plus)
 private val KeyHeight = 44.dp
 
 /**
@@ -423,8 +433,8 @@ private fun AmountKeypad(
                             }
                         },
                         description = when {
-                            key == "<" -> "Hapus angka"
-                            operator -> OperatorNames.getValue(key)
+                            key == "<" -> stringResource(R.string.key_backspace)
+                            operator -> stringResource(OperatorNames.getValue(key))
                             else -> key
                         },
                         operator = operator,
@@ -437,10 +447,10 @@ private fun AmountKeypad(
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Key(onClear, "Kosongkan nominal", operator = false, Modifier.weight(1f)) {
+            Key(onClear, stringResource(R.string.key_clear), operator = false, Modifier.weight(1f)) {
                 Text("C", style = appText(22f, 28f, SemiBold, Ink.Red))
             }
-            Key(onEquals, "Sama dengan, hitung hasil", operator = true, Modifier.weight(3f)) {
+            Key(onEquals, stringResource(R.string.key_equals), operator = true, Modifier.weight(3f)) {
                 Text("=", style = appText(26f, 30f, Medium))
             }
         }
@@ -492,7 +502,7 @@ private fun CategoryRow(categories: List<Category>, selectedId: Long?, onSelect:
             ) {
                 Ico(category.style().chipIcon)
                 Text(
-                    category.name,
+                    category.displayName(),
                     Modifier.padding(start = 6.dp),
                     style = appText(13f, 18f, if (selected) SemiBold else Medium, if (selected) Ink.Title else Ink.Muted),
                     maxLines = 1,
@@ -512,7 +522,7 @@ private fun DateSelector(date: LocalDate, today: LocalDate, modifier: Modifier =
             Text(
                 buildAnnotatedString {
                     withStyle(SpanStyle(fontWeight = SemiBold, color = Ink.White)) { append(relativeDay(date, today)) }
-                    withStyle(SpanStyle(fontWeight = Regular, color = Ink.Gray)) { append("  ·  " + date.formatId()) }
+                    withStyle(SpanStyle(fontWeight = Regular, color = Ink.Gray)) { append("  ·  " + date.formatDay()) }
                 },
                 Modifier.weight(1f),
                 style = appText(15f, 20f),

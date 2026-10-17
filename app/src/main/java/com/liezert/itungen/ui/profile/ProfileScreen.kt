@@ -1,5 +1,7 @@
 package com.liezert.itungen.ui.profile
 
+import com.liezert.itungen.ui.components.formatIn
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -49,7 +51,6 @@ import java.util.Locale
 import androidx.compose.ui.text.style.TextOverflow
 import com.liezert.itungen.ui.design.ItungSurface
 
-private val JoinedFormat = DateTimeFormatter.ofPattern("MMM yyyy", Locale.forLanguageTag("id-ID"))
 
 @Composable
 fun ProfileScreen(
@@ -81,9 +82,9 @@ fun ProfileContent(
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         IconCircle(R.drawable.ic_profile_avatar, 56.dp, Ink.AvatarBg, border = Ink.white(0.1f))
                         Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                            Text(user?.name ?: if (user != null) "Pengguna ItungEn" else "Tamu", style = appText(16f, 20f, SemiBold))
+                            Text(user?.name ?: stringResource(if (user != null) R.string.itungen_user else R.string.guest), style = appText(16f, 20f, SemiBold))
                             Text(
-                                user?.email ?: "Data tersimpan di perangkat ini",
+                                user?.email ?: stringResource(R.string.data_on_device),
                                 style = appText(13f, 19.5f, Regular, Ink.Gray),
                             )
                         }
@@ -92,9 +93,9 @@ fun ProfileContent(
                     Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
                         val hidden = (LocalContext.current.applicationContext as ItungEnApp).container.hideBalance
                         // Dompet utama saja (dana di target tampil di Goals), sama dengan Total Saldo di Beranda.
-                        Stat("SALDO UTAMA", if (hidden) HiddenAmount else formatRupiah(state.balance), bordered = false, Modifier.weight(1f))
-                        Stat("TARGET AKTIF", state.activeGoals.toString(), bordered = true, Modifier.weight(1.15f))
-                        Stat("BERGABUNG", state.joined?.format(JoinedFormat) ?: "-", bordered = true, Modifier.weight(1f))
+                        Stat(stringResource(R.string.stat_main_balance), if (hidden) HiddenAmount else formatRupiah(state.balance), bordered = false, Modifier.weight(1f))
+                        Stat(stringResource(R.string.stat_active_goals), state.activeGoals.toString(), bordered = true, Modifier.weight(1.15f))
+                        Stat(stringResource(R.string.stat_joined), state.joined?.formatIn("MMM yyyy") ?: "-", bordered = true, Modifier.weight(1f))
                     }
                 }
             }
@@ -103,9 +104,9 @@ fun ProfileContent(
                 Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(12.dp), Alignment.CenterVertically) {
                     IconCircle(R.drawable.ic_settings, 32.dp, Ink.white(0.1f))
                     Column(Modifier.weight(1f)) {
-                        Text("Pengaturan", style = appText(15f, 22f, Medium))
+                        Text(stringResource(R.string.settings), style = appText(15f, 22f, Medium))
                         Text(
-                            if (user == null) "Masuk untuk menyimpan & menyinkronkan" else "Akun, sinkronisasi, tampilan",
+                            stringResource(if (user == null) R.string.settings_hint_guest else R.string.settings_hint_user),
                             style = appText(12f, 16f, Regular, Ink.Gray),
                         )
                     }

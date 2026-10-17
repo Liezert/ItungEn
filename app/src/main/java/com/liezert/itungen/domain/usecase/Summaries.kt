@@ -12,12 +12,15 @@ import java.time.temporal.TemporalAdjusters
 /** Transaksi yang sering diulang, untuk "Catat cepat" sekali ketuk. */
 data class QuickTemplate(
     val type: TransactionType,
-    val categoryId: Long,
+    val category: Category,
     val note: String?,
     val amount: Long,
-    /** "Makan siang" atau nama kategori bila tanpa catatan. */
-    val label: String,
-)
+) {
+    val categoryId: Long get() = category.id
+
+    /** "Makan siang", atau nama kategori tersimpan bila tanpa catatan (UI menampilkan nama dalam bahasa app). */
+    val label: String get() = note ?: category.name
+}
 
 /**
  * Pengeluaran dengan kategori + catatan yang sama ≥ 2 kali dalam 60 hari terakhir, paling sering dulu; nominalnya
@@ -34,7 +37,7 @@ fun quickTemplates(transactions: List<Transaction>, today: LocalDate, limit: Int
         .take(limit)
         .map { (_, rows) ->
             val last = rows.maxWith(compareBy({ it.date }, { it.createdAt }))
-            QuickTemplate(last.type, last.category!!.id, last.note?.trim(), last.amount, last.note?.trim() ?: last.category.name)
+            QuickTemplate(last.type, last.category!!, last.note?.trim(), last.amount)
         }
 
 /** Awal minggu (Senin) yang memuat [today] (§5.2). */

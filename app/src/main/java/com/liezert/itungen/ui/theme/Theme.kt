@@ -1,5 +1,6 @@
 package com.liezert.itungen.ui.theme
 
+import com.liezert.itungen.ui.components.formatIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -13,8 +14,6 @@ import com.liezert.itungen.ui.design.LocalItungTheme
 import com.liezert.glass.components.LocalGlassEconomy
 import com.liezert.glass.components.LocalLiquidLightTheme
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 // Dibuat ulang tiap ganti tema: Ink membaca tema aktif.
 private fun scheme() = (if (Ink.dark) darkColorScheme() else lightColorScheme()).copy(
@@ -49,7 +48,6 @@ fun ItungEnTheme(glassEconomy: Boolean = false, content: @Composable () -> Unit)
     )
 }
 
-private val DateFormat = DateTimeFormatter.ofPattern("EEEE, d MMM yyyy", Locale.forLanguageTag("id-ID"))
-
-/** "Kamis, 24 Sep 2026". */
-fun LocalDate.formatId(): String = format(DateFormat)
+/** "Kamis, 24 Sep 2026" / "Thursday, 24 Sept 2026", dalam bahasa app. */
+@Composable
+fun LocalDate.formatDay(): String = formatIn("EEEE, d MMM yyyy")
