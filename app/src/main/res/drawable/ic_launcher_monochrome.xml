@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lapisan monokrom (themed icon Android 13+): hanya bentuk "=" dan panah; warnanya diatur sistem. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M41,62L67,62"
+        android:strokeWidth="6"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M41,50L55,50L65,40"
+        android:strokeWidth="6"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M70.5,34.5L71.5,46.2C71.6,47.6 69.9,48.4 68.9,47.4L58.6,37.1C57.6,36.1 58.4,34.4 59.8,34.5Z" />
+</vector>

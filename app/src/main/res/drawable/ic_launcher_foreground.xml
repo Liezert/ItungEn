@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ikon ItungEn (orisinal): tanda "=" (menghitung) yang garis atasnya naik menjadi panah (tabungan bertambah), di atas
+  cakram kaca bening. Semua isi penting di dalam lingkaran aman 66 dp di tengah kanvas 108 dp.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Cakram kaca: isi putih tipis + tepi terang. -->
+    <path
+        android:fillColor="#2EFFFFFF"
+        android:pathData="M54,54m-29,0a29,29 0,1 1,58 0a29,29 0,1 1,-58 0"
+        android:strokeWidth="1.2"
+        android:strokeColor="#66FFFFFF" />
+    <!-- Kilau kaca di bagian atas cakram. -->
+    <path android:pathData="M31,47a23,20 0,0 1,46 0a26,12 0,0 0,-46 0z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="54"
+                android:startY="27"
+                android:endX="54"
+                android:endY="50">
+                <item android:offset="0" android:color="#73FFFFFF" />
+                <item android:offset="1" android:color="#00FFFFFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Garis bawah tanda "=". -->
+    <path
+        android:pathData="M41,62L67,62"
+        android:strokeWidth="6"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round" />
+    <!-- Garis atas: datar lalu naik ke kanan atas. -->
+    <path
+        android:pathData="M41,50L55,50L65,40"
+        android:strokeWidth="6"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- Kepala panah. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M70.5,34.5L71.5,46.2C71.6,47.6 69.9,48.4 68.9,47.4L58.6,37.1C57.6,36.1 58.4,34.4 59.8,34.5Z" />
+</vector>
